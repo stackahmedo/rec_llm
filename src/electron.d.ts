@@ -39,12 +39,27 @@ interface ElectronSummarize {
   }>;
 }
 
+interface ElectronPdf {
+  exportReport: (data: {
+    fileName: string;
+    processedAt: string;
+    languageCode: string;
+    summary?: string;
+    pointNotes?: string[];
+    actionItems?: string[];
+    decisions?: string[];
+    risks?: string[];
+    utterances?: Array<{ speaker: string; startMs: number; endMs: number; text: string }>;
+  }) => Promise<{ ok: boolean; error?: string; filePath?: string }>;
+}
+
 interface ElectronAPI {
   platform: string;
   openAudioFiles: () => Promise<AudioFileMeta[]>;
   settings: ElectronSettings;
   assemblyai: ElectronAssemblyAI;
   summarize: ElectronSummarize;
+  pdf: ElectronPdf;
 }
 
 declare global {

@@ -2,9 +2,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Avatar, AvatarFallback } from "./ui/avatar";
-import { Play, Pause, Edit3, Check, Sparkles, Volume2 } from "lucide-react";
+import { Play, Pause, Edit3, Check, Sparkles, Volume2, Download } from "lucide-react";
 import { useState } from "react";
 import { Slider } from "./ui/slider";
+import { toast } from "sonner";
 import { useTranscripts } from "../transcript-store";
 
 interface Segment {
@@ -66,9 +67,37 @@ const demoSegments: Segment[] = [
 export function TranscriptViewer() {
   const [playing, setPlaying] = useState(false);
   const [pos, setPos] = useState([12]);
-  const { getActive, transcripts, setActiveId } = useTranscripts();
+  const { getActive, getActiveSummary, transcripts, setActiveId } = useTranscripts();
 
   const active = getActive();
+  const summary = getActiveSummary();
+
+  const exportPdf = async () => {
+    if (!active) {
+      toast.error("No transcript to export");
+      return;
+    }
+    if (!window.electronAPI?.pdf) {
+      toast.error("PDF export not available in browser mode");
+      return;
+    }
+    const result = await window.electronAPI.pdf.exportReport({
+      fileName: active.fileName,
+      processedAt: active.completedAt,
+      languageCode: active.languageCode,
+      summary: summary?.summary,
+      pointNotes: summary?.pointNotes,
+      actionItems: summary?.actionItems,
+      decisions: summary?.decisions,
+      risks: summary?.risks,
+      utterances: active.utterances,
+    });
+    if (result.ok) {
+      toast.success("PDF exported", { description: result.filePath });
+    } else if (result.error !== 'Export cancelled.') {
+      toast.error("PDF export failed", { description: result.error });
+    }
+  };
 
   const segments: Segment[] = active
     ? active.utterances.map((u, i) => {
@@ -118,7 +147,9 @@ export function TranscriptViewer() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm"><Sparkles className="size-4 mr-1" />Summarize</Button>
-          <Button size="sm">Export</Button>
+          <Button size="sm" onClick={exportPdf} disabled={!active}>
+            <Download className="size-4 mr-1" />Export PDF
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-5">

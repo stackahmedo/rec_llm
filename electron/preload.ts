@@ -50,4 +50,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       risks?: string[];
     }> => ipcRenderer.invoke('summarize:generate', { transcript, language }),
   },
+  pdf: {
+    exportReport: (data: {
+      fileName: string;
+      processedAt: string;
+      languageCode: string;
+      summary?: string;
+      pointNotes?: string[];
+      actionItems?: string[];
+      decisions?: string[];
+      risks?: string[];
+      utterances?: Array<{ speaker: string; startMs: number; endMs: number; text: string }>;
+    }): Promise<{ ok: boolean; error?: string; filePath?: string }> =>
+      ipcRenderer.invoke('pdf:exportReport', data),
+  },
 });
