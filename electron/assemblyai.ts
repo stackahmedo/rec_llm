@@ -1,6 +1,7 @@
 import { ipcMain, net, BrowserWindow } from 'electron';
 import fs from 'fs';
-import { Readable } from 'stream';
+import path from 'path';
+import https from 'https';
 
 const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -47,37 +48,60 @@ function sendProgress(jobId: string, stage: string, detail?: string): void {
   }
 }
 
-async function uploadFileOnce(filePath: string, apiKey: string): Promise<string> {
-  const stat = fs.statSync(filePath);
-  const nodeStream = fs.createReadStream(filePath);
-  const webStream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
+function uploadFileOnce(filePath: string, apiKey: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const stat = fs.statSync(filePath);
+    const ext = path.extname(filePath).toLowerCase();
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+    console.log(`[assemblyai:upload] path exists: true, size: ${stat.size} bytes, ext: ${ext}`);
 
-  try {
-    const response = await net.fetch('https://api.assemblyai.com/v2/upload', {
+    const options: https.RequestOptions = {
+      hostname: 'api.assemblyai.com',
+      path: '/v2/upload',
       method: 'POST',
       headers: {
         'Authorization': apiKey,
         'Content-Type': 'application/octet-stream',
-        'Content-Length': String(stat.size),
+        'Content-Length': stat.size,
       },
-      body: webStream,
-      signal: controller.signal as AbortSignal,
-      duplex: 'half',
-    } as any);
+    };
 
-    if (response.status !== 200) {
-      throw new Error(`Upload failed (${response.status})`);
-    }
+    const timer = setTimeout(() => {
+      req.destroy(new Error('Upload timed out'));
+    }, UPLOAD_TIMEOUT_MS);
 
-    const data = await response.json() as { upload_url: string };
-    return data.upload_url;
-  } finally {
-    clearTimeout(timeout);
-    nodeStream.destroy();
-  }
+    const req = https.request(options, (res) => {
+      let body = '';
+      res.on('data', (chunk) => { body += chunk; });
+      res.on('end', () => {
+        clearTimeout(timer);
+        console.log(`[assemblyai:upload] HTTP status: ${res.statusCode}`);
+        if (res.statusCode === 200) {
+          try {
+            const data = JSON.parse(body) as { upload_url: string };
+            resolve(data.upload_url);
+          } catch (e) {
+            reject(new Error('Failed to parse upload response'));
+          }
+        } else {
+          reject(new Error(`Upload failed (${res.statusCode}): ${body.slice(0, 200)}`));
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+
+    const stream = fs.createReadStream(filePath);
+    stream.on('error', (err) => {
+      clearTimeout(timer);
+      req.destroy(err);
+      reject(err);
+    });
+    stream.pipe(req);
+  });
 }
 
 async function uploadFile(filePath: string, apiKey: string): Promise<string> {
@@ -86,8 +110,10 @@ async function uploadFile(filePath: string, apiKey: string): Promise<string> {
   } catch (err: any) {
     // One retry on failure
     const msg = err.message || '';
-    if (msg.includes('aborted') || msg.includes('Upload failed')) {
+    console.log(`[assemblyai:upload] first attempt failed: ${msg.slice(0, 100)}`);
+    if (msg.includes('timed out') || msg.includes('Upload failed') || msg.includes('ECONNRESET')) {
       await new Promise((resolve) => setTimeout(resolve, 2000));
+      console.log(`[assemblyai:upload] retrying...`);
       return await uploadFileOnce(filePath, apiKey);
     }
     throw err;
