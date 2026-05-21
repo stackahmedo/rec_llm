@@ -9,7 +9,8 @@ async function getApiKey(): Promise<string | null> {
   const { default: Store } = await import('electron-store');
   store = new Store({ name: 'recllm-settings', encryptionKey: 'recllm-local-encryption-key' });
   const keys = store.get('apiKeys') as Record<string, string> | undefined;
-  return keys?.assemblyai || null;
+  const key = keys?.assemblyai?.trim() || null;
+  return key;
 }
 
 interface Utterance {

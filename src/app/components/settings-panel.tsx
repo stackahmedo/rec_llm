@@ -119,19 +119,17 @@ export function SettingsPanel() {
   const checkAssembly = async () => {
     setAsmState("checking");
     const api = window.electronAPI?.assemblyai;
-    if (api) {
-      const result = await api.validateKey();
-      setAsmState(result.ok ? "ok" : "fail");
-      if (result.ok) toast.success("AssemblyAI connected", { description: "API key verified · diarization available." });
-      else toast.error("AssemblyAI rejected the key", { description: result.error || "Check your key." });
-    } else {
-      setTimeout(() => {
-        const ok = asmKey.length >= 20;
-        setAsmState(ok ? "ok" : "fail");
-        if (ok) toast.success("AssemblyAI connected", { description: "API key verified · diarization available." });
-        else toast.error("AssemblyAI rejected the key", { description: "Check that you pasted the full token (32+ chars)." });
-      }, 900);
+    if (!api) {
+      setAsmState("idle");
+      toast.message("Desktop mode required for real API validation", {
+        description: "Run the app via Electron to validate keys against the real API.",
+      });
+      return;
     }
+    const result = await api.validateKey();
+    setAsmState(result.ok ? "ok" : "fail");
+    if (result.ok) toast.success("AssemblyAI connected", { description: "API key verified · diarization available." });
+    else toast.error("AssemblyAI rejected the key", { description: result.error || "Check your key." });
   };
 
   // Summary — choose Gemini / ChatGPT / Gemma
@@ -183,7 +181,16 @@ export function SettingsPanel() {
     name: string,
     provider: string,
   ) => async () => {
-    if (!key || key.length < 10) {
+    if (!window.electronAPI?.settings) {
+      setState("idle");
+      toast.message("Desktop mode required for real API validation", {
+        description: "Run the app via Electron to validate keys against the real API.",
+      });
+      return;
+    }
+
+    const trimmed = key.trim();
+    if (!trimmed || trimmed.length < 10) {
       setState("fail");
       toast.error(`${name}: no valid key`, { description: "Paste a key and save settings first." });
       return;
@@ -267,10 +274,10 @@ export function SettingsPanel() {
     const api = window.electronAPI?.settings;
     if (api) {
       await api.set('apiKeys', {
-        assemblyai: asmKey,
-        gemini: gemKey,
-        chatgpt: gptKey,
-        gemma: gemmaKey,
+        assemblyai: asmKey.trim(),
+        gemini: gemKey.trim(),
+        chatgpt: gptKey.trim(),
+        gemma: gemmaKey.trim(),
       });
       await api.set('models', {
         assemblyai: asmModel,
@@ -285,7 +292,7 @@ export function SettingsPanel() {
       });
       toast.success("Settings saved", { description: "Encrypted and stored locally." });
     } else {
-      toast.success("Settings saved", { description: "Stored in memory only (browser mode)." });
+      toast.message("Desktop mode required", { description: "Settings are not persisted in browser mode." });
     }
   };
 

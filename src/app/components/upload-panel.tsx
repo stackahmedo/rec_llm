@@ -117,7 +117,6 @@ export function UploadPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const onDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
     setDrag(false);
     handleFiles(e.dataTransfer.files);
   }, []);
@@ -295,10 +294,10 @@ export function UploadPanel() {
 
       <CardContent className="space-y-5">
         <div
-          onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
-          onDragLeave={() => setDrag(false)}
-          onDrop={onDrop}
-          onClick={() => openNativePicker()}
+          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDrag(true); }}
+          onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDrag(false); }}
+          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDrop(e); }}
+          onClick={(e) => { e.preventDefault(); openNativePicker(); }}
           className={`border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center text-center transition-colors cursor-pointer
             ${drag ? "border-primary bg-primary/10" : "bg-muted/30 hover:bg-muted/50"}`}
         >
