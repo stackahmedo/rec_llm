@@ -257,24 +257,33 @@ export function UploadPanel() {
   };
 
   const pauseResume = (id: string) => {
-    setFiles((p) => p.map((f) => f.id === id ? { ...f, stage: f.stage === "paused" ? "uploading" : "paused" } : f));
+    setFiles((p) => p.map((f) => f.id === id ? { ...f, stage: f.stage === "paused" ? "queued" : "paused" } : f));
   };
   const retry = (id: string) => {
-    setFiles((p) => p.map((f) => f.id === id ? { ...f, stage: "uploading", stageProgress: 0, uploadedBytes: 0, error: undefined } : f));
+    setFiles((p) => p.map((f) => f.id === id ? { ...f, stage: "queued", stageProgress: 0, uploadedBytes: 0, error: undefined } : f));
   };
   const remove = (id: string) => setFiles((p) => p.filter((f) => f.id !== id));
   const clearDone = () => setFiles((p) => p.filter((f) => f.stage !== "done"));
 
-  const transcribeFile = async (id: string) => {
-    const file = files.find((f) => f.id === id);
-    if (!file?.filePath || !window.electronAPI?.assemblyai) return;
+  // Sequential queue processor
+  const processingRef = useRef(false);
 
-    setFiles((p) => p.map((f) => f.id === id ? { ...f, stage: "uploading", stageProgress: 0 } : f));
+  const processNext = useCallback(async () => {
+    if (processingRef.current) return;
+    if (!window.electronAPI?.assemblyai) return;
 
-    const result = await window.electronAPI.assemblyai.transcribeFile(file.filePath, id);
+    const queue = files.filter((f) => f.stage === "queued" && f.filePath);
+    if (queue.length === 0) return;
+
+    const file = queue[0];
+    processingRef.current = true;
+
+    setFiles((p) => p.map((f) => f.id === file.id ? { ...f, stage: "uploading", stageProgress: 0 } : f));
+
+    const result = await window.electronAPI.assemblyai.transcribeFile(file.filePath!, file.id);
 
     if (result.ok) {
-      setFiles((p) => p.map((f) => f.id === id ? {
+      setFiles((p) => p.map((f) => f.id === file.id ? {
         ...f,
         stage: "done",
         stageProgress: 100,
@@ -284,7 +293,7 @@ export function UploadPanel() {
         language: result.languageCode || "auto",
       } : f));
       addTranscript({
-        fileId: id,
+        fileId: file.id,
         fileName: file.name,
         fullText: result.fullText || '',
         languageCode: result.languageCode || 'unknown',
@@ -295,7 +304,7 @@ export function UploadPanel() {
         description: `${result.utterances?.length || 0} utterances · ${result.languageCode}`,
       });
     } else {
-      setFiles((p) => p.map((f) => f.id === id ? {
+      setFiles((p) => p.map((f) => f.id === file.id ? {
         ...f,
         stage: "failed",
         stageProgress: 0,
@@ -303,7 +312,18 @@ export function UploadPanel() {
       } : f));
       toast.error(`Transcription failed: ${file.name}`, { description: result.error });
     }
-  };
+
+    processingRef.current = false;
+  }, [files, addTranscript]);
+
+  // Auto-advance queue when files change
+  useEffect(() => {
+    if (processingRef.current) return;
+    const hasQueued = files.some((f) => f.stage === "queued" && f.filePath);
+    if (hasQueued) {
+      processNext();
+    }
+  }, [files, processNext]);
 
   // Listen for progress updates from main process
   useEffect(() => {
@@ -462,13 +482,13 @@ export function UploadPanel() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>{f.name}</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        {f.filePath && f.stage === "queued" && (
-                          <DropdownMenuItem onClick={() => transcribeFile(f.id)}>
-                            <ScanText className="size-4 mr-2" />Transcribe
+                        {f.filePath && f.stage === "failed" && (
+                          <DropdownMenuItem onClick={() => retry(f.id)}>
+                            <RotateCw className="size-4 mr-2" />Retry transcription
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuItem><Eye className="size-4 mr-2" />{t("upload.viewDetails")}</DropdownMenuItem>
-                        <DropdownMenuItem><RotateCw className="size-4 mr-2" />{t("upload.restart")}</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => retry(f.id)}><RotateCw className="size-4 mr-2" />{t("upload.restart")}</DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-destructive" onClick={() => remove(f.id)}>
                           <X className="size-4 mr-2" />{t("upload.remove")}
