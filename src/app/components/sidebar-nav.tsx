@@ -1,6 +1,7 @@
 import { AudioLines, LayoutDashboard, Upload, FileText, Users, Settings, FileEdit, Database } from "lucide-react";
 import { Button } from "./ui/button";
 import { useT } from "../i18n";
+import { useEffect, useState } from "react";
 
 interface SidebarNavProps {
   active: string;
@@ -9,6 +10,23 @@ interface SidebarNavProps {
 
 export function SidebarNav({ active, onChange }: SidebarNavProps) {
   const { t } = useT();
+  const [keyStatus, setKeyStatus] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const api = window.electronAPI?.settings;
+    if (!api) return;
+    (async () => {
+      const keys = await api.get('apiKeys') as Record<string, string> | null;
+      if (keys) {
+        setKeyStatus({
+          assemblyai: (keys.assemblyai?.length || 0) >= 20,
+          gemini: (keys.gemini?.length || 0) >= 10,
+          chatgpt: (keys.chatgpt?.length || 0) >= 10,
+        });
+      }
+    })();
+  }, []);
+
   const items = [
     { id: "dashboard",   label: t("nav.dashboard"),   icon: LayoutDashboard },
     { id: "upload",      label: t("nav.upload"),      icon: Upload },
@@ -46,8 +64,20 @@ export function SidebarNav({ active, onChange }: SidebarNavProps) {
           );
         })}
       </nav>
-      <div className="p-3 border-t text-center text-muted-foreground text-xs">
-        Local Desktop Mode
+      <div className="p-3 border-t space-y-2">
+        <div className="flex items-center justify-center gap-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <span className={`size-2 rounded-full ${keyStatus.assemblyai ? 'bg-emerald-500' : 'bg-red-500'}`} />
+            ASM
+          </span>
+          <span className="flex items-center gap-1">
+            <span className={`size-2 rounded-full ${keyStatus.gemini ? 'bg-emerald-500' : keyStatus.chatgpt ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+            LLM
+          </span>
+        </div>
+        <div className="text-center text-muted-foreground text-xs">
+          Local Desktop Mode
+        </div>
       </div>
     </aside>
   );

@@ -2,9 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Avatar, AvatarFallback } from "./ui/avatar";
-import { Play, Pause, Volume2, Download, Sparkles } from "lucide-react";
+import { Sparkles, Download } from "lucide-react";
 import { useState } from "react";
-import { Slider } from "./ui/slider";
 import { toast } from "sonner";
 import { useTranscripts } from "../transcript-store";
 
@@ -34,8 +33,6 @@ function msToTimestamp(ms: number): string {
 const demoSegments: Segment[] = [];
 
 export function TranscriptViewer() {
-  const [playing, setPlaying] = useState(false);
-  const [pos, setPos] = useState([12]);
   const { getActive, getActiveSummary, transcripts, setActiveId } = useTranscripts();
 
   const active = getActive();
@@ -121,24 +118,11 @@ export function TranscriptViewer() {
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="border rounded-lg p-4 bg-muted/30">
-          <div className="flex items-center gap-3">
-            <Button size="icon" onClick={() => setPlaying(!playing)}>
-              {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
-            </Button>
-            <div className="tabular-nums text-muted-foreground">00:{pos[0].toString().padStart(2, "0")}:34</div>
-            <Slider value={pos} onValueChange={setPos} max={100} className="flex-1" />
-            <div className="tabular-nums text-muted-foreground">23:41:00</div>
-            <Button variant="ghost" size="icon"><Volume2 className="size-4" /></Button>
+        {segments.length === 0 ? (
+          <div className="text-center text-muted-foreground py-8">
+            No transcript available yet. Transcribe an audio file to see results here.
           </div>
-          <div className="mt-3 flex items-end gap-0.5 h-12">
-            {Array.from({ length: 80 }).map((_, i) => {
-              const h = 20 + Math.abs(Math.sin(i * 0.7)) * 70 + Math.abs(Math.cos(i * 0.3)) * 20;
-              return <div key={i} className="flex-1 bg-primary/60 rounded-sm" style={{ height: `${h}%` }} />;
-            })}
-          </div>
-        </div>
-
+        ) : (
         <div className="space-y-4">
           {segments.map((seg) => (
             <div key={seg.id} className="flex gap-3 group">
@@ -158,6 +142,7 @@ export function TranscriptViewer() {
             </div>
           ))}
         </div>
+        )}
       </CardContent>
     </Card>
   );

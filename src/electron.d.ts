@@ -60,6 +60,17 @@ interface ElectronHistory {
   clear: () => Promise<boolean>;
 }
 
+interface ElectronStorage {
+  stats: () => Promise<{
+    historySize: number;
+    transcriptCount: number;
+    summaryCount: number;
+    transcriptSize: number;
+    summarySize: number;
+    totalSize: number;
+  }>;
+}
+
 interface ElectronAPI {
   platform: string;
   openAudioFiles: () => Promise<AudioFileMeta[]>;
@@ -68,6 +79,7 @@ interface ElectronAPI {
   summarize: ElectronSummarize;
   pdf: ElectronPdf;
   history: ElectronHistory;
+  storage: ElectronStorage;
 }
 
 declare global {

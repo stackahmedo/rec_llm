@@ -6,6 +6,7 @@ import { registerAssemblyAIHandlers } from './assemblyai';
 import { registerSummarizeHandlers } from './summarize';
 import { registerPdfHandlers } from './pdf-export';
 import { registerHistoryHandlers } from './history';
+import { registerStorageStatsHandlers } from './storage-stats';
 
 const isDev = !app.isPackaged && !fs.existsSync(path.join(__dirname, '../dist/index.html'));
 
@@ -14,6 +15,7 @@ registerAssemblyAIHandlers();
 registerSummarizeHandlers();
 registerPdfHandlers();
 registerHistoryHandlers();
+registerStorageStatsHandlers();
 
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'm4a', 'mp4', 'aac', 'flac'];
 

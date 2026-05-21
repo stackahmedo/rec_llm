@@ -70,4 +70,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete: (id: string): Promise<boolean> => ipcRenderer.invoke('history:delete', id),
     clear: (): Promise<boolean> => ipcRenderer.invoke('history:clear'),
   },
+  storage: {
+    stats: (): Promise<{
+      historySize: number;
+      transcriptCount: number;
+      summaryCount: number;
+      transcriptSize: number;
+      summarySize: number;
+      totalSize: number;
+    }> => ipcRenderer.invoke('storage:stats'),
+  },
 });

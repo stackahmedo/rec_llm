@@ -7,6 +7,7 @@ import { SummaryCard } from "./components/summary-card";
 import { PdfEditor } from "./components/pdf-editor";
 import { FileLibrary } from "./components/file-library";
 import { SettingsPanel } from "./components/settings-panel";
+import { DashboardStatus } from "./components/dashboard-status";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Badge } from "./components/ui/badge";
@@ -50,16 +51,7 @@ function Shell() {
 
         <div className="flex-1 overflow-auto p-6 space-y-6">
           {view === "dashboard" && (
-            <>
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                <div className="xl:col-span-2 space-y-6">
-                  <UploadPanel />
-                </div>
-                <div className="space-y-6">
-                  <SummaryCard />
-                </div>
-              </div>
-            </>
+            <DashboardStatus onNavigate={setView} />
           )}
 
           {view === "upload" && (
