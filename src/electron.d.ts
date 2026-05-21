@@ -53,6 +53,13 @@ interface ElectronPdf {
   }) => Promise<{ ok: boolean; error?: string; filePath?: string }>;
 }
 
+interface ElectronHistory {
+  load: () => Promise<any[]>;
+  save: (job: any) => Promise<boolean>;
+  delete: (id: string) => Promise<boolean>;
+  clear: () => Promise<boolean>;
+}
+
 interface ElectronAPI {
   platform: string;
   openAudioFiles: () => Promise<AudioFileMeta[]>;
@@ -60,6 +67,7 @@ interface ElectronAPI {
   assemblyai: ElectronAssemblyAI;
   summarize: ElectronSummarize;
   pdf: ElectronPdf;
+  history: ElectronHistory;
 }
 
 declare global {

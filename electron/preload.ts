@@ -64,4 +64,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }): Promise<{ ok: boolean; error?: string; filePath?: string }> =>
       ipcRenderer.invoke('pdf:exportReport', data),
   },
+  history: {
+    load: (): Promise<any[]> => ipcRenderer.invoke('history:load'),
+    save: (job: any): Promise<boolean> => ipcRenderer.invoke('history:save', job),
+    delete: (id: string): Promise<boolean> => ipcRenderer.invoke('history:delete', id),
+    clear: (): Promise<boolean> => ipcRenderer.invoke('history:clear'),
+  },
 });

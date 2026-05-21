@@ -5,6 +5,7 @@ import { registerSettingsHandlers } from './settings';
 import { registerAssemblyAIHandlers } from './assemblyai';
 import { registerSummarizeHandlers } from './summarize';
 import { registerPdfHandlers } from './pdf-export';
+import { registerHistoryHandlers } from './history';
 
 const isDev = !app.isPackaged;
 
@@ -12,6 +13,7 @@ registerSettingsHandlers();
 registerAssemblyAIHandlers();
 registerSummarizeHandlers();
 registerPdfHandlers();
+registerHistoryHandlers();
 
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'm4a', 'mp4', 'aac', 'flac'];
 

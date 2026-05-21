@@ -98,7 +98,7 @@ function formatBytes(b: number) {
 
 export function UploadPanel() {
   const { t } = useT();
-  const { addTranscript } = useTranscripts();
+  const { addTranscript, addHistoryJob } = useTranscripts();
   const [files, setFiles] = useState<FileItem[]>([]);
   const [drag, setDrag] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -169,43 +169,62 @@ export function UploadPanel() {
     const file = queue[0];
     processingRef.current = true;
 
-    setFiles((p) => p.map((f) => f.id === file.id ? { ...f, stage: "uploading", stageProgress: 0 } : f));
+    setFiles((p) => p.map((f) => f.id === file.id ? { ...f, stage: "uploading" } : f));
 
     const result = await window.electronAPI.assemblyai.transcribeFile(file.filePath!, file.id);
+    const now = new Date().toISOString();
 
     if (result.ok) {
+      const speakerCount = result.utterances?.length
+        ? new Set(result.utterances.map((u) => u.speaker)).size
+        : 0;
+      const languageCode = result.languageCode || 'unknown';
+
       setFiles((p) => p.map((f) => f.id === file.id ? {
         ...f,
         stage: "done",
-        stageProgress: 100,
-        speakers: result.utterances?.length
-          ? new Set(result.utterances.map((u) => u.speaker)).size
-          : 0,
-        language: result.languageCode || "auto",
+        speakers: speakerCount,
+        language: languageCode,
       } : f));
       addTranscript({
         fileId: file.id,
         fileName: file.name,
         fullText: result.fullText || '',
-        languageCode: result.languageCode || 'unknown',
+        languageCode,
         utterances: result.utterances || [],
-        completedAt: new Date().toISOString(),
+        completedAt: now,
       });
+      const historyJob = {
+        id: file.id,
+        fileName: file.name,
+        filePath: file.filePath!,
+        sizeBytes: file.sizeBytes,
+        status: 'done' as const,
+        languageCode,
+        speakerCount,
+        createdAt: new Date(file.startedAt).toISOString(),
+        completedAt: now,
+        transcript: {
+          fullText: result.fullText || '',
+          utterances: result.utterances || [],
+        },
+      };
+      addHistoryJob(historyJob);
+      window.electronAPI?.history?.save(historyJob);
       toast.success(`Transcription complete: ${file.name}`, {
-        description: `${result.utterances?.length || 0} utterances · ${result.languageCode}`,
+        description: `${result.utterances?.length || 0} utterances · ${languageCode}`,
       });
     } else {
       setFiles((p) => p.map((f) => f.id === file.id ? {
         ...f,
         stage: "failed",
-        stageProgress: 0,
         error: result.error,
       } : f));
       toast.error(`Transcription failed: ${file.name}`, { description: result.error });
     }
 
     processingRef.current = false;
-  }, [files, addTranscript]);
+  }, [files, addTranscript, addHistoryJob]);
 
   // Auto-advance queue when files change
   useEffect(() => {
