@@ -1,4 +1,4 @@
-import { AudioLines, LayoutDashboard, Upload, FileText, Users, Settings, FileEdit, Database } from "lucide-react";
+import { LayoutDashboard, Upload, FileText, Users, Settings, FileEdit, Database } from "lucide-react";
 import { Button } from "./ui/button";
 import { useT } from "../i18n";
 import { useEffect, useState } from "react";
@@ -39,9 +39,7 @@ export function SidebarNav({ active, onChange }: SidebarNavProps) {
   return (
     <aside className="w-64 border-r bg-sidebar text-sidebar-foreground flex flex-col h-full">
       <div className="p-5 border-b flex items-center gap-2">
-        <div className="size-9 rounded-md bg-primary text-primary-foreground flex items-center justify-center">
-          <AudioLines className="size-5" />
-        </div>
+        <img src="/logo.png" alt="RecLLM" className="size-9 rounded-md object-contain" />
         <div>
           <div className="leading-tight">{t("brand.name")}</div>
           <div className="text-muted-foreground leading-tight">{t("brand.tagline")}</div>
