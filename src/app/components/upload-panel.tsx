@@ -224,7 +224,7 @@ export function UploadPanel() {
       addHistoryJob(historyJob);
       window.electronAPI?.history?.save(historyJob);
       toast.success(`Transcription complete: ${file.name}`, {
-        description: `${result.utterances?.length || 0} utterances · ${languageCode}`,
+        description: `${result.utterances?.length || 0} conversation segments · ${languageCode}`,
       });
     } else {
       setFiles((p) => p.map((f) => f.id === file.id ? {

@@ -7,6 +7,7 @@ import { registerSummarizeHandlers } from './summarize';
 import { registerPdfHandlers } from './pdf-export';
 import { registerHistoryHandlers } from './history';
 import { registerStorageStatsHandlers } from './storage-stats';
+import { registerExportHandlers } from './export';
 
 const isDev = !app.isPackaged && !fs.existsSync(path.join(__dirname, '../dist/index.html'));
 
@@ -16,6 +17,7 @@ registerSummarizeHandlers();
 registerPdfHandlers();
 registerHistoryHandlers();
 registerStorageStatsHandlers();
+registerExportHandlers();
 
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'm4a', 'mp4', 'aac', 'flac'];
 

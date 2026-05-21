@@ -117,7 +117,7 @@ export function PdfEditor() {
                   <div>{speakerCount}</div>
                 </div>
                 <div>
-                  <div className="text-muted-foreground text-xs">Utterances</div>
+                  <div className="text-muted-foreground text-xs">Conversation</div>
                   <div>{active.utterances.length}</div>
                 </div>
               </div>
@@ -141,7 +141,7 @@ export function PdfEditor() {
                   <span>
                     {summary?.risks?.length ? `✓ ${summary.risks.length} risks/issues` : "— No risks"}
                   </span>
-                  <span>✓ Full transcript appendix ({active.utterances.length} utterances)</span>
+                  <span>✓ Full transcript appendix ({active.utterances.length} conversation segments)</span>
                 </div>
               </div>
 

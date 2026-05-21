@@ -71,6 +71,11 @@ interface ElectronStorage {
   }>;
 }
 
+interface ElectronExport {
+  saveTxt: (fileName: string, content: string) => Promise<{ ok: boolean; error?: string; filePath?: string }>;
+  saveDocx: (fileName: string, data: any) => Promise<{ ok: boolean; error?: string; filePath?: string }>;
+}
+
 interface ElectronAPI {
   platform: string;
   openAudioFiles: () => Promise<AudioFileMeta[]>;
@@ -80,6 +85,7 @@ interface ElectronAPI {
   pdf: ElectronPdf;
   history: ElectronHistory;
   storage: ElectronStorage;
+  export: ElectronExport;
 }
 
 declare global {

@@ -105,7 +105,7 @@ export function SpeakerPanel() {
                       </Button>
                     </div>
                   )}
-                  <Badge variant="outline">{utteranceCount} utterances</Badge>
+                  <Badge variant="outline">{utteranceCount} segments</Badge>
                 </div>
                 {aliases[id] && (
                   <div className="text-muted-foreground text-xs mt-1">Original ID: {id}</div>

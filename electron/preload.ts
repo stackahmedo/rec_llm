@@ -80,4 +80,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       totalSize: number;
     }> => ipcRenderer.invoke('storage:stats'),
   },
+  export: {
+    saveTxt: (fileName: string, content: string): Promise<{ ok: boolean; error?: string; filePath?: string }> =>
+      ipcRenderer.invoke('export:saveTxt', fileName, content),
+    saveDocx: (fileName: string, data: any): Promise<{ ok: boolean; error?: string; filePath?: string }> =>
+      ipcRenderer.invoke('export:saveDocx', fileName, data),
+  },
 });
