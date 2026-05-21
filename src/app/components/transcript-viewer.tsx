@@ -33,36 +33,7 @@ function msToTimestamp(ms: number): string {
   return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
-const demoSegments: Segment[] = [
-  {
-    id: 1, speaker: "Speaker 01 · Amaru",
-    initials: "AM", color: "bg-blue-500",
-    start: "00:00:12", confidence: 0.96,
-    text: "We started the planting in the lower terrace last week. The soil there is much drier than I expected after the late rains.",
-    tags: ["male", "slow", "older"],
-  },
-  {
-    id: 2, speaker: "Speaker 02 · Killa",
-    initials: "KI", color: "bg-rose-500",
-    start: "00:00:34", confidence: 0.92,
-    text: "We may need to reroute the irrigation channel before the next cycle — otherwise we lose another harvest like in 2024.",
-    tags: ["female", "fast", "adult"], edited: true,
-  },
-  {
-    id: 3, speaker: "Speaker 03 · Inti",
-    initials: "IN", color: "bg-amber-500",
-    start: "00:01:08", confidence: 0.74,
-    text: "[overlapping] ... and the cooperative meeting agreed to share two of the new pumps if we can store them safely.",
-    tags: ["male", "fast", "young"],
-  },
-  {
-    id: 4, speaker: "Speaker 01 · Amaru",
-    initials: "AM", color: "bg-blue-500",
-    start: "00:01:41", confidence: 0.88,
-    text: "Storage is the difficult part. The shed roof still has the leak from January that we never repaired.",
-    tags: ["male", "slow", "older"],
-  },
-];
+const demoSegments: Segment[] = [];
 
 export function TranscriptViewer() {
   const [playing, setPlaying] = useState(false);
@@ -116,13 +87,13 @@ export function TranscriptViewer() {
       })
     : demoSegments;
 
-  const title = active ? active.fileName : "field_session_2026-05-19.wav";
+  const title = active ? active.fileName : "No transcript available";
   const speakerCount = active
     ? new Set(active.utterances.map((u) => u.speaker)).size
-    : 3;
+    : 0;
   const description = active
     ? `${active.utterances.length} utterances · ${speakerCount} speakers · ${active.languageCode}`
-    : "23h 41m · 3 speakers identified · captured 2026-05-19 06:12 UTC";
+    : "Transcribe an audio file to see results here.";
 
   return (
     <Card>

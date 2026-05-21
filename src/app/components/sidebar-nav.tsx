@@ -53,10 +53,10 @@ export function SidebarNav({ active, onChange }: SidebarNavProps) {
       </nav>
       <div className="p-3 border-t flex items-center gap-3">
         <div className="size-9 rounded-full bg-muted flex items-center justify-center">
-          MR
+          U
         </div>
         <div className="flex-1 min-w-0">
-          <div className="truncate">Maria Rivera</div>
+          <div className="truncate">User</div>
           <div className="text-muted-foreground truncate">{t("user.role")}</div>
         </div>
         <Button variant="ghost" size="icon">

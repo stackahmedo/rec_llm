@@ -8,14 +8,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useTranscripts } from "../transcript-store";
 
-const demoItems = [
-  "Lower-terrace planting started one week behind schedule due to dry soil.",
-  "Irrigation channel rerouting proposed to avoid a repeat of the 2024 yield loss.",
-  "Cooperative agreed to share two new water pumps if storage can be secured.",
-  "Shed roof leak from January 2026 still unrepaired — blocker for pump storage.",
-  "Three speakers identified in this 23h41m session; one new voice profile added.",
-];
-
 export function SummaryCard() {
   const { getActive, getActiveSummary, addSummary } = useTranscripts();
   const [generating, setGenerating] = useState(false);
@@ -61,7 +53,7 @@ export function SummaryCard() {
   };
 
   const hasSummary = !!summary;
-  const items = hasSummary ? summary.pointNotes : demoItems;
+  const items = hasSummary ? summary.pointNotes : [];
 
   return (
     <Card>
@@ -70,12 +62,12 @@ export function SummaryCard() {
           <div>
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="size-4 text-primary" />
-              {hasSummary ? "Session Summary" : "30-Item Session Summary"}
+              {hasSummary ? "Session Summary" : "Summary"}
             </CardTitle>
             <CardDescription>
               {hasSummary
                 ? `Generated ${summary.language === 'ja' ? 'in Japanese' : 'in English'} · ${active?.fileName || ''}`
-                : "Auto-generated structured digest · powered by Gemini batch pipeline"}
+                : "No summary generated yet. Transcribe a file and click Summarize."}
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">

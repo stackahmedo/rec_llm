@@ -52,20 +52,10 @@ const tools: { id: Tool; label: string; icon: any }[] = [
 
 const colorSwatches = ["#fde047", "#f87171", "#60a5fa", "#34d399", "#a78bfa", "#0f172a"];
 
-const initialAnnotations: Annotation[] = [
-  { id: "a1", type: "highlight", page: 1, x: 12, y: 22, w: 60, h: 5, color: "#fde047", label: "Key clause" },
-  { id: "a2", type: "text", page: 1, x: 14, y: 40, w: 40, h: 6, color: "#0f172a", text: "Revisit pricing", label: "Note · Revisit pricing" },
-  { id: "a3", type: "rect", page: 1, x: 10, y: 60, w: 75, h: 10, color: "#60a5fa", label: "Region · Section 4" },
-  { id: "a4", type: "sign", page: 2, x: 50, y: 80, w: 35, h: 8, color: "#0f172a", label: "Signature · M. Rivera" },
-];
+const initialAnnotations: Annotation[] = [];
 
 const pageThumbs = [
-  { p: 1, title: "Cover" },
-  { p: 2, title: "Agreement" },
-  { p: 3, title: "Schedule A" },
-  { p: 4, title: "Schedule B" },
-  { p: 5, title: "Exhibits" },
-  { p: 6, title: "Signatures" },
+  { p: 1, title: "Page 1" },
 ];
 
 export function PdfEditor() {
@@ -74,31 +64,20 @@ export function PdfEditor() {
   const [page, setPage] = useState(1);
   const [zoom, setZoom] = useState([110]);
   const [annotations, setAnnotations] = useState<Annotation[]>(initialAnnotations);
-  const [selectedId, setSelectedId] = useState<string | null>("a2");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Layout state
   const [columns, setColumns] = useState<"1" | "2" | "3">("1");
   const [transcriptMode, setTranscriptMode] = useState(false);
-  const [headerText, setHeaderText] = useState("VoiceLens AI · Cooperative Service Agreement");
-  const [footerText, setFooterText] = useState("Confidential · © 2026 VoiceLens");
+  const [headerText, setHeaderText] = useState("RecLLM · Transcript Report");
+  const [footerText, setFooterText] = useState("Confidential · © 2026 RecLLM");
   const [showHeader, setShowHeader] = useState(true);
   const [showFooter, setShowFooter] = useState(true);
   const [showPageNumbers, setShowPageNumbers] = useState(true);
   const [pageNumPos, setPageNumPos] = useState<"left" | "center" | "right">("right");
   const [paperSize, setPaperSize] = useState("Letter");
 
-  const transcriptLines = [
-    ["00:00:12", "Amaru", "We started the planting in the lower terrace last week. The soil there is much drier than expected after the late rains."],
-    ["00:00:34", "Killa", "We may need to reroute the irrigation channel before the next cycle — otherwise we lose another harvest like in 2024."],
-    ["00:01:08", "Inti", "...and the cooperative meeting agreed to share two of the new pumps if we can store them safely."],
-    ["00:01:41", "Amaru", "Storage is the difficult part. The shed roof still has the leak from January that we never repaired."],
-    ["00:02:10", "Killa", "Let's draft a maintenance list before the next assembly and prioritise the items that block planting."],
-    ["00:02:48", "Sumaq", "The ceremonial calendar this year places the blessing on the second Sunday — coordinate planting around it."],
-    ["00:03:21", "Inti", "I can speak with the supplier on Friday about expediting the seed delivery for the southern parcel."],
-    ["00:04:02", "Amaru", "Good. Note that we still owe the cooperative a written report on last cycle's yields before the meeting."],
-    ["00:04:45", "Mayu", "The training session on the new dashboard is set for Wednesday morning — please bring the tablets."],
-    ["00:05:12", "Wayra", "I'll handle logistics for the equipment transfer; we need two more volunteers for loading."],
-  ];
+  const transcriptLines: string[][] = [];
 
   const handlePrint = () => {
     toast.success("Opening print dialog", { description: `Pages 1–${pageThumbs.length} · ${paperSize}` });
@@ -414,7 +393,7 @@ export function PdfEditor() {
                       return (
                         <div key={a.id} style={common} className={`${ring} cursor-pointer border-b-2 flex items-end`}
                           onClick={onClick}>
-                          <span className="italic" style={{ color: a.color, fontFamily: "cursive" }}>M. Rivera</span>
+                          <span className="italic" style={{ color: a.color, fontFamily: "cursive" }}>Signature</span>
                         </div>
                       );
                     }
@@ -639,9 +618,7 @@ export function PdfEditor() {
                 <ScrollArea className="h-full">
                   <div className="p-3 space-y-3">
                     {[
-                      { who: "Maria R.", when: "2m ago", txt: "Confirm the figure in section 4 matches the schedule." },
-                      { who: "Daniel V.", when: "1h ago", txt: "Legal cleared this paragraph — safe to lock." },
-                      { who: "Priya S.", when: "yesterday", txt: "Replaced signature block with the updated template." },
+                      { who: "System", when: "—", txt: "No comments yet. Comments will appear here when added." },
                     ].map((c) => (
                       <div key={c.who} className="border rounded-md p-3">
                         <div className="flex items-center justify-between">
@@ -659,14 +636,12 @@ export function PdfEditor() {
                 <ScrollArea className="h-full">
                   <div className="p-3 space-y-3">
                     {[
-                      ["Title", "Cooperative Service Agreement"],
-                      ["Author", "Maria Rivera"],
-                      ["Created", "2026-05-12"],
-                      ["Modified", "2026-05-21"],
+                      ["Title", "Transcript Report"],
+                      ["Author", "—"],
+                      ["Created", "—"],
+                      ["Modified", "—"],
                       ["Pages", `${pageThumbs.length}`],
-                      ["Size", "1.8 MB"],
-                      ["Encryption", "AES-256"],
-                      ["Permissions", "Edit · Sign · Comment"],
+                      ["Size", "—"],
                     ].map(([k, v]) => (
                       <div key={k} className="flex justify-between border-b pb-2 last:border-b-0">
                         <span className="text-muted-foreground">{k}</span>

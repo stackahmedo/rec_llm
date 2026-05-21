@@ -6,9 +6,9 @@ type Dict = Record<string, string>;
 
 const en: Dict = {
   // Brand
-  "brand.name": "VoiceLens AI",
+  "brand.name": "RecLLM",
   "brand.tagline": "Audio Intelligence",
-  "user.role": "Researcher",
+  "user.role": "User",
 
   // Nav
   "nav.dashboard": "Dashboard",
@@ -147,9 +147,9 @@ const en: Dict = {
 
 const ja: Dict = {
   // Brand
-  "brand.name": "VoiceLens AI",
+  "brand.name": "RecLLM",
   "brand.tagline": "音声インテリジェンス",
-  "user.role": "リサーチャー",
+  "user.role": "ユーザー",
 
   // Nav
   "nav.dashboard": "ダッシュボード",
