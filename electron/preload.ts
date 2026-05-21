@@ -39,4 +39,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeAllListeners('assemblyai:progress');
     },
   },
+  summarize: {
+    generate: (transcript: string, language: 'en' | 'ja'): Promise<{
+      ok: boolean;
+      error?: string;
+      summary?: string;
+      pointNotes?: string[];
+      actionItems?: string[];
+      decisions?: string[];
+      risks?: string[];
+    }> => ipcRenderer.invoke('summarize:generate', { transcript, language }),
+  },
 });

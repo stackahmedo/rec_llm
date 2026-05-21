@@ -3,11 +3,13 @@ import path from 'path';
 import fs from 'fs';
 import { registerSettingsHandlers } from './settings';
 import { registerAssemblyAIHandlers } from './assemblyai';
+import { registerSummarizeHandlers } from './summarize';
 
 const isDev = !app.isPackaged;
 
 registerSettingsHandlers();
 registerAssemblyAIHandlers();
+registerSummarizeHandlers();
 
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'm4a', 'mp4', 'aac', 'flac'];
 

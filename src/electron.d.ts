@@ -27,11 +27,24 @@ interface ElectronAssemblyAI {
   offProgress: () => void;
 }
 
+interface ElectronSummarize {
+  generate: (transcript: string, language: 'en' | 'ja') => Promise<{
+    ok: boolean;
+    error?: string;
+    summary?: string;
+    pointNotes?: string[];
+    actionItems?: string[];
+    decisions?: string[];
+    risks?: string[];
+  }>;
+}
+
 interface ElectronAPI {
   platform: string;
   openAudioFiles: () => Promise<AudioFileMeta[]>;
   settings: ElectronSettings;
   assemblyai: ElectronAssemblyAI;
+  summarize: ElectronSummarize;
 }
 
 declare global {
