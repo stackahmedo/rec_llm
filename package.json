@@ -10,7 +10,10 @@
     "electron:compile": "tsc -p tsconfig.electron.json && echo '{\"type\":\"commonjs\"}' > electron-dist/package.json",
     "electron:dev": "npm run electron:compile && concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build": "npm run build && npm run electron:compile && electron-builder",
-    "electron:preview": "npm run build && npm run electron:compile && electron ."
+    "electron:preview": "npm run build && npm run electron:compile && electron .",
+    "dist:dir": "npm run build && npm run electron:compile && electron-builder --dir",
+    "dist:mac": "npm run build && npm run electron:compile && electron-builder --mac",
+    "dist:win": "npm run build && npm run electron:compile && electron-builder --win"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
@@ -94,9 +97,12 @@
       "dist/**/*",
       "electron-dist/**/*"
     ],
+    "mac": {
+      "target": "dir",
+      "category": "public.app-category.productivity"
+    },
     "win": {
-      "target": "nsis",
-      "icon": "build/icon.ico"
+      "target": "nsis"
     },
     "nsis": {
       "oneClick": false,
