@@ -2,6 +2,9 @@
   "name": "recllm",
   "private": true,
   "version": "0.1.0",
+  "description": "Audio transcription and summarization desktop app powered by AssemblyAI",
+  "author": "RecLLM Team",
+  "license": "MIT",
   "type": "module",
   "main": "electron-dist/main.js",
   "scripts": {
