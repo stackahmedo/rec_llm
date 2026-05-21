@@ -25,5 +25,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   assemblyai: {
     validateKey: (): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke('assemblyai:validateKey'),
+    transcribeFile: (filePath: string, jobId: string): Promise<{
+      ok: boolean;
+      error?: string;
+      fullText?: string;
+      languageCode?: string;
+      utterances?: Array<{ speaker: string; startMs: number; endMs: number; text: string }>;
+    }> => ipcRenderer.invoke('assemblyai:transcribeFile', filePath, jobId),
+    onProgress: (callback: (data: { jobId: string; stage: string; detail?: string }) => void) => {
+      ipcRenderer.on('assemblyai:progress', (_event, data) => callback(data));
+    },
+    offProgress: () => {
+      ipcRenderer.removeAllListeners('assemblyai:progress');
+    },
   },
 });

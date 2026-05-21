@@ -35,6 +35,7 @@ interface FileItem {
   stageProgress: number;
   startedAt: number;
   error?: string;
+  filePath?: string;
 }
 
 const stageOrder: Stage[] = ["uploading", "preprocess", "diarizing", "transcribing", "classifying", "summarizing", "done"];
@@ -243,8 +244,9 @@ export function UploadPanel() {
       format: meta.extension.toUpperCase(),
       sampleRate: 48000, channels: 2, bitrate: 192,
       speakers: 0, language: "auto",
-      uploadedBytes: 0, speedBps: 8 * 1024 ** 2,
-      stage: "uploading", stageProgress: 0, startedAt: Date.now(),
+      uploadedBytes: 0, speedBps: 0,
+      stage: "queued", stageProgress: 0, startedAt: Date.now(),
+      filePath: meta.filePath,
     }));
     setFiles((prev) => [...incoming, ...prev]);
     toast.success(`${incoming.length} file${incoming.length > 1 ? "s" : ""} queued`, {
@@ -260,6 +262,57 @@ export function UploadPanel() {
   };
   const remove = (id: string) => setFiles((p) => p.filter((f) => f.id !== id));
   const clearDone = () => setFiles((p) => p.filter((f) => f.stage !== "done"));
+
+  const transcribeFile = async (id: string) => {
+    const file = files.find((f) => f.id === id);
+    if (!file?.filePath || !window.electronAPI?.assemblyai) return;
+
+    setFiles((p) => p.map((f) => f.id === id ? { ...f, stage: "uploading", stageProgress: 0 } : f));
+
+    const result = await window.electronAPI.assemblyai.transcribeFile(file.filePath, id);
+
+    if (result.ok) {
+      setFiles((p) => p.map((f) => f.id === id ? {
+        ...f,
+        stage: "done",
+        stageProgress: 100,
+        speakers: result.utterances?.length
+          ? new Set(result.utterances.map((u) => u.speaker)).size
+          : 0,
+        language: result.languageCode || "auto",
+      } : f));
+      toast.success(`Transcription complete: ${file.name}`, {
+        description: `${result.utterances?.length || 0} utterances · ${result.languageCode}`,
+      });
+    } else {
+      setFiles((p) => p.map((f) => f.id === id ? {
+        ...f,
+        stage: "failed",
+        stageProgress: 0,
+        error: result.error,
+      } : f));
+      toast.error(`Transcription failed: ${file.name}`, { description: result.error });
+    }
+  };
+
+  // Listen for progress updates from main process
+  useEffect(() => {
+    const api = window.electronAPI?.assemblyai;
+    if (!api) return;
+    api.onProgress((data) => {
+      const stageMap: Record<string, Stage> = {
+        uploading: "uploading",
+        transcribing: "transcribing",
+        done: "done",
+        failed: "failed",
+      };
+      const mapped = stageMap[data.stage];
+      if (mapped) {
+        setFiles((p) => p.map((f) => f.id === data.jobId ? { ...f, stage: mapped } : f));
+      }
+    });
+    return () => { api.offProgress(); };
+  }, []);
 
   const totals = useMemo(() => {
     const active = files.filter((f) => f.stage !== "done" && f.stage !== "failed");
@@ -399,6 +452,11 @@ export function UploadPanel() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>{f.name}</DropdownMenuLabel>
                         <DropdownMenuSeparator />
+                        {f.filePath && f.stage === "queued" && (
+                          <DropdownMenuItem onClick={() => transcribeFile(f.id)}>
+                            <ScanText className="size-4 mr-2" />Transcribe
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem><Eye className="size-4 mr-2" />{t("upload.viewDetails")}</DropdownMenuItem>
                         <DropdownMenuItem><RotateCw className="size-4 mr-2" />{t("upload.restart")}</DropdownMenuItem>
                         <DropdownMenuSeparator />

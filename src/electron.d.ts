@@ -16,6 +16,15 @@ interface ElectronSettings {
 
 interface ElectronAssemblyAI {
   validateKey: () => Promise<{ ok: boolean; error?: string }>;
+  transcribeFile: (filePath: string, jobId: string) => Promise<{
+    ok: boolean;
+    error?: string;
+    fullText?: string;
+    languageCode?: string;
+    utterances?: Array<{ speaker: string; startMs: number; endMs: number; text: string }>;
+  }>;
+  onProgress: (callback: (data: { jobId: string; stage: string; detail?: string }) => void) => void;
+  offProgress: () => void;
 }
 
 interface ElectronAPI {
