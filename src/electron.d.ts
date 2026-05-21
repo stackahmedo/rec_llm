@@ -76,6 +76,30 @@ interface ElectronExport {
   saveDocx: (fileName: string, data: any) => Promise<{ ok: boolean; error?: string; filePath?: string }>;
 }
 
+interface ElectronAudio {
+  metadata: (filePath: string) => Promise<{
+    ok: boolean;
+    error?: string;
+    metadata?: {
+      duration: number;
+      codec: string;
+      bitrate: number;
+      sampleRate: number;
+      channels: number;
+      sizeBytes: number;
+      format: string;
+    };
+    recommendation?: {
+      action: 'direct' | 'compress' | 'split';
+      reason: string;
+      metadata: any;
+    };
+  }>;
+  compress: (filePath: string) => Promise<{ ok: boolean; error?: string; outputPath?: string; savedMB?: number }>;
+  split: (filePath: string, chunkMinutes?: number) => Promise<{ ok: boolean; error?: string; chunks?: string[] }>;
+  ffmpegCheck: () => Promise<{ ok: boolean; ffmpegPath?: string; ffprobePath?: string; error?: string }>;
+}
+
 interface ElectronAPI {
   platform: string;
   openAudioFiles: () => Promise<AudioFileMeta[]>;
@@ -86,6 +110,7 @@ interface ElectronAPI {
   history: ElectronHistory;
   storage: ElectronStorage;
   export: ElectronExport;
+  audio: ElectronAudio;
 }
 
 declare global {

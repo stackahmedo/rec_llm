@@ -8,6 +8,7 @@ import { registerPdfHandlers } from './pdf-export';
 import { registerHistoryHandlers } from './history';
 import { registerStorageStatsHandlers } from './storage-stats';
 import { registerExportHandlers } from './export';
+import { registerAudioPreprocessHandlers } from './audio-preprocess';
 
 const isDev = !app.isPackaged && !fs.existsSync(path.join(__dirname, '../dist/index.html'));
 
@@ -18,6 +19,7 @@ registerPdfHandlers();
 registerHistoryHandlers();
 registerStorageStatsHandlers();
 registerExportHandlers();
+registerAudioPreprocessHandlers();
 
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'm4a', 'mp4', 'aac', 'flac'];
 

@@ -14,7 +14,7 @@ import {
 import { useT } from "../i18n";
 import { useTranscripts } from "../transcript-store";
 
-type Stage = "queued" | "uploading" | "transcribing" | "done" | "failed" | "paused";
+type Stage = "queued" | "analyzing" | "uploading" | "transcribing" | "done" | "failed" | "paused";
 
 interface FileItem {
   id: string;
@@ -28,6 +28,9 @@ interface FileItem {
   processingStartedAt?: number;
   error?: string;
   filePath?: string;
+  audioMeta?: { duration: number; codec: string; bitrate: number; sampleRate: number; channels: number };
+  recommendation?: { action: string; reason: string };
+  compressedPath?: string;
 }
 
 interface StageStyle {
@@ -50,6 +53,13 @@ const stageMeta: Record<Stage, StageStyle> = {
     iconBg: "bg-slate-100 dark:bg-slate-900/40", progress: "[&>div]:bg-slate-500",
     badge: "bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-900/40 dark:text-slate-200",
     dot: "bg-slate-400",
+  },
+  analyzing: {
+    key: "stage.analyzing", icon: ScanText, color: "text-purple-600", variant: "secondary",
+    bar: "bg-purple-500", card: "border-purple-300/60 bg-purple-50/60 dark:bg-purple-950/20",
+    iconBg: "bg-purple-100 dark:bg-purple-900/40", progress: "[&>div]:bg-purple-500",
+    badge: "bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900/40 dark:text-purple-200",
+    dot: "bg-purple-500",
   },
   uploading: {
     key: "stage.uploading", icon: UploadCloud, color: "text-blue-600", variant: "secondary",
@@ -181,9 +191,35 @@ export function UploadPanel() {
     const file = queue[0];
     processingRef.current = true;
 
-    setFiles((p) => p.map((f) => f.id === file.id ? { ...f, stage: "uploading", processingStartedAt: Date.now() } : f));
+    // Step 1: Analyze audio metadata
+    let uploadPath = file.filePath!;
+    if (window.electronAPI?.audio) {
+      setFiles((p) => p.map((f) => f.id === file.id ? { ...f, stage: "analyzing" as Stage } : f));
+      const metaResult = await window.electronAPI.audio.metadata(file.filePath!);
+      if (metaResult.ok && metaResult.metadata && metaResult.recommendation) {
+        setFiles((p) => p.map((f) => f.id === file.id ? {
+          ...f,
+          audioMeta: metaResult.metadata,
+          recommendation: metaResult.recommendation,
+        } : f));
 
-    const result = await window.electronAPI.assemblyai.transcribeFile(file.filePath!, file.id);
+        // Auto-compress if recommended
+        if (metaResult.recommendation.action === 'compress') {
+          toast.info("Compressing audio", { description: metaResult.recommendation.reason });
+          const compressResult = await window.electronAPI.audio.compress(file.filePath!);
+          if (compressResult.ok && compressResult.outputPath) {
+            uploadPath = compressResult.outputPath;
+            setFiles((p) => p.map((f) => f.id === file.id ? { ...f, compressedPath: compressResult.outputPath } : f));
+            toast.success("Compressed", { description: `Saved ${compressResult.savedMB} MB` });
+          }
+        }
+      }
+    }
+
+    // Step 2: Upload and transcribe
+    setFiles((p) => p.map((f) => f.id === file.id ? { ...f, stage: "uploading" as Stage, processingStartedAt: Date.now() } : f));
+
+    const result = await window.electronAPI.assemblyai.transcribeFile(uploadPath, file.id);
     const now = new Date().toISOString();
 
     if (result.ok) {

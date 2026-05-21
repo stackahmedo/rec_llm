@@ -86,4 +86,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     saveDocx: (fileName: string, data: any): Promise<{ ok: boolean; error?: string; filePath?: string }> =>
       ipcRenderer.invoke('export:saveDocx', fileName, data),
   },
+  audio: {
+    metadata: (filePath: string): Promise<{ ok: boolean; error?: string; metadata?: any; recommendation?: any }> =>
+      ipcRenderer.invoke('audio:metadata', filePath),
+    compress: (filePath: string): Promise<{ ok: boolean; error?: string; outputPath?: string; savedMB?: number }> =>
+      ipcRenderer.invoke('audio:compress', filePath),
+    split: (filePath: string, chunkMinutes?: number): Promise<{ ok: boolean; error?: string; chunks?: string[] }> =>
+      ipcRenderer.invoke('audio:split', filePath, chunkMinutes),
+    ffmpegCheck: (): Promise<{ ok: boolean; ffmpegPath?: string; ffprobePath?: string; error?: string }> =>
+      ipcRenderer.invoke('audio:ffmpegCheck'),
+  },
 });

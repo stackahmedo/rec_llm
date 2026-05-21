@@ -57,6 +57,8 @@
     "date-fns": "3.6.0",
     "electron-store": "^10.1.0",
     "embla-carousel-react": "8.6.0",
+    "ffmpeg-static": "^5.3.0",
+    "ffprobe-static": "^3.1.0",
     "input-otp": "1.4.2",
     "lucide-react": "0.487.0",
     "motion": "12.23.24",
@@ -101,12 +103,42 @@
       "dist/**/*",
       "electron-dist/**/*"
     ],
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**",
+      "node_modules/ffprobe-static/**"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/ffmpeg-static/ffmpeg",
+        "to": "ffmpeg"
+      },
+      {
+        "from": "node_modules/ffprobe-static/bin/${platform}/${arch}/ffprobe",
+        "to": "ffprobe"
+      },
+      {
+        "from": "media/recllm_logo.png",
+        "to": "media/recllm_logo.png"
+      }
+    ],
     "mac": {
       "target": "dir",
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "icon": "media/recllm_logo.png"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "media/recllm_logo.png",
+      "extraResources": [
+        {
+          "from": "node_modules/ffmpeg-static/ffmpeg.exe",
+          "to": "ffmpeg.exe"
+        },
+        {
+          "from": "node_modules/ffprobe-static/bin/win32/x64/ffprobe.exe",
+          "to": "ffprobe.exe"
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
