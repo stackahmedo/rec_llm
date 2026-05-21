@@ -5,7 +5,12 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(npm install *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(open release/mac-arm64/RecLLM.app)",
+      "Bash(git restore *)",
+      "Bash(git commit *)",
+      "Bash(git reset *)",
+      "Bash(git push *)"
     ]
   }
 }
