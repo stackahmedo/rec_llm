@@ -228,6 +228,30 @@ export function UploadPanel() {
     });
   };
 
+  const openNativePicker = async () => {
+    if (!window.electronAPI?.openAudioFiles) {
+      inputRef.current?.click();
+      return;
+    }
+    const results = await window.electronAPI.openAudioFiles();
+    if (results.length === 0) return;
+    const incoming: FileItem[] = results.map((meta) => ({
+      id: meta.id,
+      name: meta.fileName,
+      sizeBytes: meta.sizeBytes,
+      durationSec: Math.round(meta.sizeBytes / (192 * 1024 / 8)),
+      format: meta.extension.toUpperCase(),
+      sampleRate: 48000, channels: 2, bitrate: 192,
+      speakers: 0, language: "auto",
+      uploadedBytes: 0, speedBps: 8 * 1024 ** 2,
+      stage: "uploading", stageProgress: 0, startedAt: Date.now(),
+    }));
+    setFiles((prev) => [...incoming, ...prev]);
+    toast.success(`${incoming.length} file${incoming.length > 1 ? "s" : ""} queued`, {
+      description: `${formatBytes(incoming.reduce((s, f) => s + f.sizeBytes, 0))} total`,
+    });
+  };
+
   const pauseResume = (id: string) => {
     setFiles((p) => p.map((f) => f.id === id ? { ...f, stage: f.stage === "paused" ? "uploading" : "paused" } : f));
   };
@@ -270,7 +294,7 @@ export function UploadPanel() {
           onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
           onDragLeave={() => setDrag(false)}
           onDrop={onDrop}
-          onClick={() => inputRef.current?.click()}
+          onClick={() => openNativePicker()}
           className={`border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center text-center transition-colors cursor-pointer
             ${drag ? "border-primary bg-primary/10" : "bg-muted/30 hover:bg-muted/50"}`}
         >
@@ -280,7 +304,7 @@ export function UploadPanel() {
           <div>{drag ? t("upload.release") : t("upload.drag")}</div>
           <div className="text-muted-foreground mt-1">{t("upload.formats")}</div>
           <div className="flex gap-2 mt-4" onClick={(e) => e.stopPropagation()}>
-            <Button onClick={() => inputRef.current?.click()}>
+            <Button onClick={() => openNativePicker()}>
               <UploadCloud className="size-4 mr-1" /> {t("upload.select")}
             </Button>
             <Button variant="outline" onClick={() => toast.message("Folder picker not available in preview")}>
