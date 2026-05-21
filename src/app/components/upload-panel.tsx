@@ -15,6 +15,7 @@ import {
   Waves, Mic2, Sparkles, ScanText, Languages,
 } from "lucide-react";
 import { useT } from "../i18n";
+import { useTranscripts } from "../transcript-store";
 
 type Stage = "queued" | "uploading" | "preprocess" | "diarizing" | "transcribing" | "classifying" | "summarizing" | "done" | "failed" | "paused";
 
@@ -174,6 +175,7 @@ const seedFiles: FileItem[] = [
 
 export function UploadPanel() {
   const { t } = useT();
+  const { addTranscript } = useTranscripts();
   const [files, setFiles] = useState<FileItem[]>(seedFiles);
   const [drag, setDrag] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -281,6 +283,14 @@ export function UploadPanel() {
           : 0,
         language: result.languageCode || "auto",
       } : f));
+      addTranscript({
+        fileId: id,
+        fileName: file.name,
+        fullText: result.fullText || '',
+        languageCode: result.languageCode || 'unknown',
+        utterances: result.utterances || [],
+        completedAt: new Date().toISOString(),
+      });
       toast.success(`Transcription complete: ${file.name}`, {
         description: `${result.utterances?.length || 0} utterances · ${result.languageCode}`,
       });

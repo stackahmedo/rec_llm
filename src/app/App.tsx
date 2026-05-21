@@ -16,6 +16,7 @@ import { Badge } from "./components/ui/badge";
 import { AudioLines, Clock, Users, Sparkles, Search, AlertTriangle } from "lucide-react";
 import { Toaster } from "./components/ui/sonner";
 import { I18nProvider, useT } from "./i18n";
+import { TranscriptProvider } from "./transcript-store";
 
 function Shell() {
   const { t } = useT();
@@ -151,7 +152,9 @@ function Shell() {
 export default function App() {
   return (
     <I18nProvider>
-      <Shell />
+      <TranscriptProvider>
+        <Shell />
+      </TranscriptProvider>
     </I18nProvider>
   );
 }
