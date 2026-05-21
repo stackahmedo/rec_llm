@@ -19,6 +19,17 @@ import { Languages } from "lucide-react";
 
 type CheckState = "idle" | "checking" | "ok" | "fail";
 
+const PLACEHOLDER_KEYS = [
+  'your_api_key', 'your_api_key_here', 'paste_key_here',
+  'your-api-key', 'api_key', 'api-key', 'sk-xxx', 'xxx',
+  'insert_key_here', 'replace_with_your_key',
+];
+
+function isPlaceholderKey(key: string): boolean {
+  const lower = key.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  return PLACEHOLDER_KEYS.some((p) => lower === p.replace(/[^a-z0-9_-]/g, ''));
+}
+
 interface ProviderCardProps {
   id: string;
   name: string;
@@ -272,28 +283,41 @@ export function SettingsPanel() {
 
   const saveAll = async () => {
     const api = window.electronAPI?.settings;
-    if (api) {
-      await api.set('apiKeys', {
-        assemblyai: asmKey.trim(),
-        gemini: gemKey.trim(),
-        chatgpt: gptKey.trim(),
-        gemma: gemmaKey.trim(),
-      });
-      await api.set('models', {
-        assemblyai: asmModel,
-        gemini: gemModel,
-        chatgpt: gptModel,
-        gemma: gemmaModel,
-      });
-      await api.set('preferences', {
-        summaryProvider,
-        asmDiarize,
-        asmLang,
-      });
-      toast.success("Settings saved", { description: "Encrypted and stored locally." });
-    } else {
+    if (!api) {
       toast.message("Desktop mode required", { description: "Settings are not persisted in browser mode." });
+      return;
     }
+
+    // Validate no placeholder keys
+    const keysToSave = {
+      assemblyai: asmKey.trim(),
+      gemini: gemKey.trim(),
+      chatgpt: gptKey.trim(),
+      gemma: gemmaKey.trim(),
+    };
+
+    for (const [provider, key] of Object.entries(keysToSave)) {
+      if (key && isPlaceholderKey(key)) {
+        toast.error(`Invalid ${provider} key`, {
+          description: `Please paste your real API key from the provider dashboard.`,
+        });
+        return;
+      }
+    }
+
+    await api.set('apiKeys', keysToSave);
+    await api.set('models', {
+      assemblyai: asmModel,
+      gemini: gemModel,
+      chatgpt: gptModel,
+      gemma: gemmaModel,
+    });
+    await api.set('preferences', {
+      summaryProvider,
+      asmDiarize,
+      asmLang,
+    });
+    toast.success("Settings saved", { description: "Encrypted and stored locally." });
   };
 
   const resetAll = async () => {

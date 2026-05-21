@@ -4,12 +4,24 @@ import { Readable } from 'stream';
 
 const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
+const PLACEHOLDER_KEYS = [
+  'your_api_key', 'your_api_key_here', 'paste_key_here',
+  'your-api-key', 'api_key', 'api-key', 'sk-xxx', 'xxx',
+  'insert_key_here', 'replace_with_your_key',
+];
+
+function isPlaceholderKey(key: string): boolean {
+  const lower = key.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  return PLACEHOLDER_KEYS.some((p) => lower === p.replace(/[^a-z0-9_-]/g, ''));
+}
+
 async function getApiKey(): Promise<string | null> {
   let store: any = null;
   const { default: Store } = await import('electron-store');
   store = new Store({ name: 'recllm-settings', encryptionKey: 'recllm-local-encryption-key' });
   const keys = store.get('apiKeys') as Record<string, string> | undefined;
   const key = keys?.assemblyai?.trim() || null;
+  if (key && isPlaceholderKey(key)) return null;
   return key;
 }
 
@@ -153,8 +165,10 @@ export function registerAssemblyAIHandlers(): void {
   ipcMain.handle('assemblyai:validateKey', async (): Promise<{ ok: boolean; error?: string }> => {
     const apiKey = await getApiKey();
     if (!apiKey || apiKey.length < 10) {
-      return { ok: false, error: 'No API key saved. Enter your key and save settings first.' };
+      return { ok: false, error: 'Please paste your real AssemblyAI API key from the AssemblyAI dashboard.' };
     }
+
+    console.log(`[assemblyai:validateKey] key length=${apiKey.length}, prefix=${apiKey.slice(0, 4)}...`);
 
     try {
       const response = await net.fetch('https://api.assemblyai.com/v2/transcript?limit=1', {
@@ -163,7 +177,7 @@ export function registerAssemblyAIHandlers(): void {
       });
 
       if (response.status === 200) return { ok: true };
-      if (response.status === 401) return { ok: false, error: 'Invalid API key.' };
+      if (response.status === 401) return { ok: false, error: 'Invalid API key. Check your key at assemblyai.com/app/account.' };
       return { ok: false, error: `Unexpected response (${response.status}).` };
     } catch (err: any) {
       return { ok: false, error: `Network error: ${err.message || 'Could not reach AssemblyAI.'}` };
