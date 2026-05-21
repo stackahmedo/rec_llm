@@ -121,23 +121,40 @@ async function uploadFile(filePath: string, apiKey: string): Promise<string> {
 }
 
 async function createTranscript(uploadUrl: string, apiKey: string): Promise<string> {
+  const body = {
+    audio_url: uploadUrl,
+    speaker_labels: true,
+  };
+
+  console.log(`[assemblyai:createTranscript] uploadUrl exists: ${!!uploadUrl}, starts with https: ${uploadUrl?.startsWith('https')}`);
+  console.log(`[assemblyai:createTranscript] request body: ${JSON.stringify(body)}`);
+
+  if (!uploadUrl || !uploadUrl.startsWith('https')) {
+    throw new Error(`Invalid upload URL: expected https URL, got ${uploadUrl ? uploadUrl.slice(0, 30) : 'empty'}`);
+  }
+
   const response = await net.fetch('https://api.assemblyai.com/v2/transcript', {
     method: 'POST',
     headers: {
       'Authorization': apiKey,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      audio_url: uploadUrl,
-      speaker_labels: true,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (response.status !== 200) {
-    throw new Error(`Transcript creation failed (${response.status})`);
+    const errorText = await response.text();
+    console.log(`[assemblyai:createTranscript] HTTP ${response.status}: ${errorText.slice(0, 300)}`);
+    let errorMsg = `Transcript creation failed (${response.status})`;
+    try {
+      const errorJson = JSON.parse(errorText);
+      if (errorJson.error) errorMsg = `AssemblyAI: ${errorJson.error}`;
+    } catch { /* use default message */ }
+    throw new Error(errorMsg);
   }
 
   const data = await response.json() as { id: string };
+  console.log(`[assemblyai:createTranscript] transcript id: ${data.id}`);
   return data.id;
 }
 
