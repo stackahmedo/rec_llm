@@ -7,7 +7,7 @@ import { registerSummarizeHandlers } from './summarize';
 import { registerPdfHandlers } from './pdf-export';
 import { registerHistoryHandlers } from './history';
 
-const isDev = !app.isPackaged;
+const isDev = !app.isPackaged && !fs.existsSync(path.join(__dirname, '../dist/index.html'));
 
 registerSettingsHandlers();
 registerAssemblyAIHandlers();

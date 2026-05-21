@@ -33,6 +33,25 @@ function escapeHtml(text: string): string {
 function buildHtml(data: PdfExportData): string {
   const sections: string[] = [];
 
+  // Metadata block
+  const speakerCount = data.utterances
+    ? new Set(data.utterances.map((u) => u.speaker)).size
+    : 0;
+  const duration = data.utterances && data.utterances.length > 0
+    ? msToTimestamp(data.utterances[data.utterances.length - 1].endMs)
+    : '—';
+
+  sections.push(`
+    <div class="meta-grid">
+      <div class="meta-item"><span class="meta-label">File</span><span class="meta-value">${escapeHtml(data.fileName)}</span></div>
+      <div class="meta-item"><span class="meta-label">Processed</span><span class="meta-value">${escapeHtml(data.processedAt)}</span></div>
+      <div class="meta-item"><span class="meta-label">Language</span><span class="meta-value">${escapeHtml(data.languageCode)}</span></div>
+      <div class="meta-item"><span class="meta-label">Duration</span><span class="meta-value">${duration}</span></div>
+      <div class="meta-item"><span class="meta-label">Speakers</span><span class="meta-value">${speakerCount}</span></div>
+      <div class="meta-item"><span class="meta-label">Utterances</span><span class="meta-value">${data.utterances?.length || 0}</span></div>
+    </div>
+  `);
+
   // Summary
   if (data.summary) {
     sections.push(`
@@ -91,19 +110,28 @@ function buildHtml(data: PdfExportData): string {
     `);
   }
 
+  // No summary notice
+  if (!data.summary && (!data.pointNotes || data.pointNotes.length === 0)) {
+    sections.push(`
+      <div class="section">
+        <p class="no-data">No summary was generated for this transcript. Use the Summarize feature to add one.</p>
+      </div>
+    `);
+  }
+
   // Transcript appendix
   if (data.utterances && data.utterances.length > 0) {
     const rows = data.utterances.map((u) => `
       <tr>
         <td class="ts">${msToTimestamp(u.startMs)}</td>
         <td class="speaker">${escapeHtml(u.speaker)}</td>
-        <td>${escapeHtml(u.text)}</td>
+        <td class="text-cell">${escapeHtml(u.text)}</td>
       </tr>
     `).join('\n');
 
     sections.push(`
       <div class="section transcript">
-        <h2>Transcript (${escapeHtml(data.languageCode)})</h2>
+        <h2>Transcript Appendix (${escapeHtml(data.languageCode)})</h2>
         <table>
           <thead>
             <tr><th>Time</th><th>Speaker</th><th>Text</th></tr>
@@ -131,20 +159,46 @@ function buildHtml(data: PdfExportData): string {
     }
     .header {
       border-bottom: 2px solid #2563eb;
-      padding-bottom: 16px;
-      margin-bottom: 24px;
+      padding-bottom: 12px;
+      margin-bottom: 20px;
     }
     .header h1 {
-      font-size: 18px;
+      font-size: 20px;
       color: #2563eb;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
     }
-    .header .meta {
-      color: #666;
-      font-size: 10px;
+    .header .subtitle {
+      font-size: 12px;
+      color: #444;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 20px;
+      padding: 12px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+    }
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+    }
+    .meta-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      color: #64748b;
+      letter-spacing: 0.5px;
+    }
+    .meta-value {
+      font-size: 11px;
+      font-weight: 500;
+      color: #1e293b;
+      word-break: break-all;
     }
     .section {
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
     .section h2 {
       font-size: 13px;
@@ -155,30 +209,42 @@ function buildHtml(data: PdfExportData): string {
     }
     .section p {
       margin-bottom: 8px;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
     .section ol, .section ul {
       padding-left: 20px;
     }
     .section li {
       margin-bottom: 4px;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+    .no-data {
+      color: #94a3b8;
+      font-style: italic;
     }
     table {
       width: 100%;
       border-collapse: collapse;
       font-size: 10px;
+      table-layout: fixed;
     }
     th, td {
       border: 1px solid #e5e7eb;
       padding: 4px 8px;
       text-align: left;
       vertical-align: top;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
     th {
       background: #f3f4f6;
       font-weight: 600;
     }
-    .ts { white-space: nowrap; width: 60px; font-family: monospace; }
-    .speaker { white-space: nowrap; width: 80px; font-weight: 500; }
+    .ts { width: 60px; white-space: nowrap; font-family: monospace; }
+    .speaker { width: 70px; white-space: nowrap; font-weight: 500; }
+    .text-cell { width: auto; }
     .transcript { page-break-before: always; }
     .footer {
       margin-top: 30px;
@@ -193,11 +259,7 @@ function buildHtml(data: PdfExportData): string {
 <body>
   <div class="header">
     <h1>RecLLM — Transcript Report</h1>
-    <div class="meta">
-      File: ${escapeHtml(data.fileName)} &nbsp;|&nbsp;
-      Processed: ${escapeHtml(data.processedAt)} &nbsp;|&nbsp;
-      Language: ${escapeHtml(data.languageCode)}
-    </div>
+    <div class="subtitle">${escapeHtml(data.fileName)}</div>
   </div>
 
   ${sections.join('\n')}

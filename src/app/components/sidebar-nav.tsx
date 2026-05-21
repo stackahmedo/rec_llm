@@ -1,6 +1,5 @@
-import { AudioLines, LayoutDashboard, Upload, FileText, Users, BarChart3, Settings, Bell, FileEdit, Database } from "lucide-react";
+import { AudioLines, LayoutDashboard, Upload, FileText, Users, Settings, FileEdit, Database } from "lucide-react";
 import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
 import { useT } from "../i18n";
 
 interface SidebarNavProps {
@@ -17,7 +16,6 @@ export function SidebarNav({ active, onChange }: SidebarNavProps) {
     { id: "pdf",         label: t("nav.pdf"),         icon: FileEdit },
     { id: "library",     label: t("nav.library"),     icon: Database },
     { id: "speakers",    label: t("nav.speakers"),    icon: Users },
-    { id: "analytics",   label: t("nav.analytics"),   icon: BarChart3 },
     { id: "settings",    label: t("nav.settings"),    icon: Settings },
   ];
   return (
@@ -44,24 +42,12 @@ export function SidebarNav({ active, onChange }: SidebarNavProps) {
             >
               <Icon className="size-4" />
               {it.label}
-              {it.id === "transcripts" && (
-                <Badge variant="outline" className="ml-auto">3</Badge>
-              )}
             </Button>
           );
         })}
       </nav>
-      <div className="p-3 border-t flex items-center gap-3">
-        <div className="size-9 rounded-full bg-muted flex items-center justify-center">
-          U
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="truncate">User</div>
-          <div className="text-muted-foreground truncate">{t("user.role")}</div>
-        </div>
-        <Button variant="ghost" size="icon">
-          <Bell className="size-4" />
-        </Button>
+      <div className="p-3 border-t text-center text-muted-foreground text-xs">
+        Local Desktop Mode
       </div>
     </aside>
   );

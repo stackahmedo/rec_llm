@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Avatar, AvatarFallback } from "./ui/avatar";
-import { Play, Pause, Edit3, Check, Sparkles, Volume2, Download } from "lucide-react";
+import { Play, Pause, Volume2, Download, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Slider } from "./ui/slider";
 import { toast } from "sonner";
@@ -16,8 +16,6 @@ interface Segment {
   start: string;
   text: string;
   tags: string[];
-  confidence: number;
-  edited?: boolean;
 }
 
 const speakerColors = [
@@ -82,7 +80,6 @@ export function TranscriptViewer() {
           start: msToTimestamp(u.startMs),
           text: u.text,
           tags: [],
-          confidence: 1.0,
         };
       })
     : demoSegments;
@@ -155,19 +152,8 @@ export function TranscriptViewer() {
                   {seg.tags.map((t) => (
                     <Badge key={t} variant="outline">{t}</Badge>
                   ))}
-                  {seg.confidence < 1.0 && (
-                    <Badge variant={seg.confidence > 0.9 ? "secondary" : "outline"}>
-                      {Math.round(seg.confidence * 100)}%
-                    </Badge>
-                  )}
-                  {seg.edited && (
-                    <Badge className="bg-emerald-600"><Check className="size-3 mr-1" />corrected · trained</Badge>
-                  )}
                 </div>
                 <p className="mt-1 leading-relaxed">{seg.text}</p>
-                <div className="mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="sm" className="h-7"><Edit3 className="size-3 mr-1" />Correct & train AI</Button>
-                </div>
               </div>
             </div>
           ))}
