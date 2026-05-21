@@ -124,6 +124,7 @@ async function createTranscript(uploadUrl: string, apiKey: string): Promise<stri
   const body = {
     audio_url: uploadUrl,
     speaker_labels: true,
+    speech_models: ['universal-2'],
   };
 
   console.log(`[assemblyai:createTranscript] uploadUrl exists: ${!!uploadUrl}, starts with https: ${uploadUrl?.startsWith('https')}`);
