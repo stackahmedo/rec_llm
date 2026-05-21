@@ -116,14 +116,22 @@ export function SettingsPanel() {
   const [asmDiarize, setAsmDiarize] = useState(true);
   const [asmLang, setAsmLang] = useState("auto");
 
-  const checkAssembly = () => {
+  const checkAssembly = async () => {
     setAsmState("checking");
-    setTimeout(() => {
-      const ok = asmKey.length >= 20;
-      setAsmState(ok ? "ok" : "fail");
-      if (ok) toast.success("AssemblyAI connected", { description: "API key verified · diarization available." });
-      else toast.error("AssemblyAI rejected the key", { description: "Check that you pasted the full token (32+ chars)." });
-    }, 900);
+    const api = window.electronAPI?.assemblyai;
+    if (api) {
+      const result = await api.validateKey();
+      setAsmState(result.ok ? "ok" : "fail");
+      if (result.ok) toast.success("AssemblyAI connected", { description: "API key verified · diarization available." });
+      else toast.error("AssemblyAI rejected the key", { description: result.error || "Check your key." });
+    } else {
+      setTimeout(() => {
+        const ok = asmKey.length >= 20;
+        setAsmState(ok ? "ok" : "fail");
+        if (ok) toast.success("AssemblyAI connected", { description: "API key verified · diarization available." });
+        else toast.error("AssemblyAI rejected the key", { description: "Check that you pasted the full token (32+ chars)." });
+      }, 900);
+    }
   };
 
   // Summary — choose Gemini / ChatGPT / Gemma

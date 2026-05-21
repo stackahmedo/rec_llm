@@ -14,10 +14,15 @@ interface ElectronSettings {
   delete: (key: string) => Promise<boolean>;
 }
 
+interface ElectronAssemblyAI {
+  validateKey: () => Promise<{ ok: boolean; error?: string }>;
+}
+
 interface ElectronAPI {
   platform: string;
   openAudioFiles: () => Promise<AudioFileMeta[]>;
   settings: ElectronSettings;
+  assemblyai: ElectronAssemblyAI;
 }
 
 declare global {

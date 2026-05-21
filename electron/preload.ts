@@ -22,4 +22,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete: (key: string): Promise<boolean> =>
       ipcRenderer.invoke('settings:delete', key),
   },
+  assemblyai: {
+    validateKey: (): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('assemblyai:validateKey'),
+  },
 });
