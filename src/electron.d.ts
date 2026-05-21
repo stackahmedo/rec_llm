@@ -28,7 +28,7 @@ interface ElectronAssemblyAI {
 }
 
 interface ElectronSummarize {
-  generate: (transcript: string, language: 'en' | 'ja') => Promise<{
+  generate: (transcript: string, language: 'en' | 'ja', utterances?: Array<{ speaker: string; startMs: number; text: string }>) => Promise<{
     ok: boolean;
     error?: string;
     summary?: string;

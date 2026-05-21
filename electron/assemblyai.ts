@@ -1,5 +1,8 @@
 import { ipcMain, net, BrowserWindow } from 'electron';
 import fs from 'fs';
+import { Readable } from 'stream';
+
+const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 async function getApiKey(): Promise<string | null> {
   let store: any = null;
@@ -31,24 +34,51 @@ function sendProgress(jobId: string, stage: string, detail?: string): void {
   }
 }
 
-async function uploadFile(filePath: string, apiKey: string): Promise<string> {
-  const fileBuffer = fs.readFileSync(filePath);
+async function uploadFileOnce(filePath: string, apiKey: string): Promise<string> {
+  const stat = fs.statSync(filePath);
+  const nodeStream = fs.createReadStream(filePath);
+  const webStream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
 
-  const response = await net.fetch('https://api.assemblyai.com/v2/upload', {
-    method: 'POST',
-    headers: {
-      'Authorization': apiKey,
-      'Content-Type': 'application/octet-stream',
-    },
-    body: fileBuffer,
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
 
-  if (response.status !== 200) {
-    throw new Error(`Upload failed (${response.status})`);
+  try {
+    const response = await net.fetch('https://api.assemblyai.com/v2/upload', {
+      method: 'POST',
+      headers: {
+        'Authorization': apiKey,
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': String(stat.size),
+      },
+      body: webStream,
+      signal: controller.signal as AbortSignal,
+      duplex: 'half',
+    } as any);
+
+    if (response.status !== 200) {
+      throw new Error(`Upload failed (${response.status})`);
+    }
+
+    const data = await response.json() as { upload_url: string };
+    return data.upload_url;
+  } finally {
+    clearTimeout(timeout);
+    nodeStream.destroy();
   }
+}
 
-  const data = await response.json() as { upload_url: string };
-  return data.upload_url;
+async function uploadFile(filePath: string, apiKey: string): Promise<string> {
+  try {
+    return await uploadFileOnce(filePath, apiKey);
+  } catch (err: any) {
+    // One retry on failure
+    const msg = err.message || '';
+    if (msg.includes('aborted') || msg.includes('Upload failed')) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      return await uploadFileOnce(filePath, apiKey);
+    }
+    throw err;
+  }
 }
 
 async function createTranscript(uploadUrl: string, apiKey: string): Promise<string> {

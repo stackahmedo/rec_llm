@@ -9,7 +9,7 @@ import {
 import { toast } from "sonner";
 import {
   UploadCloud, FileAudio, CheckCircle2, AlertCircle, Pause, Play,
-  X, RotateCw, MoreHorizontal, Trash2, HardDrive, ScanText,
+  X, RotateCw, MoreHorizontal, Trash2, HardDrive, ScanText, Clock,
 } from "lucide-react";
 import { useT } from "../i18n";
 import { useTranscripts } from "../transcript-store";
@@ -25,6 +25,7 @@ interface FileItem {
   language: string;
   stage: Stage;
   startedAt: number;
+  processingStartedAt?: number;
   error?: string;
   filePath?: string;
 }
@@ -94,6 +95,18 @@ function formatBytes(b: number) {
   let i = 0;
   while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
   return `${v.toFixed(v < 10 ? 2 : 1)} ${units[i]}`;
+}
+
+function ElapsedTime({ startMs }: { startMs: number }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const sec = Math.floor((now - startMs) / 1000);
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return <span className="inline-flex items-center gap-1 text-muted-foreground"><Clock className="size-3" />{m}:{s.toString().padStart(2, "0")}</span>;
 }
 
 export function UploadPanel() {
@@ -169,7 +182,7 @@ export function UploadPanel() {
     const file = queue[0];
     processingRef.current = true;
 
-    setFiles((p) => p.map((f) => f.id === file.id ? { ...f, stage: "uploading" } : f));
+    setFiles((p) => p.map((f) => f.id === file.id ? { ...f, stage: "uploading", processingStartedAt: Date.now() } : f));
 
     const result = await window.electronAPI.assemblyai.transcribeFile(file.filePath!, file.id);
     const now = new Date().toISOString();
@@ -295,10 +308,10 @@ export function UploadPanel() {
           <div>{drag ? t("upload.release") : t("upload.drag")}</div>
           <div className="text-muted-foreground mt-1">{t("upload.formats")}</div>
           <div className="flex gap-2 mt-4" onClick={(e) => e.stopPropagation()}>
-            <Button onClick={() => openNativePicker()}>
+            <Button type="button" onClick={() => openNativePicker()}>
               <UploadCloud className="size-4 mr-1" /> {t("upload.select")}
             </Button>
-            <Button variant="outline" onClick={() => toast.message("Folder picker not available in preview")}>
+            <Button type="button" variant="outline" onClick={() => toast.message("Folder picker not available in preview")}>
               {t("upload.selectFolder")}
             </Button>
           </div>
@@ -348,6 +361,7 @@ export function UploadPanel() {
                     <div className="text-muted-foreground mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
                       <span className="inline-flex items-center gap-1"><HardDrive className="size-3" />{formatBytes(f.sizeBytes)}</span>
                       {f.speakers > 0 && <span>{f.speakers} speakers</span>}
+                      {spinning && f.processingStartedAt && <ElapsedTime startMs={f.processingStartedAt} />}
                     </div>
                   </div>
                   <Badge variant="outline" className={`shrink-0 gap-1.5 ${meta.badge}`}>
@@ -389,6 +403,12 @@ export function UploadPanel() {
                 {f.stage === "failed" && f.error && (
                   <div className="text-destructive flex items-start gap-1.5">
                     <AlertCircle className="size-4 mt-0.5 shrink-0" />{f.error}
+                  </div>
+                )}
+
+                {spinning && f.sizeBytes > 50 * 1024 * 1024 && (
+                  <div className="text-muted-foreground text-xs pl-2">
+                    Long audio may take several minutes depending on file size. Do not close the app.
                   </div>
                 )}
               </div>

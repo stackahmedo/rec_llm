@@ -40,7 +40,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
   },
   summarize: {
-    generate: (transcript: string, language: 'en' | 'ja'): Promise<{
+    generate: (transcript: string, language: 'en' | 'ja', utterances?: Array<{ speaker: string; startMs: number; text: string }>): Promise<{
       ok: boolean;
       error?: string;
       summary?: string;
@@ -48,7 +48,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       actionItems?: string[];
       decisions?: string[];
       risks?: string[];
-    }> => ipcRenderer.invoke('summarize:generate', { transcript, language }),
+    }> => ipcRenderer.invoke('summarize:generate', { transcript, language, utterances }),
   },
   pdf: {
     exportReport: (data: {

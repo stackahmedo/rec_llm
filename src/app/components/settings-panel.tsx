@@ -97,7 +97,7 @@ function ProviderCard(p: ProviderCardProps) {
           {t("settings.getKey")} <ExternalLink className="size-3 ml-1" />
         </a>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={p.onCheck} disabled={!p.apiKey || p.state === "checking"}>
+          <Button type="button" variant="outline" size="sm" onClick={p.onCheck} disabled={!p.apiKey || p.state === "checking"}>
             {p.state === "checking" ? <Loader2 className="size-4 mr-1 animate-spin" /> : <CheckCircle2 className="size-4 mr-1" />}
             {t("settings.checkConnection")}
           </Button>
@@ -181,14 +181,86 @@ export function SettingsPanel() {
     key: string,
     setState: (s: CheckState) => void,
     name: string,
-  ) => () => {
+    provider: string,
+  ) => async () => {
+    if (!key || key.length < 10) {
+      setState("fail");
+      toast.error(`${name}: no valid key`, { description: "Paste a key and save settings first." });
+      return;
+    }
+
     setState("checking");
-    setTimeout(() => {
-      const ok = key.length >= 20;
-      setState(ok ? "ok" : "fail");
-      if (ok) toast.success(`${name} connected`);
-      else toast.error(`${name} rejected the key`);
-    }, 900);
+
+    // Gemma via Groq — validate with a real API call
+    if (provider === "gemma") {
+      try {
+        const response = await fetch("https://api.groq.com/openai/v1/models", {
+          headers: { "Authorization": `Bearer ${key}` },
+        });
+        if (response.status === 200) {
+          setState("ok");
+          toast.success(`${name} connected via Groq`);
+        } else if (response.status === 401) {
+          setState("fail");
+          toast.error(`${name}: invalid Groq API key`);
+        } else {
+          setState("fail");
+          toast.error(`${name}: unexpected response (${response.status})`);
+        }
+      } catch {
+        setState("fail");
+        toast.error(`${name}: network error — cannot reach Groq API`);
+      }
+      return;
+    }
+
+    // Gemini — validate with a real API call
+    if (provider === "gemini") {
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+        if (response.status === 200) {
+          setState("ok");
+          toast.success(`${name} connected`);
+        } else if (response.status === 400 || response.status === 403) {
+          setState("fail");
+          toast.error(`${name}: invalid API key`);
+        } else {
+          setState("fail");
+          toast.error(`${name}: unexpected response (${response.status})`);
+        }
+      } catch {
+        setState("fail");
+        toast.error(`${name}: network error`);
+      }
+      return;
+    }
+
+    // ChatGPT — validate with a real API call
+    if (provider === "chatgpt") {
+      try {
+        const response = await fetch("https://api.openai.com/v1/models", {
+          headers: { "Authorization": `Bearer ${key}` },
+        });
+        if (response.status === 200) {
+          setState("ok");
+          toast.success(`${name} connected`);
+        } else if (response.status === 401) {
+          setState("fail");
+          toast.error(`${name}: invalid API key`);
+        } else {
+          setState("fail");
+          toast.error(`${name}: unexpected response (${response.status})`);
+        }
+      } catch {
+        setState("fail");
+        toast.error(`${name}: network error`);
+      }
+      return;
+    }
+
+    // Fallback
+    setState("fail");
+    toast.error(`${name}: validation not configured`);
   };
 
   const saveAll = async () => {
@@ -340,7 +412,7 @@ export function SettingsPanel() {
             {[
               { v: "gemini",  t: "Google Gemini",   d: "Long-context, multilingual" },
               { v: "chatgpt", t: "OpenAI ChatGPT",  d: "Strong reasoning, JSON mode" },
-              { v: "gemma",   t: "Gemma (open)",    d: "Self-host or via API · privacy" },
+              { v: "gemma",   t: "Gemma (via Groq)", d: "Optional · requires Groq API key" },
             ].map((o) => (
               <label key={o.v} htmlFor={`sp-${o.v}`}
                 className={`border rounded-lg p-3 cursor-pointer flex items-start gap-3 transition-colors ${summaryProvider === o.v ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`}>
@@ -363,7 +435,7 @@ export function SettingsPanel() {
             apiKey={gemKey}
             onKeyChange={setGemKey}
             state={gemState}
-            onCheck={makeChecker(gemKey, setGemState, "Gemini")}
+            onCheck={makeChecker(gemKey, setGemState, "Gemini", "gemini")}
             active={summaryProvider === "gemini"}
             models={["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash"]}
             model={gemModel}
@@ -378,7 +450,7 @@ export function SettingsPanel() {
             apiKey={gptKey}
             onKeyChange={setGptKey}
             state={gptState}
-            onCheck={makeChecker(gptKey, setGptState, "ChatGPT")}
+            onCheck={makeChecker(gptKey, setGptState, "ChatGPT", "chatgpt")}
             active={summaryProvider === "chatgpt"}
             models={["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o1-mini"]}
             model={gptModel}
@@ -387,18 +459,24 @@ export function SettingsPanel() {
 
           <ProviderCard
             id="gemma"
-            name="Gemma"
-            description="Open-weights model. Use a hosted endpoint (Groq, Together, HF) or your self-hosted URL."
-            docsUrl="https://ai.google.dev/gemma"
+            name="Gemma (via Groq) — Optional"
+            description="Requires a Groq API key (free at console.groq.com). Not installed locally."
+            docsUrl="https://console.groq.com/keys"
             apiKey={gemmaKey}
             onKeyChange={setGemmaKey}
             state={gemmaState}
-            onCheck={makeChecker(gemmaKey, setGemmaState, "Gemma")}
+            onCheck={makeChecker(gemmaKey, setGemmaState, "Gemma", "gemma")}
             active={summaryProvider === "gemma"}
             models={["gemma-2-27b-it", "gemma-2-9b-it", "gemma-7b-it"]}
             model={gemmaModel}
             onModelChange={setGemmaModel}
           />
+
+          {summaryProvider === "gemma" && !gemmaKey && (
+            <div className="text-amber-600 dark:text-amber-400 text-sm border border-amber-300 dark:border-amber-700 rounded-md p-3 bg-amber-50 dark:bg-amber-950/30">
+              Gemma local model not installed. To use Gemma, enter a Groq API key above. Local model download will be available in a future update.
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -427,8 +505,8 @@ export function SettingsPanel() {
       </Card>
 
       <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={resetAll}><RotateCcw className="size-4 mr-1" />{t("settings.reset")}</Button>
-        <Button onClick={saveAll}><Save className="size-4 mr-1" />{t("settings.save")}</Button>
+        <Button type="button" variant="outline" onClick={resetAll}><RotateCcw className="size-4 mr-1" />{t("settings.reset")}</Button>
+        <Button type="button" onClick={saveAll}><Save className="size-4 mr-1" />{t("settings.save")}</Button>
       </div>
     </div>
   );

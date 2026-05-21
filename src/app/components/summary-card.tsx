@@ -35,7 +35,12 @@ export function SummaryCard() {
     }
 
     setGenerating(true);
-    const result = await window.electronAPI.summarize.generate(active.fullText, language);
+    const utterances = active.utterances.map((u) => ({
+      speaker: u.speaker,
+      startMs: u.startMs,
+      text: u.text,
+    }));
+    const result = await window.electronAPI.summarize.generate(active.fullText, language, utterances);
     setGenerating(false);
 
     if (result.ok) {

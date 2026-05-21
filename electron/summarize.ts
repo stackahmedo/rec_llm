@@ -10,8 +10,15 @@ async function getSettings(): Promise<{ apiKeys: Record<string, string>; models:
   };
 }
 
+interface UtteranceInput {
+  speaker: string;
+  startMs: number;
+  text: string;
+}
+
 interface SummaryRequest {
   transcript: string;
+  utterances?: UtteranceInput[];
   language: 'en' | 'ja';
 }
 
@@ -25,7 +32,124 @@ interface SummaryResult {
   risks?: string[];
 }
 
-function buildPrompt(transcript: string, language: 'en' | 'ja'): string {
+interface ParsedChunk {
+  summary: string;
+  pointNotes: string[];
+  actionItems: string[];
+  decisions: string[];
+  risks: string[];
+}
+
+const CHUNK_CHAR_LIMIT = 10000;
+
+function msToTimestamp(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+function formatUtterances(utterances: UtteranceInput[]): string {
+  return utterances.map((u) =>
+    `[${msToTimestamp(u.startMs)}] ${u.speaker}: ${u.text}`
+  ).join('\n');
+}
+
+function chunkByUtterances(utterances: UtteranceInput[]): string[] {
+  const chunks: string[] = [];
+  let current = '';
+
+  for (const u of utterances) {
+    const line = `[${msToTimestamp(u.startMs)}] ${u.speaker}: ${u.text}\n`;
+    if (current.length + line.length > CHUNK_CHAR_LIMIT && current.length > 0) {
+      chunks.push(current.trim());
+      current = '';
+    }
+    current += line;
+  }
+  if (current.trim().length > 0) {
+    chunks.push(current.trim());
+  }
+  return chunks;
+}
+
+function chunkByText(text: string): string[] {
+  if (text.length <= CHUNK_CHAR_LIMIT) return [text];
+  const chunks: string[] = [];
+  let start = 0;
+  while (start < text.length) {
+    let end = start + CHUNK_CHAR_LIMIT;
+    if (end < text.length) {
+      const lastNewline = text.lastIndexOf('\n', end);
+      if (lastNewline > start) end = lastNewline;
+    }
+    chunks.push(text.slice(start, end).trim());
+    start = end;
+  }
+  return chunks;
+}
+
+function buildChunkPrompt(chunk: string, chunkIndex: number, totalChunks: number, language: 'en' | 'ja'): string {
+  const lang = language === 'ja' ? 'Japanese' : 'English';
+  return `You are a meeting analyst. Analyze this transcript segment (part ${chunkIndex + 1} of ${totalChunks}) and produce output in ${lang}.
+
+Return a JSON object with these exact keys:
+{
+  "summary": "A concise 1-2 sentence summary of THIS segment",
+  "pointNotes": ["key point 1", "key point 2", ...],
+  "actionItems": ["action item 1", ...],
+  "decisions": ["decision 1", ...],
+  "risks": ["risk or issue 1", ...]
+}
+
+Rules:
+- summary: 1-2 sentences about this segment only
+- pointNotes: key topics discussed in this segment
+- actionItems: tasks assigned or mentioned
+- decisions: concrete decisions made
+- risks: concerns or issues raised
+- If a category has no items, use an empty array
+- Output ONLY valid JSON, no markdown fences
+
+Transcript segment:
+${chunk}`;
+}
+
+function buildMergePrompt(chunkSummaries: ParsedChunk[], language: 'en' | 'ja'): string {
+  const lang = language === 'ja' ? 'Japanese' : 'English';
+  const input = chunkSummaries.map((c, i) => `--- Segment ${i + 1} ---
+Summary: ${c.summary}
+Points: ${c.pointNotes.join('; ')}
+Actions: ${c.actionItems.join('; ')}
+Decisions: ${c.decisions.join('; ')}
+Risks: ${c.risks.join('; ')}`).join('\n\n');
+
+  return `You are a meeting analyst. Below are summaries of ${chunkSummaries.length} consecutive segments of a single meeting transcript. Merge them into one cohesive final summary in ${lang}.
+
+Return a JSON object with these exact keys:
+{
+  "summary": "A concise 2-3 sentence overall summary of the entire meeting",
+  "pointNotes": ["key point 1", "key point 2", ...],
+  "actionItems": ["action item 1", ...],
+  "decisions": ["decision 1", ...],
+  "risks": ["risk or issue 1", ...]
+}
+
+Rules:
+- summary: 2-3 sentences covering the whole meeting
+- pointNotes: 5-15 deduplicated key points from all segments
+- actionItems: all unique action items, deduplicated
+- decisions: all unique decisions, deduplicated
+- risks: all unique risks/issues, deduplicated
+- Remove redundancy — merge similar items
+- Output ONLY valid JSON, no markdown fences
+
+Segment summaries:
+${input}`;
+}
+
+function buildSinglePrompt(transcript: string, language: 'en' | 'ja'): string {
   const lang = language === 'ja' ? 'Japanese' : 'English';
   return `You are a meeting analyst. Analyze the following transcript and produce output in ${lang}.
 
@@ -48,7 +172,7 @@ Rules:
 - Output ONLY valid JSON, no markdown fences, no explanation
 
 Transcript:
-${transcript.slice(0, 12000)}`;
+${transcript}`;
 }
 
 async function callGemini(apiKey: string, model: string, prompt: string): Promise<string> {
@@ -118,7 +242,7 @@ async function callGemma(apiKey: string, model: string, prompt: string): Promise
   return data.choices?.[0]?.message?.content || '';
 }
 
-function parseResponse(raw: string): Omit<SummaryResult, 'ok' | 'error'> {
+function parseResponse(raw: string): ParsedChunk {
   const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
   const parsed = JSON.parse(cleaned);
   return {
@@ -128,6 +252,12 @@ function parseResponse(raw: string): Omit<SummaryResult, 'ok' | 'error'> {
     decisions: Array.isArray(parsed.decisions) ? parsed.decisions : [],
     risks: Array.isArray(parsed.risks) ? parsed.risks : [],
   };
+}
+
+async function callLLM(provider: string, apiKey: string, model: string, prompt: string): Promise<string> {
+  if (provider === 'gemini') return callGemini(apiKey, model, prompt);
+  if (provider === 'chatgpt') return callOpenAI(apiKey, model, prompt);
+  return callGemma(apiKey, model, prompt);
 }
 
 export function registerSummarizeHandlers(): void {
@@ -141,20 +271,37 @@ export function registerSummarizeHandlers(): void {
     }
 
     const model = models[provider] || (provider === 'gemini' ? 'gemini-1.5-pro' : provider === 'chatgpt' ? 'gpt-4o' : 'gemma-2-27b-it');
-    const prompt = buildPrompt(request.transcript, request.language);
 
     try {
-      let raw: string;
-      if (provider === 'gemini') {
-        raw = await callGemini(apiKey, model, prompt);
-      } else if (provider === 'chatgpt') {
-        raw = await callOpenAI(apiKey, model, prompt);
+      // Determine chunks
+      let chunks: string[];
+      if (request.utterances && request.utterances.length > 0) {
+        chunks = chunkByUtterances(request.utterances);
       } else {
-        raw = await callGemma(apiKey, model, prompt);
+        chunks = chunkByText(request.transcript);
       }
 
-      const parsed = parseResponse(raw);
-      return { ok: true, ...parsed };
+      // Single chunk — direct summarization
+      if (chunks.length === 1) {
+        const prompt = buildSinglePrompt(chunks[0], request.language);
+        const raw = await callLLM(provider, apiKey, model, prompt);
+        const parsed = parseResponse(raw);
+        return { ok: true, ...parsed };
+      }
+
+      // Multiple chunks — summarize each, then merge
+      const chunkResults: ParsedChunk[] = [];
+      for (let i = 0; i < chunks.length; i++) {
+        const prompt = buildChunkPrompt(chunks[i], i, chunks.length, request.language);
+        const raw = await callLLM(provider, apiKey, model, prompt);
+        chunkResults.push(parseResponse(raw));
+      }
+
+      // Merge all chunk summaries
+      const mergePrompt = buildMergePrompt(chunkResults, request.language);
+      const mergeRaw = await callLLM(provider, apiKey, model, mergePrompt);
+      const merged = parseResponse(mergeRaw);
+      return { ok: true, ...merged };
     } catch (err: any) {
       return { ok: false, error: err.message || 'Summary generation failed.' };
     }
