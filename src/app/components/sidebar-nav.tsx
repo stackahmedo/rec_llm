@@ -2,6 +2,7 @@ import { LayoutDashboard, Upload, FileText, Users, Settings, FileEdit, Database 
 import { Button } from "./ui/button";
 import { useT } from "../i18n";
 import { useEffect, useState } from "react";
+import logo from "../../assets/logo.png";
 
 interface SidebarNavProps {
   active: string;
@@ -39,7 +40,12 @@ export function SidebarNav({ active, onChange }: SidebarNavProps) {
   return (
     <aside className="w-64 border-r bg-sidebar text-sidebar-foreground flex flex-col h-full">
       <div className="p-5 border-b flex items-center gap-2">
-        <img src="/logo.png" alt="RecLLM" className="size-9 rounded-md object-contain" />
+        <img
+          src={logo}
+          alt="RecLLM"
+          className="size-9 rounded-md object-contain"
+          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+        />
         <div>
           <div className="leading-tight">{t("brand.name")}</div>
           <div className="text-muted-foreground leading-tight">{t("brand.tagline")}</div>
