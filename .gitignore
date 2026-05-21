@@ -2,3 +2,32 @@ node_modules
 dist
 electron-dist
 release
+
+# IDE / Claude
+.claude/settings.local.json
+
+# Environment
+.env
+.env.*
+
+# Secrets
+*.pem
+*.key
+
+# Local logs
+*.log
+logs/
+
+# Large audio files
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.aac
+*.ogg
+*.wma
+*.mp4
+
+# Downloaded models
+models/
+*.gguf
