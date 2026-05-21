@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -141,6 +141,34 @@ export function SettingsPanel() {
   const [gemmaState, setGemmaState] = useState<CheckState>("idle");
   const [gemmaModel, setGemmaModel] = useState("gemma-2-27b-it");
 
+  // Load saved settings on mount
+  useEffect(() => {
+    const api = window.electronAPI?.settings;
+    if (!api) return;
+    (async () => {
+      const keys = await api.get('apiKeys') as Record<string, string> | null;
+      if (keys) {
+        if (keys.assemblyai) setAsmKey(keys.assemblyai);
+        if (keys.gemini) setGemKey(keys.gemini);
+        if (keys.chatgpt) setGptKey(keys.chatgpt);
+        if (keys.gemma) setGemmaKey(keys.gemma);
+      }
+      const models = await api.get('models') as Record<string, string> | null;
+      if (models) {
+        if (models.assemblyai) setAsmModel(models.assemblyai);
+        if (models.gemini) setGemModel(models.gemini);
+        if (models.chatgpt) setGptModel(models.chatgpt);
+        if (models.gemma) setGemmaModel(models.gemma);
+      }
+      const prefs = await api.get('preferences') as Record<string, unknown> | null;
+      if (prefs) {
+        if (typeof prefs.summaryProvider === 'string') setSummaryProvider(prefs.summaryProvider as any);
+        if (typeof prefs.asmDiarize === 'boolean') setAsmDiarize(prefs.asmDiarize);
+        if (typeof prefs.asmLang === 'string') setAsmLang(prefs.asmLang);
+      }
+    })();
+  }, []);
+
   const makeChecker = (
     key: string,
     setState: (s: CheckState) => void,
@@ -155,8 +183,39 @@ export function SettingsPanel() {
     }, 900);
   };
 
-  const saveAll = () => toast.success("Settings saved", { description: "Encrypted with AES-256 and stored in your vault." });
-  const resetAll = () => {
+  const saveAll = async () => {
+    const api = window.electronAPI?.settings;
+    if (api) {
+      await api.set('apiKeys', {
+        assemblyai: asmKey,
+        gemini: gemKey,
+        chatgpt: gptKey,
+        gemma: gemmaKey,
+      });
+      await api.set('models', {
+        assemblyai: asmModel,
+        gemini: gemModel,
+        chatgpt: gptModel,
+        gemma: gemmaModel,
+      });
+      await api.set('preferences', {
+        summaryProvider,
+        asmDiarize,
+        asmLang,
+      });
+      toast.success("Settings saved", { description: "Encrypted and stored locally." });
+    } else {
+      toast.success("Settings saved", { description: "Stored in memory only (browser mode)." });
+    }
+  };
+
+  const resetAll = async () => {
+    const api = window.electronAPI?.settings;
+    if (api) {
+      await api.delete('apiKeys');
+      await api.delete('models');
+      await api.delete('preferences');
+    }
     setAsmKey(""); setAsmState("idle");
     setGemKey(""); setGemState("idle");
     setGptKey(""); setGptState("idle");

@@ -8,9 +8,16 @@ interface AudioFileMeta {
   createdAt: string;
 }
 
+interface ElectronSettings {
+  get: (key: string) => Promise<unknown>;
+  set: (key: string, value: unknown) => Promise<boolean>;
+  delete: (key: string) => Promise<boolean>;
+}
+
 interface ElectronAPI {
   platform: string;
   openAudioFiles: () => Promise<AudioFileMeta[]>;
+  settings: ElectronSettings;
 }
 
 declare global {

@@ -14,4 +14,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   openAudioFiles: (): Promise<AudioFileMeta[]> =>
     ipcRenderer.invoke('dialog:openAudioFiles'),
+  settings: {
+    get: (key: string): Promise<unknown> =>
+      ipcRenderer.invoke('settings:get', key),
+    set: (key: string, value: unknown): Promise<boolean> =>
+      ipcRenderer.invoke('settings:set', key, value),
+    delete: (key: string): Promise<boolean> =>
+      ipcRenderer.invoke('settings:delete', key),
+  },
 });

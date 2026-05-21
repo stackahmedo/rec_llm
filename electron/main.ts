@@ -1,8 +1,11 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import path from 'path';
 import fs from 'fs';
+import { registerSettingsHandlers } from './settings';
 
 const isDev = !app.isPackaged;
+
+registerSettingsHandlers();
 
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'm4a', 'mp4', 'aac', 'flac'];
 
