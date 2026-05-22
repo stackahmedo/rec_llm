@@ -1,23 +1,19 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Label } from "./ui/label";
 import { Badge } from "./ui/badge";
-import { Separator } from "./ui/separator";
 import { Switch } from "./ui/switch";
-import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Separator } from "./ui/separator";
 import { toast } from "sonner";
 import {
-  Key, Eye, EyeOff, CheckCircle2, XCircle, Loader2, Mic, Sparkles,
-  ExternalLink, Save, RotateCcw, Lock,
+  Eye, EyeOff, CheckCircle2, XCircle, Loader2, Save, RotateCcw,
+  Settings2, Mic, Sparkles, Cpu, Download, Wrench,
 } from "lucide-react";
-import { RoleEngines } from "./role-engines";
 import { useT, Lang } from "../i18n";
-import { Languages } from "lucide-react";
 
 type CheckState = "idle" | "checking" | "ok" | "fail";
+type SettingsTab = "general" | "transcription" | "ai-models" | "processing" | "export" | "advanced";
 
 const PLACEHOLDER_KEYS = [
   'your_api_key', 'your_api_key_here', 'paste_key_here',
@@ -30,136 +26,26 @@ function isPlaceholderKey(key: string): boolean {
   return PLACEHOLDER_KEYS.some((p) => lower === p.replace(/[^a-z0-9_-]/g, ''));
 }
 
-function modelDisplayName(providerId: string, model: string): string {
-  if (providerId === "assembly") {
-    switch (model) {
-      case "universal-3-pro+universal-2": return "Universal-3 Pro + fallback (recommended)";
-      case "universal-2": return "Universal-2 only (99 languages)";
-      default: return model;
-    }
-  }
-  return model;
-}
-
-interface ProviderCardProps {
-  id: string;
-  name: string;
-  description: string;
-  docsUrl: string;
-  apiKey: string;
-  onKeyChange: (v: string) => void;
-  state: CheckState;
-  onCheck: () => void;
-  active: boolean;
-  models: string[];
-  model: string;
-  onModelChange: (v: string) => void;
-}
-
-function ProviderCard(p: ProviderCardProps) {
-  const { t } = useT();
-  const [show, setShow] = useState(false);
-  const stateBadge = {
-    idle:     <Badge variant="outline">{t("settings.notVerified")}</Badge>,
-    checking: <Badge variant="secondary"><Loader2 className="size-3 mr-1 animate-spin" />{t("settings.checking")}</Badge>,
-    ok:       <Badge className="bg-emerald-600"><CheckCircle2 className="size-3 mr-1" />{t("settings.connected")}</Badge>,
-    fail:     <Badge variant="destructive"><XCircle className="size-3 mr-1" />{t("settings.invalidKey")}</Badge>,
-  }[p.state];
-
-  return (
-    <div className={`border rounded-lg p-4 transition-colors ${p.active ? "border-primary bg-primary/5" : ""}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div>{p.name}</div>
-            {p.active && <Badge variant="default">{t("settings.active")}</Badge>}
-          </div>
-          <div className="text-muted-foreground mt-0.5">{p.description}</div>
-        </div>
-        {stateBadge}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_12rem] gap-3 mt-4">
-        <div>
-          <Label htmlFor={`${p.id}-key`}>{t("settings.apiKey")}</Label>
-          <div className="relative mt-1">
-            <Key className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id={`${p.id}-key`}
-              type={show ? "text" : "password"}
-              placeholder={`Paste your ${p.name} API key`}
-              value={p.apiKey}
-              onChange={(e) => p.onKeyChange(e.target.value)}
-              className="pl-9 pr-10 font-mono"
-            />
-            <Button
-              variant="ghost" size="icon"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
-              onClick={() => setShow(!show)}
-              type="button"
-            >
-              {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-            </Button>
-          </div>
-        </div>
-        <div>
-          <Label>{t("settings.model")}</Label>
-          <Select value={p.model} onValueChange={p.onModelChange}>
-            <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {p.models.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {modelDisplayName(p.id, m)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between mt-4 gap-2 flex-wrap">
-        <a href={p.docsUrl} target="_blank" rel="noreferrer"
-           className="text-muted-foreground inline-flex items-center hover:text-foreground">
-          {t("settings.getKey")} <ExternalLink className="size-3 ml-1" />
-        </a>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={p.onCheck} disabled={!p.apiKey || p.state === "checking"}>
-            {p.state === "checking" ? <Loader2 className="size-4 mr-1 animate-spin" /> : <CheckCircle2 className="size-4 mr-1" />}
-            {t("settings.checkConnection")}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
+const tabs: { id: SettingsTab; label: string; icon: any }[] = [
+  { id: "general", label: "General", icon: Settings2 },
+  { id: "transcription", label: "Transcription", icon: Mic },
+  { id: "ai-models", label: "AI Models", icon: Sparkles },
+  { id: "processing", label: "Processing", icon: Cpu },
+  { id: "export", label: "Export", icon: Download },
+  { id: "advanced", label: "Advanced", icon: Wrench },
+];
 
 export function SettingsPanel() {
-  const { t, lang, setLang } = useT();
-  // Transcription — AssemblyAI
+  const { lang, setLang } = useT();
+  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
+  const [dirty, setDirty] = useState(false);
+
+  // API Keys
   const [asmKey, setAsmKey] = useState("");
   const [asmState, setAsmState] = useState<CheckState>("idle");
   const [asmModel, setAsmModel] = useState("universal-3-pro+universal-2");
-  const [asmDiarize, setAsmDiarize] = useState(true);
   const [asmLang, setAsmLang] = useState("auto");
-
-  const checkAssembly = async () => {
-    setAsmState("checking");
-    const api = window.electronAPI?.assemblyai;
-    if (!api) {
-      setAsmState("idle");
-      toast.message("Desktop mode required for real API validation", {
-        description: "Run the app via Electron to validate keys against the real API.",
-      });
-      return;
-    }
-    const result = await api.validateKey();
-    setAsmState(result.ok ? "ok" : "fail");
-    if (result.ok) toast.success("AssemblyAI connected", { description: "API key verified · diarization available." });
-    else toast.error("AssemblyAI rejected the key", { description: result.error || "Check your key." });
-  };
-
-  // Summary — choose Gemini / ChatGPT / Gemma
-  const [summaryProvider, setSummaryProvider] = useState<"gemini" | "chatgpt" | "gemma">("gemini");
+  const [asmDiarize, setAsmDiarize] = useState(true);
 
   const [gemKey, setGemKey] = useState("");
   const [gemState, setGemState] = useState<CheckState>("idle");
@@ -169,11 +55,20 @@ export function SettingsPanel() {
   const [gptState, setGptState] = useState<CheckState>("idle");
   const [gptModel, setGptModel] = useState("gpt-4o");
 
-  const [gemmaKey, setGemmaKey] = useState("");
-  const [gemmaState, setGemmaState] = useState<CheckState>("idle");
-  const [gemmaModel, setGemmaModel] = useState("gemma-2-27b-it");
+  const [summaryProvider, setSummaryProvider] = useState<"gemini" | "chatgpt">("gemini");
+  const [summaryLang, setSummaryLang] = useState("en");
 
-  // Load saved settings on mount
+  // Processing
+  const [autoRetry, setAutoRetry] = useState(true);
+  const [autoCompress, setAutoCompress] = useState(true);
+  const [autoSaveTxt, setAutoSaveTxt] = useState(true);
+
+  // System info
+  const [ffmpegOk, setFfmpegOk] = useState<boolean | null>(null);
+  const [storageSize, setStorageSize] = useState(0);
+  const [transcriptCount, setTranscriptCount] = useState(0);
+
+  // Load settings
   useEffect(() => {
     const api = window.electronAPI?.settings;
     if (!api) return;
@@ -183,378 +78,447 @@ export function SettingsPanel() {
         if (keys.assemblyai) setAsmKey(keys.assemblyai);
         if (keys.gemini) setGemKey(keys.gemini);
         if (keys.chatgpt) setGptKey(keys.chatgpt);
-        if (keys.gemma) setGemmaKey(keys.gemma);
       }
       const models = await api.get('models') as Record<string, string> | null;
       if (models) {
         if (models.assemblyai) setAsmModel(models.assemblyai);
         if (models.gemini) setGemModel(models.gemini);
         if (models.chatgpt) setGptModel(models.chatgpt);
-        if (models.gemma) setGemmaModel(models.gemma);
       }
       const prefs = await api.get('preferences') as Record<string, unknown> | null;
       if (prefs) {
         if (typeof prefs.summaryProvider === 'string') setSummaryProvider(prefs.summaryProvider as any);
         if (typeof prefs.asmDiarize === 'boolean') setAsmDiarize(prefs.asmDiarize);
         if (typeof prefs.asmLang === 'string') setAsmLang(prefs.asmLang);
+        if (typeof prefs.summaryLang === 'string') setSummaryLang(prefs.summaryLang);
+        if (typeof prefs.autoRetry === 'boolean') setAutoRetry(prefs.autoRetry);
+        if (typeof prefs.autoCompress === 'boolean') setAutoCompress(prefs.autoCompress);
+        if (typeof prefs.autoSaveTxt === 'boolean') setAutoSaveTxt(prefs.autoSaveTxt);
       }
     })();
+    window.electronAPI?.audio?.ffmpegCheck().then((r) => setFfmpegOk(r.ok));
+    window.electronAPI?.storage?.stats().then((s) => {
+      setStorageSize(s.totalSize);
+      setTranscriptCount(s.transcriptCount);
+    });
   }, []);
 
-  const makeChecker = (
-    key: string,
-    setState: (s: CheckState) => void,
-    name: string,
-    provider: string,
-  ) => async () => {
-    if (!window.electronAPI?.settings) {
-      setState("idle");
-      toast.message("Desktop mode required for real API validation", {
-        description: "Run the app via Electron to validate keys against the real API.",
+  const markDirty = () => setDirty(true);
+
+  const checkAssembly = async () => {
+    setAsmState("checking");
+    const api = window.electronAPI?.assemblyai;
+    if (!api) { setAsmState("idle"); toast.message("Desktop mode required"); return; }
+    const result = await api.validateKey();
+    setAsmState(result.ok ? "ok" : "fail");
+    if (result.ok) toast.success("AssemblyAI connected");
+    else toast.error("AssemblyAI key invalid", { description: result.error });
+  };
+
+  const checkGemini = async () => {
+    setGemState("checking");
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${gemKey.trim()}`);
+      setGemState(response.status === 200 ? "ok" : "fail");
+      if (response.status === 200) toast.success("Gemini connected");
+      else toast.error("Gemini key invalid");
+    } catch { setGemState("fail"); toast.error("Gemini: network error"); }
+  };
+
+  const checkOpenAI = async () => {
+    setGptState("checking");
+    try {
+      const response = await fetch("https://api.openai.com/v1/models", {
+        headers: { "Authorization": `Bearer ${gptKey.trim()}` },
       });
-      return;
-    }
-
-    const trimmed = key.trim();
-    if (!trimmed || trimmed.length < 10) {
-      setState("fail");
-      toast.error(`${name}: no valid key`, { description: "Paste a key and save settings first." });
-      return;
-    }
-
-    setState("checking");
-
-    // Gemma via Groq — validate with a real API call
-    if (provider === "gemma") {
-      try {
-        const response = await fetch("https://api.groq.com/openai/v1/models", {
-          headers: { "Authorization": `Bearer ${key}` },
-        });
-        if (response.status === 200) {
-          setState("ok");
-          toast.success(`${name} connected via Groq`);
-        } else if (response.status === 401) {
-          setState("fail");
-          toast.error(`${name}: invalid Groq API key`);
-        } else {
-          setState("fail");
-          toast.error(`${name}: unexpected response (${response.status})`);
-        }
-      } catch {
-        setState("fail");
-        toast.error(`${name}: network error — cannot reach Groq API`);
-      }
-      return;
-    }
-
-    // Gemini — validate with a real API call
-    if (provider === "gemini") {
-      try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
-        if (response.status === 200) {
-          setState("ok");
-          toast.success(`${name} connected`);
-        } else if (response.status === 400 || response.status === 403) {
-          setState("fail");
-          toast.error(`${name}: invalid API key`);
-        } else {
-          setState("fail");
-          toast.error(`${name}: unexpected response (${response.status})`);
-        }
-      } catch {
-        setState("fail");
-        toast.error(`${name}: network error`);
-      }
-      return;
-    }
-
-    // ChatGPT — validate with a real API call
-    if (provider === "chatgpt") {
-      try {
-        const response = await fetch("https://api.openai.com/v1/models", {
-          headers: { "Authorization": `Bearer ${key}` },
-        });
-        if (response.status === 200) {
-          setState("ok");
-          toast.success(`${name} connected`);
-        } else if (response.status === 401) {
-          setState("fail");
-          toast.error(`${name}: invalid API key`);
-        } else {
-          setState("fail");
-          toast.error(`${name}: unexpected response (${response.status})`);
-        }
-      } catch {
-        setState("fail");
-        toast.error(`${name}: network error`);
-      }
-      return;
-    }
-
-    // Fallback
-    setState("fail");
-    toast.error(`${name}: validation not configured`);
+      setGptState(response.status === 200 ? "ok" : "fail");
+      if (response.status === 200) toast.success("OpenAI connected");
+      else toast.error("OpenAI key invalid");
+    } catch { setGptState("fail"); toast.error("OpenAI: network error"); }
   };
 
   const saveAll = async () => {
     const api = window.electronAPI?.settings;
-    if (!api) {
-      toast.message("Desktop mode required", { description: "Settings are not persisted in browser mode." });
-      return;
-    }
+    if (!api) { toast.message("Desktop mode required"); return; }
 
-    // Validate no placeholder keys
-    const keysToSave = {
-      assemblyai: asmKey.trim(),
-      gemini: gemKey.trim(),
-      chatgpt: gptKey.trim(),
-      gemma: gemmaKey.trim(),
-    };
-
-    for (const [provider, key] of Object.entries(keysToSave)) {
-      if (key && isPlaceholderKey(key)) {
-        toast.error(`Invalid ${provider} key`, {
-          description: `Please paste your real API key from the provider dashboard.`,
-        });
-        return;
-      }
-    }
+    const keysToSave: Record<string, string> = {};
+    if (asmKey.trim() && !isPlaceholderKey(asmKey)) keysToSave.assemblyai = asmKey.trim();
+    if (gemKey.trim() && !isPlaceholderKey(gemKey)) keysToSave.gemini = gemKey.trim();
+    if (gptKey.trim() && !isPlaceholderKey(gptKey)) keysToSave.chatgpt = gptKey.trim();
 
     await api.set('apiKeys', keysToSave);
-    await api.set('models', {
-      assemblyai: asmModel,
-      gemini: gemModel,
-      chatgpt: gptModel,
-      gemma: gemmaModel,
-    });
-    await api.set('preferences', {
-      summaryProvider,
-      asmDiarize,
-      asmLang,
-    });
-    toast.success("Settings saved", { description: "Encrypted and stored locally." });
+    await api.set('models', { assemblyai: asmModel, gemini: gemModel, chatgpt: gptModel });
+    await api.set('preferences', { summaryProvider, asmDiarize, asmLang, summaryLang, autoRetry, autoCompress, autoSaveTxt });
+    setDirty(false);
+    toast.success("Settings saved");
   };
 
   const resetAll = async () => {
     const api = window.electronAPI?.settings;
-    if (api) {
-      await api.delete('apiKeys');
-      await api.delete('models');
-      await api.delete('preferences');
-    }
-    setAsmKey(""); setAsmState("idle");
-    setGemKey(""); setGemState("idle");
-    setGptKey(""); setGptState("idle");
-    setGemmaKey(""); setGemmaState("idle");
+    if (api) { await api.delete('apiKeys'); await api.delete('models'); await api.delete('preferences'); }
+    setAsmKey(""); setGemKey(""); setGptKey("");
+    setAsmState("idle"); setGemState("idle"); setGptState("idle");
+    setDirty(false);
     toast.message("Settings reset");
   };
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      {/* Language */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Languages className="size-4" />{t("settings.language.title")}
-          </CardTitle>
-          <CardDescription>{t("settings.language.desc")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <RadioGroup
-            value={lang}
-            onValueChange={(v) => setLang(v as Lang)}
-            className="grid grid-cols-1 md:grid-cols-3 gap-3"
-          >
-            {[
-              { v: "en",   label: t("settings.language.english"),  flag: "🇺🇸" },
-              { v: "ja",   label: t("settings.language.japanese"), flag: "🇯🇵" },
-              { v: "both", label: t("settings.language.both"),     flag: "🌐" },
-            ].map((o) => (
-              <label key={o.v} htmlFor={`lang-${o.v}`}
-                className={`border rounded-lg p-3 cursor-pointer flex items-center gap-3 transition-colors ${lang === o.v ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`}>
-                <RadioGroupItem value={o.v} id={`lang-${o.v}`} />
-                <span className="text-2xl">{o.flag}</span>
-                <div>{o.label}</div>
-              </label>
-            ))}
-          </RadioGroup>
-        </CardContent>
-      </Card>
-
-      {/* Transcription engine */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Mic className="size-4" />{t("settings.transcription.title")}
-              </CardTitle>
-              <CardDescription>{t("settings.transcription.desc")}</CardDescription>
-            </div>
-            <Badge variant="secondary">AssemblyAI</Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <ProviderCard
-            id="assembly"
-            name="AssemblyAI"
-            description="Long-form transcription with speaker diarization, sentiment, and entity detection."
-            docsUrl="https://www.assemblyai.com/app/account"
-            apiKey={asmKey}
-            onKeyChange={setAsmKey}
-            state={asmState}
-            onCheck={checkAssembly}
-            active
-            models={["universal-3-pro+universal-2", "universal-2"]}
-            model={asmModel}
-            onModelChange={setAsmModel}
-          />
-
-          <Separator />
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label>Default language</Label>
-              <Select value={asmLang} onValueChange={setAsmLang}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">Auto-detect</SelectItem>
-                  <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="ja">Japanese</SelectItem>
-                  <SelectItem value="es">Spanish</SelectItem>
-                  <SelectItem value="bn">Bengali</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-end justify-between gap-3 border rounded-md p-3">
-              <div>
-                <Label className="leading-none">Speaker diarization</Label>
-                <div className="text-muted-foreground mt-1">Separate overlapping voices into channels.</div>
-              </div>
-              <Switch checked={asmDiarize} onCheckedChange={setAsmDiarize} />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Summary engine */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="size-4" />{t("settings.summary.title")}
-              </CardTitle>
-              <CardDescription>{t("settings.summary.desc")}</CardDescription>
-            </div>
-            <Badge variant="outline" className="capitalize">{summaryProvider}</Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <RadioGroup
-            value={summaryProvider}
-            onValueChange={(v) => setSummaryProvider(v as any)}
-            className="grid grid-cols-1 md:grid-cols-3 gap-3"
-          >
-            {[
-              { v: "gemini",  t: "Google Gemini",   d: "Long-context, multilingual" },
-              { v: "chatgpt", t: "OpenAI ChatGPT",  d: "Strong reasoning, JSON mode" },
-              { v: "gemma",   t: "Gemma (via Groq)", d: "Optional · requires Groq API key" },
-            ].map((o) => (
-              <label key={o.v} htmlFor={`sp-${o.v}`}
-                className={`border rounded-lg p-3 cursor-pointer flex items-start gap-3 transition-colors ${summaryProvider === o.v ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`}>
-                <RadioGroupItem value={o.v} id={`sp-${o.v}`} className="mt-1" />
-                <div>
-                  <div>{o.t}</div>
-                  <div className="text-muted-foreground">{o.d}</div>
-                </div>
-              </label>
-            ))}
-          </RadioGroup>
-
-          <Separator />
-
-          <ProviderCard
-            id="gemini"
-            name="Google Gemini"
-            description="Google AI Studio key (starts with AIza...). Long-context summarization."
-            docsUrl="https://aistudio.google.com/app/apikey"
-            apiKey={gemKey}
-            onKeyChange={setGemKey}
-            state={gemState}
-            onCheck={makeChecker(gemKey, setGemState, "Gemini", "gemini")}
-            active={summaryProvider === "gemini"}
-            models={["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash"]}
-            model={gemModel}
-            onModelChange={setGemModel}
-          />
-
-          <ProviderCard
-            id="chatgpt"
-            name="OpenAI ChatGPT"
-            description="OpenAI API key (sk-...). Supports JSON-mode output for the 30-item digest."
-            docsUrl="https://platform.openai.com/api-keys"
-            apiKey={gptKey}
-            onKeyChange={setGptKey}
-            state={gptState}
-            onCheck={makeChecker(gptKey, setGptState, "ChatGPT", "chatgpt")}
-            active={summaryProvider === "chatgpt"}
-            models={["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o1-mini"]}
-            model={gptModel}
-            onModelChange={setGptModel}
-          />
-
-          <ProviderCard
-            id="gemma"
-            name="Gemma (via Groq) — Optional"
-            description="Requires a Groq API key (free at console.groq.com). Not installed locally."
-            docsUrl="https://console.groq.com/keys"
-            apiKey={gemmaKey}
-            onKeyChange={setGemmaKey}
-            state={gemmaState}
-            onCheck={makeChecker(gemmaKey, setGemmaState, "Gemma", "gemma")}
-            active={summaryProvider === "gemma"}
-            models={["gemma-2-27b-it", "gemma-2-9b-it", "gemma-7b-it"]}
-            model={gemmaModel}
-            onModelChange={setGemmaModel}
-          />
-
-          {summaryProvider === "gemma" && !gemmaKey && (
-            <div className="text-amber-600 dark:text-amber-400 text-sm border border-amber-300 dark:border-amber-700 rounded-md p-3 bg-amber-50 dark:bg-amber-950/30">
-              Gemma local model not installed. To use Gemma, enter a Groq API key above. Local model download will be available in a future update.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Roles & engines */}
-      <RoleEngines />
-
-      {/* Security & misc */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Lock className="size-4" />{t("settings.storage.title")}</CardTitle>
-          <CardDescription>{t("settings.storage.desc")}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {[
-            ["Speaker profile slots", "6 of 10 used"],
-            ["Manual correction → training", "Enabled"],
-            ["Encrypted storage", "AES-256 at rest"],
-            ["Role-based access", "3 roles · 7 members"],
-          ].map(([k, v]) => (
-            <div key={k} className="flex items-center justify-between border-b pb-3 last:border-b-0 last:pb-0">
-              <div>{k}</div>
-              <Badge variant="outline">{v}</Badge>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" onClick={resetAll}><RotateCcw className="size-4 mr-1" />{t("settings.reset")}</Button>
-        <Button type="button" onClick={saveAll}><Save className="size-4 mr-1" />{t("settings.save")}</Button>
+    <div className="flex h-full -m-6">
+      {/* Left nav */}
+      <div className="w-44 border-r bg-muted/10 shrink-0 py-2">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const active = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-left transition-colors
+                ${active ? "bg-primary/10 text-primary border-r-2 border-primary font-medium" : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <Icon className="size-3.5" />
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0 flex flex-col">
+        <div className="flex-1 overflow-auto p-4 max-w-3xl">
+          {activeTab === "general" && (
+            <GeneralTab lang={lang} setLang={setLang} markDirty={markDirty} />
+          )}
+          {activeTab === "transcription" && (
+            <TranscriptionTab
+              asmKey={asmKey} setAsmKey={(v) => { setAsmKey(v); markDirty(); }}
+              asmState={asmState} checkAssembly={checkAssembly}
+              asmModel={asmModel} setAsmModel={(v) => { setAsmModel(v); markDirty(); }}
+              asmLang={asmLang} setAsmLang={(v) => { setAsmLang(v); markDirty(); }}
+              asmDiarize={asmDiarize} setAsmDiarize={(v) => { setAsmDiarize(v); markDirty(); }}
+            />
+          )}
+          {activeTab === "ai-models" && (
+            <AIModelsTab
+              summaryProvider={summaryProvider} setSummaryProvider={(v) => { setSummaryProvider(v); markDirty(); }}
+              summaryLang={summaryLang} setSummaryLang={(v) => { setSummaryLang(v); markDirty(); }}
+              gemKey={gemKey} setGemKey={(v) => { setGemKey(v); markDirty(); }}
+              gemState={gemState} checkGemini={checkGemini}
+              gemModel={gemModel} setGemModel={(v) => { setGemModel(v); markDirty(); }}
+              gptKey={gptKey} setGptKey={(v) => { setGptKey(v); markDirty(); }}
+              gptState={gptState} checkOpenAI={checkOpenAI}
+              gptModel={gptModel} setGptModel={(v) => { setGptModel(v); markDirty(); }}
+            />
+          )}
+          {activeTab === "processing" && (
+            <ProcessingTab
+              autoRetry={autoRetry} setAutoRetry={(v) => { setAutoRetry(v); markDirty(); }}
+              autoCompress={autoCompress} setAutoCompress={(v) => { setAutoCompress(v); markDirty(); }}
+              autoSaveTxt={autoSaveTxt} setAutoSaveTxt={(v) => { setAutoSaveTxt(v); markDirty(); }}
+              asmDiarize={asmDiarize} setAsmDiarize={(v) => { setAsmDiarize(v); markDirty(); }}
+            />
+          )}
+          {activeTab === "export" && <ExportTab />}
+          {activeTab === "advanced" && (
+            <AdvancedTab ffmpegOk={ffmpegOk} storageSize={storageSize} transcriptCount={transcriptCount} resetAll={resetAll} />
+          )}
+        </div>
+
+        {/* Sticky save bar */}
+        <div className={`h-10 border-t flex items-center justify-end px-4 gap-2 shrink-0 transition-colors ${dirty ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800" : "bg-muted/10"}`}>
+          {dirty && <span className="text-[10px] text-amber-600 dark:text-amber-400 mr-auto">Unsaved changes</span>}
+          <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={resetAll}>
+            <RotateCcw className="size-3 mr-1" />Reset
+          </Button>
+          <Button type="button" size="sm" className="h-7 text-xs" onClick={saveAll}>
+            <Save className="size-3 mr-1" />Save
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Shared UI ---
+
+function SectionLabel({ children }: { children: string }) {
+  return <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mb-1.5">{children}</div>;
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-1.5">
+      <span className="text-[11px] shrink-0">{label}</span>
+      <div className="flex items-center gap-1.5">{children}</div>
+    </div>
+  );
+}
+
+function StatusDot({ state }: { state: CheckState }) {
+  const color = { idle: "bg-slate-400", checking: "bg-yellow-500 animate-pulse", ok: "bg-emerald-500", fail: "bg-red-500" }[state];
+  return <span className={`size-2 rounded-full ${color}`} />;
+}
+
+function KeyInput({ value, onChange, placeholder, onTest, state }: {
+  value: string; onChange: (v: string) => void; placeholder: string;
+  onTest?: () => void; state?: CheckState;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="flex items-center gap-1.5 flex-1">
+      <div className="relative flex-1">
+        <Input
+          type={show ? "text" : "password"}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="h-7 text-[11px] font-mono pr-7"
+        />
+        <button
+          type="button"
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          onClick={() => setShow(!show)}
+        >
+          {show ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
+        </button>
+      </div>
+      {onTest && (
+        <Button type="button" variant="outline" size="sm" className="h-7 text-[10px] shrink-0" onClick={onTest} disabled={state === "checking"}>
+          {state === "checking" ? <Loader2 className="size-3 animate-spin" /> : "Test"}
+        </Button>
+      )}
+      {state && state !== "idle" && state !== "checking" && <StatusDot state={state} />}
+    </div>
+  );
+}
+
+// --- Tab: General ---
+function GeneralTab({ lang, setLang, markDirty }: { lang: Lang; setLang: (l: Lang) => void; markDirty: () => void }) {
+  return (
+    <div className="space-y-4">
+      <SectionLabel>Interface Language</SectionLabel>
+      <div className="grid grid-cols-3 gap-2">
+        {([["en", "English"], ["ja", "日本語"], ["both", "Both"]] as const).map(([v, label]) => (
+          <button
+            key={v}
+            className={`border rounded px-3 py-1.5 text-[11px] transition-colors ${lang === v ? "border-primary bg-primary/5 font-medium" : "hover:bg-muted/40"}`}
+            onClick={() => { setLang(v); markDirty(); }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// --- Tab: Transcription ---
+function TranscriptionTab({ asmKey, setAsmKey, asmState, checkAssembly, asmModel, setAsmModel, asmLang, setAsmLang, asmDiarize, setAsmDiarize }: {
+  asmKey: string; setAsmKey: (v: string) => void;
+  asmState: CheckState; checkAssembly: () => void;
+  asmModel: string; setAsmModel: (v: string) => void;
+  asmLang: string; setAsmLang: (v: string) => void;
+  asmDiarize: boolean; setAsmDiarize: (v: boolean) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <SectionLabel>AssemblyAI</SectionLabel>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] w-16 shrink-0">API Key</span>
+          <KeyInput value={asmKey} onChange={setAsmKey} placeholder="Paste AssemblyAI key" onTest={checkAssembly} state={asmState} />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] w-16 shrink-0">Model</span>
+          <Select value={asmModel} onValueChange={setAsmModel}>
+            <SelectTrigger className="h-7 text-[11px] flex-1"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="universal-3-pro+universal-2">Universal-3 Pro + fallback</SelectItem>
+              <SelectItem value="universal-2">Universal-2 only (99 languages)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] w-16 shrink-0">Language</span>
+          <Select value={asmLang} onValueChange={setAsmLang}>
+            <SelectTrigger className="h-7 text-[11px] flex-1"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">Auto-detect</SelectItem>
+              <SelectItem value="en">English</SelectItem>
+              <SelectItem value="ja">Japanese</SelectItem>
+              <SelectItem value="bn">Bengali</SelectItem>
+              <SelectItem value="es">Spanish</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Row label="Speaker diarization">
+          <Switch checked={asmDiarize} onCheckedChange={setAsmDiarize} className="scale-75" />
+        </Row>
+      </div>
+    </div>
+  );
+}
+
+// --- Tab: AI Models ---
+function AIModelsTab({ summaryProvider, setSummaryProvider, summaryLang, setSummaryLang, gemKey, setGemKey, gemState, checkGemini, gemModel, setGemModel, gptKey, setGptKey, gptState, checkOpenAI, gptModel, setGptModel }: {
+  summaryProvider: "gemini" | "chatgpt"; setSummaryProvider: (v: "gemini" | "chatgpt") => void;
+  summaryLang: string; setSummaryLang: (v: string) => void;
+  gemKey: string; setGemKey: (v: string) => void;
+  gemState: CheckState; checkGemini: () => void;
+  gemModel: string; setGemModel: (v: string) => void;
+  gptKey: string; setGptKey: (v: string) => void;
+  gptState: CheckState; checkOpenAI: () => void;
+  gptModel: string; setGptModel: (v: string) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <SectionLabel>Summary Provider</SectionLabel>
+      <div className="grid grid-cols-2 gap-2">
+        {([["gemini", "Google Gemini"], ["chatgpt", "OpenAI ChatGPT"]] as const).map(([v, label]) => (
+          <button
+            key={v}
+            className={`border rounded px-3 py-1.5 text-[11px] transition-colors ${summaryProvider === v ? "border-primary bg-primary/5 font-medium" : "hover:bg-muted/40"}`}
+            onClick={() => setSummaryProvider(v)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] w-24 shrink-0">Summary language</span>
+        <Select value={summaryLang} onValueChange={setSummaryLang}>
+          <SelectTrigger className="h-7 text-[11px] flex-1"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="en">English</SelectItem>
+            <SelectItem value="ja">Japanese</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <Separator />
+
+      <SectionLabel>Google Gemini</SectionLabel>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] w-16 shrink-0">API Key</span>
+          <KeyInput value={gemKey} onChange={setGemKey} placeholder="AIza..." onTest={checkGemini} state={gemState} />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] w-16 shrink-0">Model</span>
+          <Select value={gemModel} onValueChange={setGemModel}>
+            <SelectTrigger className="h-7 text-[11px] flex-1"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro</SelectItem>
+              <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash</SelectItem>
+              <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <Separator />
+
+      <SectionLabel>OpenAI ChatGPT</SectionLabel>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] w-16 shrink-0">API Key</span>
+          <KeyInput value={gptKey} onChange={setGptKey} placeholder="sk-..." onTest={checkOpenAI} state={gptState} />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] w-16 shrink-0">Model</span>
+          <Select value={gptModel} onValueChange={setGptModel}>
+            <SelectTrigger className="h-7 text-[11px] flex-1"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+              <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+              <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Tab: Processing ---
+function ProcessingTab({ autoRetry, setAutoRetry, autoCompress, setAutoCompress, autoSaveTxt, setAutoSaveTxt, asmDiarize, setAsmDiarize }: {
+  autoRetry: boolean; setAutoRetry: (v: boolean) => void;
+  autoCompress: boolean; setAutoCompress: (v: boolean) => void;
+  autoSaveTxt: boolean; setAutoSaveTxt: (v: boolean) => void;
+  asmDiarize: boolean; setAsmDiarize: (v: boolean) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <SectionLabel>Queue Behavior</SectionLabel>
+      <Row label="Auto-retry on failure"><Switch checked={autoRetry} onCheckedChange={setAutoRetry} className="scale-75" /></Row>
+      <Row label="Auto-compress large files"><Switch checked={autoCompress} onCheckedChange={setAutoCompress} className="scale-75" /></Row>
+
+      <Separator />
+
+      <SectionLabel>Transcription</SectionLabel>
+      <Row label="Speaker diarization"><Switch checked={asmDiarize} onCheckedChange={setAsmDiarize} className="scale-75" /></Row>
+      <Row label="Language detection"><Badge variant="outline" className="text-[9px] h-4">Auto</Badge></Row>
+
+      <Separator />
+
+      <SectionLabel>Output</SectionLabel>
+      <Row label="Auto-save TXT after transcription"><Switch checked={autoSaveTxt} onCheckedChange={setAutoSaveTxt} className="scale-75" /></Row>
+    </div>
+  );
+}
+
+// --- Tab: Export ---
+function ExportTab() {
+  return (
+    <div className="space-y-4">
+      <SectionLabel>PDF Export</SectionLabel>
+      <Row label="Default template"><Badge variant="outline" className="text-[9px] h-4">Business Report</Badge></Row>
+      <Row label="Page size"><Badge variant="outline" className="text-[9px] h-4">A4</Badge></Row>
+      <Row label="Include summary"><Badge variant="outline" className="text-[9px] h-4">Yes</Badge></Row>
+
+      <Separator />
+
+      <SectionLabel>TXT Export</SectionLabel>
+      <Row label="Format"><Badge variant="outline" className="text-[9px] h-4 font-mono">[HH:MM:SS] Speaker: text</Badge></Row>
+      <Row label="Include header"><Badge variant="outline" className="text-[9px] h-4">Yes</Badge></Row>
+    </div>
+  );
+}
+
+// --- Tab: Advanced ---
+function AdvancedTab({ ffmpegOk, storageSize, transcriptCount, resetAll }: {
+  ffmpegOk: boolean | null; storageSize: number; transcriptCount: number; resetAll: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <SectionLabel>System Status</SectionLabel>
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2 text-[11px]">
+          <span className={`size-2 rounded-full ${ffmpegOk ? "bg-emerald-500" : ffmpegOk === null ? "bg-yellow-500" : "bg-red-500"}`} />
+          <span>FFmpeg</span>
+          <span className="text-muted-foreground ml-auto font-mono">{ffmpegOk ? "Ready" : ffmpegOk === null ? "Checking..." : "Not found"}</span>
+        </div>
+      </div>
+
+      <Separator />
+
+      <SectionLabel>Storage</SectionLabel>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+        <span className="text-muted-foreground">Total size</span>
+        <span className="font-mono">{(storageSize / (1024 * 1024)).toFixed(1)} MB</span>
+        <span className="text-muted-foreground">Transcripts</span>
+        <span className="font-mono">{transcriptCount}</span>
+        <span className="text-muted-foreground">Location</span>
+        <span className="font-mono text-[10px] truncate">recllm-data/</span>
+      </div>
+
+      <Separator />
+
+      <SectionLabel>Danger Zone</SectionLabel>
+      <Button type="button" variant="destructive" size="sm" className="h-7 text-[10px]" onClick={resetAll}>
+        <RotateCcw className="size-3 mr-1" />Reset All Settings
+      </Button>
     </div>
   );
 }
