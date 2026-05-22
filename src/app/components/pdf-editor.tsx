@@ -10,11 +10,12 @@ import { Separator } from "./ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Skeleton } from "./ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { toast } from "sonner";
 import {
   Download, Printer, FileText, Search, CheckCircle2, AlertTriangle,
   Loader2, Palette, PanelLeftClose, PanelLeftOpen, FileAudio, LayoutTemplate,
-  ZoomIn, ZoomOut, Maximize2, RefreshCw, Save,
+  ZoomIn, ZoomOut, Maximize2, RefreshCw, Save, FileEdit,
 } from "lucide-react";
 import { useTranscripts } from "../transcript-store";
 import { usePdfDraft } from "../pdf-draft-store";
@@ -25,6 +26,8 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./ui/resiz
 import { SpeakerEditor } from "./pdf-speaker-editor";
 import { HeaderFooterEditor } from "./pdf-header-footer-editor";
 import { SaveTemplateDialog } from "./pdf-save-template-dialog";
+import { DocumentEditor } from "./document-editor";
+import { loadDocument } from "../document-store";
 
 // --- Types ---
 interface PdfSettings {
@@ -285,8 +288,21 @@ export function PdfEditor() {
   }
 
   return (
+    <Tabs defaultValue="document" className="h-full flex flex-col -m-6">
+      <div className="border-b px-6 pt-2">
+        <TabsList className="h-8">
+          <TabsTrigger value="document" className="text-xs gap-1.5"><FileEdit className="size-3" />Document</TabsTrigger>
+          <TabsTrigger value="export" className="text-xs gap-1.5"><Download className="size-3" />Export PDF</TabsTrigger>
+        </TabsList>
+      </div>
+
+      <TabsContent value="document" className="flex-1 overflow-auto p-6 mt-0">
+        <DocumentEditor />
+      </TabsContent>
+
+      <TabsContent value="export" className="flex-1 min-h-0 mt-0">
     <TooltipProvider delayDuration={200}>
-    <div className="flex flex-col h-full -m-6">
+    <div className="flex flex-col h-full">
       {/* Main content */}
       <div className="flex-1 min-h-0 flex">
         {/* Collapsible Left Sidebar */}
@@ -558,6 +574,8 @@ export function PdfEditor() {
       onSaved={() => { setAllTemplates(getAllTemplates()); toast.success("Template saved"); }}
     />
     </TooltipProvider>
+      </TabsContent>
+    </Tabs>
   );
 }
 

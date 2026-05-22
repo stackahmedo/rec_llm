@@ -84,6 +84,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete: (id: string): Promise<boolean> => ipcRenderer.invoke('history:delete', id),
     clear: (): Promise<boolean> => ipcRenderer.invoke('history:clear'),
   },
+  document: {
+    save: (fileId: string, data: any): Promise<boolean> => ipcRenderer.invoke('document:save', fileId, data),
+    load: (fileId: string): Promise<any | null> => ipcRenderer.invoke('document:load', fileId),
+    exists: (fileId: string): Promise<boolean> => ipcRenderer.invoke('document:exists', fileId),
+  },
   storage: {
     stats: (): Promise<{
       historySize: number;

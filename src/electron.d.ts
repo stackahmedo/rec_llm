@@ -113,6 +113,12 @@ interface ElectronAudio {
   ffmpegCheck: () => Promise<{ ok: boolean; ffmpegPath?: string; ffprobePath?: string; error?: string }>;
 }
 
+interface ElectronDocument {
+  save: (fileId: string, data: any) => Promise<boolean>;
+  load: (fileId: string) => Promise<any | null>;
+  exists: (fileId: string) => Promise<boolean>;
+}
+
 interface ElectronAPI {
   platform: string;
   openAudioFiles: () => Promise<AudioFileMeta[]>;
@@ -121,6 +127,7 @@ interface ElectronAPI {
   summarize: ElectronSummarize;
   pdf: ElectronPdf;
   history: ElectronHistory;
+  document: ElectronDocument;
   storage: ElectronStorage;
   export: ElectronExport;
   audio: ElectronAudio;

@@ -6,6 +6,7 @@ const DATA_DIR = path.join(app.getPath('userData'), 'recllm-data');
 const HISTORY_FILE = path.join(DATA_DIR, 'history.json');
 const TRANSCRIPTS_DIR = path.join(DATA_DIR, 'transcripts');
 const SUMMARIES_DIR = path.join(DATA_DIR, 'summaries');
+const DOCUMENTS_DIR = path.join(DATA_DIR, 'documents');
 
 interface HistoryMeta {
   id: string;
@@ -93,6 +94,26 @@ function readSummary(id: string): SummaryData | undefined {
 function writeTranscript(id: string, data: TranscriptData): void {
   ensureDir(TRANSCRIPTS_DIR);
   fs.writeFileSync(transcriptPath(id), JSON.stringify(data), 'utf-8');
+  // Auto-generate plain text transcript
+  writeTranscriptTxt(id, data);
+}
+
+function writeTranscriptTxt(id: string, data: TranscriptData): void {
+  ensureDir(TRANSCRIPTS_DIR);
+  const txtPath = path.join(TRANSCRIPTS_DIR, `${id}.txt`);
+  const lines = data.utterances.map((u) => {
+    const ts = msToTimestamp(u.startMs);
+    return `[${ts}] ${u.speaker}: ${u.text}`;
+  });
+  fs.writeFileSync(txtPath, lines.join('\n'), 'utf-8');
+}
+
+function msToTimestamp(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
 function writeSummary(id: string, data: SummaryData): void {
@@ -160,5 +181,32 @@ export function registerHistoryHandlers(): void {
       }
     }
     return true;
+  });
+
+  // --- Document edit persistence ---
+  ipcMain.handle('document:save', async (_event, fileId: string, data: unknown): Promise<boolean> => {
+    ensureDir(DOCUMENTS_DIR);
+    const docPath = path.join(DOCUMENTS_DIR, `${fileId}.json`);
+    try {
+      fs.writeFileSync(docPath, JSON.stringify(data, null, 2), 'utf-8');
+      return true;
+    } catch {
+      return false;
+    }
+  });
+
+  ipcMain.handle('document:load', async (_event, fileId: string): Promise<unknown | null> => {
+    const docPath = path.join(DOCUMENTS_DIR, `${fileId}.json`);
+    if (!fs.existsSync(docPath)) return null;
+    try {
+      return JSON.parse(fs.readFileSync(docPath, 'utf-8'));
+    } catch {
+      return null;
+    }
+  });
+
+  ipcMain.handle('document:exists', async (_event, fileId: string): Promise<boolean> => {
+    const docPath = path.join(DOCUMENTS_DIR, `${fileId}.json`);
+    return fs.existsSync(docPath);
   });
 }
