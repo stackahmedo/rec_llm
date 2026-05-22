@@ -778,93 +778,144 @@ function PdfSettingsPanel({ settings, onUpdate, onUpdateSections, speakerProfile
   onFooterChange: (patch: Partial<FooterConfig>) => void;
   hasSummary: boolean;
 }) {
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const toggle = (key: string) => setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
+  const isOpen = (key: string) => !collapsed[key];
+
   return (
-    <div className="p-3 space-y-4 text-xs">
-      {/* Page */}
-      <div className="space-y-2">
-        <div className="font-medium text-muted-foreground uppercase tracking-wider">Page</div>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="text-muted-foreground">Size</label>
+    <div className="text-[10px]">
+      {/* Layout */}
+      <InspectorGroup title="Layout" open={isOpen("layout")} onToggle={() => toggle("layout")}>
+        <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
+          <InspectorField label="Size">
             <Select value={settings.pageSize} onValueChange={(v) => onUpdate({ pageSize: v as "A4" | "Letter" })}>
-              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-5 text-[10px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="A4">A4</SelectItem>
                 <SelectItem value="Letter">Letter</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          <div>
-            <label className="text-muted-foreground">Orientation</label>
+          </InspectorField>
+          <InspectorField label="Orientation">
             <Select value={settings.orientation} onValueChange={(v) => onUpdate({ orientation: v as "portrait" | "landscape" })}>
-              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-5 text-[10px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="portrait">Portrait</SelectItem>
                 <SelectItem value="landscape">Landscape</SelectItem>
               </SelectContent>
             </Select>
-          </div>
+          </InspectorField>
+          <InspectorField label="Columns">
+            <div className="flex gap-0.5">
+              {[1, 2].map((n) => (
+                <button key={n} className={`flex-1 h-5 rounded text-[9px] border transition-colors ${settings.columns === n ? "bg-primary/10 border-primary text-primary" : "hover:bg-muted/50"}`}
+                  onClick={() => onUpdate({ columns: n as 1 | 2 })}>{n}</button>
+              ))}
+            </div>
+          </InspectorField>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="text-muted-foreground">Font Size</label>
-            <Select value={settings.fontSize} onValueChange={(v) => onUpdate({ fontSize: v as "small" | "medium" | "large" })}>
-              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="small">Small</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="large">Large</SelectItem>
-              </SelectContent>
-            </Select>
+      </InspectorGroup>
+
+      {/* Typography */}
+      <InspectorGroup title="Typography" open={isOpen("typo")} onToggle={() => toggle("typo")}>
+        <InspectorField label="Font Size">
+          <div className="flex gap-0.5">
+            {(["small", "medium", "large"] as const).map((s) => (
+              <button key={s} className={`flex-1 h-5 rounded text-[9px] border capitalize transition-colors ${settings.fontSize === s ? "bg-primary/10 border-primary text-primary" : "hover:bg-muted/50"}`}
+                onClick={() => onUpdate({ fontSize: s })}>{s.slice(0, 3)}</button>
+            ))}
           </div>
-          <div>
-            <label className="text-muted-foreground">Columns</label>
-            <Select value={String(settings.columns)} onValueChange={(v) => onUpdate({ columns: Number(v) as 1 | 2 })}>
-              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1">1 Column</SelectItem>
-                <SelectItem value="2">2 Columns</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </div>
-
-      <Separator />
-
-      {/* Header/Footer */}
-      <HeaderFooterEditor
-        header={headerConfig}
-        footer={footerConfig}
-        onHeaderChange={onHeaderChange}
-        onFooterChange={onFooterChange}
-      />
-
-      <Separator />
+        </InspectorField>
+        <InspectorCheck label="Speaker colors" checked={settings.showSpeakerColors} onChange={(v) => onUpdate({ showSpeakerColors: v })} />
+      </InspectorGroup>
 
       {/* Sections */}
-      <div className="space-y-2">
-        <div className="font-medium text-muted-foreground uppercase tracking-wider">Sections</div>
+      <InspectorGroup title="Sections" open={isOpen("sections")} onToggle={() => toggle("sections")}>
         {!hasSummary && (
-          <div className="flex items-center gap-1.5 p-1.5 bg-amber-500/10 border border-amber-500/20 rounded text-amber-600">
-            <AlertTriangle className="size-3" />
-            <span>No AI summary. Generate one for full report.</span>
+          <div className="flex items-center gap-1 p-1 bg-amber-500/10 border border-amber-500/20 rounded text-amber-600 text-[9px] mb-1">
+            <AlertTriangle className="size-2.5" />
+            <span>No summary generated</span>
           </div>
         )}
-        <SettingRow label="Summary" checked={settings.sections.summary} onChange={(v) => onUpdateSections({ summary: v })} />
-        <SettingRow label="Key Points" checked={settings.sections.keyPoints} onChange={(v) => onUpdateSections({ keyPoints: v })} />
-        <SettingRow label="Action Items" checked={settings.sections.actionItems} onChange={(v) => onUpdateSections({ actionItems: v })} />
-        <SettingRow label="Decisions" checked={settings.sections.decisions} onChange={(v) => onUpdateSections({ decisions: v })} />
-        <SettingRow label="Risks" checked={settings.sections.risks} onChange={(v) => onUpdateSections({ risks: v })} />
-        <SettingRow label="Transcript" checked={settings.sections.transcript} onChange={(v) => onUpdateSections({ transcript: v })} />
-        <SettingRow label="Full Appendix" checked={settings.sections.appendix} onChange={(v) => onUpdateSections({ appendix: v })} />
-      </div>
+        <div className="space-y-0.5">
+          <InspectorCheck label="Summary" checked={settings.sections.summary} onChange={(v) => onUpdateSections({ summary: v })} />
+          <InspectorCheck label="Key Points" checked={settings.sections.keyPoints} onChange={(v) => onUpdateSections({ keyPoints: v })} />
+          <InspectorCheck label="Action Items" checked={settings.sections.actionItems} onChange={(v) => onUpdateSections({ actionItems: v })} />
+          <InspectorCheck label="Decisions" checked={settings.sections.decisions} onChange={(v) => onUpdateSections({ decisions: v })} />
+          <InspectorCheck label="Risks" checked={settings.sections.risks} onChange={(v) => onUpdateSections({ risks: v })} />
+          <InspectorCheck label="Transcript" checked={settings.sections.transcript} onChange={(v) => onUpdateSections({ transcript: v })} />
+          <InspectorCheck label="Appendix" checked={settings.sections.appendix} onChange={(v) => onUpdateSections({ appendix: v })} />
+        </div>
+      </InspectorGroup>
 
-      <Separator />
+      {/* Branding */}
+      <InspectorGroup title="Branding" open={isOpen("branding")} onToggle={() => toggle("branding")}>
+        <div className="space-y-0.5">
+          <InspectorCheck label="Show header" checked={headerConfig.enabled} onChange={(v) => onHeaderChange({ enabled: v })} />
+          {headerConfig.enabled && (
+            <div className="pl-3 space-y-0.5 border-l border-muted ml-1">
+              <InspectorCheck label="File name" checked={headerConfig.showFileName} onChange={(v) => onHeaderChange({ showFileName: v })} />
+              <InspectorCheck label="Date" checked={headerConfig.showDate} onChange={(v) => onHeaderChange({ showDate: v })} />
+              <InspectorCheck label="Time" checked={headerConfig.showTime} onChange={(v) => onHeaderChange({ showTime: v })} />
+              <InspectorCheck label="Logo" checked={headerConfig.showLogo} onChange={(v) => onHeaderChange({ showLogo: v })} />
+            </div>
+          )}
+          <InspectorCheck label="Show footer" checked={footerConfig.enabled} onChange={(v) => onFooterChange({ enabled: v })} />
+          {footerConfig.enabled && (
+            <div className="pl-3 space-y-0.5 border-l border-muted ml-1">
+              <InspectorCheck label="Page numbers" checked={footerConfig.showPageNumbers} onChange={(v) => onFooterChange({ showPageNumbers: v })} />
+              <InspectorCheck label="Confidential" checked={footerConfig.showConfidential} onChange={(v) => onFooterChange({ showConfidential: v })} />
+              <InspectorCheck label="Generated by" checked={footerConfig.showGeneratedBy} onChange={(v) => onFooterChange({ showGeneratedBy: v })} />
+            </div>
+          )}
+        </div>
+      </InspectorGroup>
 
-      {/* Speaker Editor */}
-      <SpeakerEditor profiles={speakerProfiles} onChange={onSpeakerProfilesChange} />
+      {/* Speakers */}
+      <InspectorGroup title="Speakers" open={isOpen("speakers")} onToggle={() => toggle("speakers")}>
+        <SpeakerEditor profiles={speakerProfiles} onChange={onSpeakerProfilesChange} />
+      </InspectorGroup>
     </div>
+  );
+}
+
+// --- Inspector primitives ---
+
+function InspectorGroup({ title, open, onToggle, children }: { title: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <div className="border-b">
+      <button
+        className="w-full flex items-center justify-between px-2.5 py-1.5 hover:bg-muted/30 transition-colors"
+        onClick={onToggle}
+      >
+        <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">{title}</span>
+        <span className="text-[9px] text-muted-foreground">{open ? "−" : "+"}</span>
+      </button>
+      {open && <div className="px-2.5 pb-2 space-y-1.5">{children}</div>}
+    </div>
+  );
+}
+
+function InspectorField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-[9px] text-muted-foreground mb-0.5">{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function InspectorCheck({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-muted/20 rounded px-1 -mx-1">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="size-3 rounded border-muted-foreground/40 accent-primary"
+      />
+      <span className="text-[10px]">{label}</span>
+    </label>
   );
 }
 
