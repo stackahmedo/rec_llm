@@ -7,6 +7,7 @@ import {
   DropdownMenuSeparator, DropdownMenuLabel,
 } from "./ui/dropdown-menu";
 import { toast } from "sonner";
+import { notifySessionStarted, notifySessionCompleted, notifySessionFailed } from "../notification-store";
 import {
   UploadCloud, FileAudio, CheckCircle2, AlertCircle, Pause, Play,
   X, RotateCw, MoreHorizontal, Trash2, HardDrive, ScanText, Clock,
@@ -310,6 +311,7 @@ export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }:
       toast.success(`Transcription complete: ${file.name}`, {
         description: `${result.utterances?.length || 0} conversation segments · ${languageCode}`,
       });
+      notifySessionCompleted(file.name);
     } else {
       setFiles((p) => p.map((f) => f.id === file.id ? {
         ...f,
@@ -317,6 +319,7 @@ export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }:
         error: result.error,
       } : f));
       toast.error(`Transcription failed: ${file.name}`, { description: result.error });
+      notifySessionFailed(file.name, result.error);
     }
 
     processingRef.current = false;

@@ -6,6 +6,7 @@ import { ScrollArea } from "./ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { useState } from "react";
 import { toast } from "sonner";
+import { notifySummaryGenerated, notifySummaryFailed } from "../notification-store";
 import { useTranscripts } from "../transcript-store";
 
 export function SummaryCard() {
@@ -75,8 +76,10 @@ export function SummaryCard() {
       });
 
       toast.success("Summary generated");
+      notifySummaryGenerated(active.fileName);
     } else {
       toast.error("Summary failed", { description: result.error });
+      notifySummaryFailed(active.fileName, result.error);
     }
   };
 

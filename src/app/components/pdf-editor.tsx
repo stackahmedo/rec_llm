@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useTranscripts } from "../transcript-store";
 import { usePdfDraft } from "../pdf-draft-store";
+import { notifyPdfExported, notifyPdfFailed } from "../notification-store";
 import { SpeakerProfile, generateProfiles, loadSpeakerProfiles, saveSpeakerProfiles, getColor, getDisplayName } from "../pdf-speaker-store";
 import { PdfTemplateConfig, HeaderConfig, FooterConfig, builtInTemplates, getAllTemplates, loadCustomTemplates, saveCustomTemplates } from "../pdf-template-store";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./ui/resizable";
@@ -249,8 +250,8 @@ export function PdfEditor() {
     const data = buildExportData()!;
     const result = await window.electronAPI.pdf.exportReport(data);
     setExporting(false);
-    if (result.ok) toast.success("PDF exported", { description: result.filePath });
-    else if (result.error !== "Export cancelled.") toast.error("Export failed", { description: result.error });
+    if (result.ok) { toast.success("PDF exported", { description: result.filePath }); notifyPdfExported(active.fileName, result.filePath); }
+    else if (result.error !== "Export cancelled.") { toast.error("Export failed", { description: result.error }); notifyPdfFailed(active.fileName, result.error); }
   };
 
   const printPdf = async () => {

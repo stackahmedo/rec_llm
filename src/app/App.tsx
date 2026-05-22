@@ -2,6 +2,7 @@ import { useState, lazy, Suspense } from "react";
 import { SidebarNav } from "./components/sidebar-nav";
 import { DashboardStatus } from "./components/dashboard-status";
 import { SearchPanel } from "./components/search-panel";
+import { NotificationButton, NotificationPanel } from "./components/notification-panel";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Search, Sparkles, Loader2 } from "lucide-react";
@@ -30,6 +31,7 @@ function Shell() {
   const { t } = useT();
   const [view, setView] = useState("dashboard");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const titles: Record<string, { title: string; sub: string }> = {
     dashboard:   { title: t("nav.dashboard"),   sub: t("page.dashboard.sub")   },
     upload:      { title: t("nav.upload"),      sub: t("page.upload.sub")      },
@@ -60,6 +62,10 @@ function Shell() {
               onClick={() => setSearchOpen(true)}
               onFocus={() => setSearchOpen(true)}
             />
+          </div>
+          <div className="relative">
+            <NotificationButton onClick={() => setNotifOpen(!notifOpen)} />
+            <NotificationPanel open={notifOpen} onOpenChange={setNotifOpen} />
           </div>
           <Button>
             <Sparkles className="size-4 mr-2" /> {t("header.newSession")}
