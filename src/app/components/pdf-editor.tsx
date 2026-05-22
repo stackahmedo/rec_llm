@@ -215,6 +215,14 @@ export function PdfEditor() {
 
   const buildExportData = () => {
     if (!active) return null;
+
+    // Apply document edits (speaker names + edited utterances) to export data
+    const utterances = settings.sections.transcript ? active.utterances.map((u, i) => ({
+      ...u,
+      speaker: draft.speakerNames[u.speaker] || u.speaker,
+      text: draft.editedUtterances[i] || u.text,
+    })) : undefined;
+
     return {
       fileName: active.fileName,
       processedAt: active.completedAt || new Date().toISOString(),
@@ -224,7 +232,7 @@ export function PdfEditor() {
       actionItems: settings.sections.actionItems ? summary?.actionItems : undefined,
       decisions: settings.sections.decisions ? summary?.decisions : undefined,
       risks: settings.sections.risks ? summary?.risks : undefined,
-      utterances: settings.sections.transcript ? active.utterances : undefined,
+      utterances,
       config: {
         pageSize: settings.pageSize,
         orientation: settings.orientation,
