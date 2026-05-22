@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useT } from "../i18n";
 import { useTranscripts } from "../transcript-store";
+import { ProcessingPresets } from "./processing-presets";
 
 type Stage = "queued" | "analyzing" | "uploading" | "transcribing" | "done" | "failed" | "paused";
 
@@ -107,6 +108,15 @@ function formatBytes(b: number) {
   return `${v.toFixed(v < 10 ? 2 : 1)} ${units[i]}`;
 }
 
+function formatDuration(sec: number): string {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  if (h > 0) return `${h}h${m}m`;
+  if (m > 0) return `${m}m${s}s`;
+  return `${s}s`;
+}
+
 function ElapsedTime({ startMs }: { startMs: number }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -119,6 +129,38 @@ function ElapsedTime({ startMs }: { startMs: number }) {
   return <span className="inline-flex items-center gap-1 text-muted-foreground"><Clock className="size-3" />{m}:{s.toString().padStart(2, "0")}</span>;
 }
 
+const pipelineSteps = [
+  { key: "analyzing", label: "Preprocessing" },
+  { key: "uploading", label: "Uploading" },
+  { key: "transcribing", label: "Transcription" },
+  { key: "done", label: "Complete" },
+];
+
+function PipelineSteps({ currentStage }: { currentStage: string }) {
+  const currentIdx = pipelineSteps.findIndex((s) => s.key === currentStage);
+  return (
+    <div className="flex items-center gap-1 pl-2 text-xs">
+      {pipelineSteps.map((step, i) => {
+        const isDone = i < currentIdx;
+        const isActive = i === currentIdx;
+        return (
+          <div key={step.key} className="flex items-center gap-1">
+            {i > 0 && <span className={`w-3 h-px ${isDone ? 'bg-emerald-500' : 'bg-border'}`} />}
+            <span className={`size-4 rounded-full flex items-center justify-center text-[9px] font-medium border ${
+              isDone ? 'bg-emerald-500/20 border-emerald-500 text-emerald-600' :
+              isActive ? 'bg-primary/20 border-primary text-primary animate-pulse' :
+              'bg-muted border-border text-muted-foreground'
+            }`}>
+              {isDone ? '✓' : i + 1}
+            </span>
+            <span className={`hidden sm:inline ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>{step.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }: {
   onFileStateChange?: (files: FileItem[]) => void;
   onFileSelect?: (id: string) => void;
@@ -128,6 +170,8 @@ export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }:
   const { addTranscript, addHistoryJob } = useTranscripts();
   const [files, setFiles] = useState<FileItem[]>([]);
   const [drag, setDrag] = useState(false);
+  const [preset, setPreset] = useState("balanced");
+  const [language, setLanguage] = useState("auto");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -337,7 +381,15 @@ export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }:
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-5">
+      <CardContent className="space-y-4">
+        {/* Processing Presets */}
+        <ProcessingPresets
+          value={preset}
+          onChange={setPreset}
+          language={language}
+          onLanguageChange={setLanguage}
+        />
+
         <div
           onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDrag(true); }}
           onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDrag(false); }}
@@ -408,6 +460,8 @@ export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }:
                     </div>
                     <div className="text-muted-foreground mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
                       <span className="inline-flex items-center gap-1"><HardDrive className="size-3" />{formatBytes(f.sizeBytes)}</span>
+                      {f.audioMeta && <span className="font-mono text-xs">{f.audioMeta.codec.toUpperCase()} · {f.audioMeta.bitrate}kbps · {f.audioMeta.sampleRate}Hz · {f.audioMeta.channels}ch</span>}
+                      {f.audioMeta && <span className="font-mono text-xs">{formatDuration(f.audioMeta.duration)}</span>}
                       {f.speakers > 0 && <span>{f.speakers} speakers</span>}
                       {spinning && f.processingStartedAt && <ElapsedTime startMs={f.processingStartedAt} />}
                     </div>
@@ -449,9 +503,14 @@ export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }:
                 </div>
 
                 {f.stage === "failed" && f.error && (
-                  <div className="text-destructive flex items-start gap-1.5">
-                    <AlertCircle className="size-4 mt-0.5 shrink-0" />{f.error}
+                  <div className="text-destructive flex items-start gap-1.5 text-xs pl-2">
+                    <AlertCircle className="size-3.5 mt-0.5 shrink-0" />{f.error}
                   </div>
+                )}
+
+                {/* Pipeline visualization for active files */}
+                {(spinning || f.stage === "analyzing") && (
+                  <PipelineSteps currentStage={f.stage} />
                 )}
 
                 {spinning && f.sizeBytes > 50 * 1024 * 1024 && (
