@@ -11,6 +11,13 @@ import {
 } from "lucide-react";
 import { useTranscripts } from "../transcript-store";
 import { searchAppData, SearchResult, SearchFilters } from "../search-service";
+import { DevDiagnostics } from "./dev-diagnostics";
+
+// Secret developer commands
+const DEV_COMMANDS: Record<string, "error404" | "crashed"> = {
+  "error404": "error404",
+  "crashed": "crashed",
+};
 
 interface SearchPanelProps {
   open: boolean;
@@ -25,6 +32,7 @@ export function SearchPanel({ open, onOpenChange, onNavigate }: SearchPanelProps
   const [loading, setLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<SearchFilters>({});
+  const [devMode, setDevMode] = useState<"error404" | "crashed" | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -57,6 +65,17 @@ export function SearchPanel({ open, onOpenChange, onNavigate }: SearchPanelProps
 
   const handleQueryChange = (value: string) => {
     setQuery(value);
+    // Check for dev commands
+    const cmd = DEV_COMMANDS[value.trim().toLowerCase()];
+    if (cmd) {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      setResults([]);
+      setLoading(false);
+      setDevMode(cmd);
+      onOpenChange(false);
+      setQuery("");
+      return;
+    }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => doSearch(value, filters), 300);
   };
@@ -84,6 +103,7 @@ export function SearchPanel({ open, onOpenChange, onNavigate }: SearchPanelProps
   ).slice(0, 20);
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col p-0">
         <DialogHeader className="p-4 pb-0 shrink-0">
@@ -212,6 +232,17 @@ export function SearchPanel({ open, onOpenChange, onNavigate }: SearchPanelProps
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Developer Diagnostics Popups */}
+    {devMode && (
+      <DevDiagnostics
+        mode={devMode}
+        open={true}
+        onOpenChange={(v) => { if (!v) setDevMode(null); }}
+        onNavigate={onNavigate}
+      />
+    )}
+    </>
   );
 }
 
