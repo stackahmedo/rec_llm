@@ -61,8 +61,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
       decisions?: string[];
       risks?: string[];
       utterances?: Array<{ speaker: string; startMs: number; endMs: number; text: string }>;
+      config?: any;
     }): Promise<{ ok: boolean; error?: string; filePath?: string }> =>
       ipcRenderer.invoke('pdf:exportReport', data),
+    print: (data: {
+      fileName: string;
+      processedAt: string;
+      languageCode: string;
+      summary?: string;
+      pointNotes?: string[];
+      actionItems?: string[];
+      decisions?: string[];
+      risks?: string[];
+      utterances?: Array<{ speaker: string; startMs: number; endMs: number; text: string }>;
+      config?: any;
+    }): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('pdf:print', data),
   },
   history: {
     load: (): Promise<any[]> => ipcRenderer.invoke('history:load'),

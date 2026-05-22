@@ -50,7 +50,20 @@ interface ElectronPdf {
     decisions?: string[];
     risks?: string[];
     utterances?: Array<{ speaker: string; startMs: number; endMs: number; text: string }>;
+    config?: any;
   }) => Promise<{ ok: boolean; error?: string; filePath?: string }>;
+  print: (data: {
+    fileName: string;
+    processedAt: string;
+    languageCode: string;
+    summary?: string;
+    pointNotes?: string[];
+    actionItems?: string[];
+    decisions?: string[];
+    risks?: string[];
+    utterances?: Array<{ speaker: string; startMs: number; endMs: number; text: string }>;
+    config?: any;
+  }) => Promise<{ ok: boolean; error?: string }>;
 }
 
 interface ElectronHistory {

@@ -209,11 +209,9 @@ export function PdfEditor() {
     setSettings((prev) => ({ ...prev, sections: { ...prev.sections, ...patch } }));
   };
 
-  const exportPdf = async () => {
-    if (!active) { toast.error("No transcript selected"); return; }
-    if (!window.electronAPI?.pdf) { toast.error("PDF export not available in browser mode"); return; }
-    setExporting(true);
-    const result = await window.electronAPI.pdf.exportReport({
+  const buildExportData = () => {
+    if (!active) return null;
+    return {
       fileName: active.fileName,
       processedAt: active.completedAt || new Date().toISOString(),
       languageCode: active.languageCode,
@@ -223,7 +221,33 @@ export function PdfEditor() {
       decisions: settings.sections.decisions ? summary?.decisions : undefined,
       risks: settings.sections.risks ? summary?.risks : undefined,
       utterances: settings.sections.transcript ? active.utterances : undefined,
-    });
+      config: {
+        pageSize: settings.pageSize,
+        orientation: settings.orientation,
+        margin: "medium",
+        fontSize: settings.fontSize,
+        columns: settings.columns,
+        header: headerConfig,
+        footer: footerConfig,
+        speakerColorsEnabled: settings.showSpeakerColors,
+        speakers: speakerProfiles.map((p) => ({
+          id: p.id,
+          displayName: p.displayName,
+          color: p.color,
+          enabled: p.enabled,
+        })),
+        timeFormat: "start" as const,
+        sections: settings.sections,
+      },
+    };
+  };
+
+  const exportPdf = async () => {
+    if (!active) { toast.error("No transcript selected"); return; }
+    if (!window.electronAPI?.pdf) { toast.error("PDF export not available in browser mode"); return; }
+    setExporting(true);
+    const data = buildExportData()!;
+    const result = await window.electronAPI.pdf.exportReport(data);
     setExporting(false);
     if (result.ok) toast.success("PDF exported", { description: result.filePath });
     else if (result.error !== "Export cancelled.") toast.error("Export failed", { description: result.error });
@@ -234,18 +258,8 @@ export function PdfEditor() {
     if (!window.electronAPI?.pdf) { toast.error("Print not available in browser mode"); return; }
     setPrinting(true);
     toast.info("Generating PDF for print...");
-    // Use export then open — or direct print
-    const result = await window.electronAPI.pdf.exportReport({
-      fileName: active.fileName,
-      processedAt: active.completedAt || new Date().toISOString(),
-      languageCode: active.languageCode,
-      summary: settings.sections.summary ? summary?.summary : undefined,
-      pointNotes: settings.sections.keyPoints ? summary?.pointNotes : undefined,
-      actionItems: settings.sections.actionItems ? summary?.actionItems : undefined,
-      decisions: settings.sections.decisions ? summary?.decisions : undefined,
-      risks: settings.sections.risks ? summary?.risks : undefined,
-      utterances: settings.sections.transcript ? active.utterances : undefined,
-    });
+    const data = buildExportData()!;
+    const result = await window.electronAPI.pdf.print(data);
     setPrinting(false);
     if (result.ok) {
       toast.success("PDF ready for print", { description: "Opening system print dialog..." });
