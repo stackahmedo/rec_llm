@@ -314,34 +314,34 @@ export function PdfEditor() {
       {/* Main content */}
       <div className="flex-1 min-h-0 flex">
         {/* Collapsible Left Sidebar */}
-        <div className={`h-full border-r flex flex-col shrink-0 transition-all duration-200 ${sidebarCollapsed ? "w-12" : "w-56"}`}>
+        <div className={`h-full border-r flex flex-col shrink-0 transition-all duration-200 ${sidebarCollapsed ? "w-10" : "w-44"}`}>
           {/* Collapse toggle */}
-          <div className="p-2 border-b flex items-center justify-center">
+          <div className="p-1.5 border-b flex items-center justify-center">
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="h-6 w-6"
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
               title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
-              {sidebarCollapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+              {sidebarCollapsed ? <PanelLeftOpen className="size-3.5" /> : <PanelLeftClose className="size-3.5" />}
             </Button>
           </div>
 
           {/* Transcripts section */}
           {sidebarCollapsed ? (
-            <div className="flex-1 flex flex-col items-center py-2 gap-1 overflow-hidden">
+            <div className="flex-1 flex flex-col items-center py-1.5 gap-0.5 overflow-hidden">
               {filtered.slice(0, 10).map((tr) => {
                 const isSelected = tr.fileId === selectedId;
                 return (
                   <Tooltip key={tr.fileId}>
                     <TooltipTrigger asChild>
                       <button
-                        className={`size-8 rounded flex items-center justify-center transition-colors ${isSelected ? "bg-primary/20 text-primary" : "hover:bg-muted text-muted-foreground"}`}
+                        className={`size-7 rounded flex items-center justify-center transition-colors ${isSelected ? "bg-primary/20 text-primary" : "hover:bg-muted text-muted-foreground"}`}
                         onClick={() => selectTranscript(tr.fileId)}
                       >
-                        <FileAudio className="size-3.5" />
+                        <FileAudio className="size-3" />
                       </button>
                     </TooltipTrigger>
                     <TooltipContent side="right" className="text-xs">
@@ -351,82 +351,55 @@ export function PdfEditor() {
                   </Tooltip>
                 );
               })}
-              <Separator className="my-1 w-6" />
-              {templates.map((tmpl) => {
-                const isActive = settings.template === tmpl.id;
-                return (
-                  <Tooltip key={tmpl.id}>
-                    <TooltipTrigger asChild>
-                      <button
-                        className={`size-8 rounded flex items-center justify-center transition-colors ${isActive ? "bg-primary/20 text-primary" : "hover:bg-muted text-muted-foreground"}`}
-                        onClick={() => updateSettings({ template: tmpl.id })}
-                      >
-                        <LayoutTemplate className="size-3.5" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="text-xs">
-                      <div className="font-medium">{tmpl.label}</div>
-                      <div className="text-muted-foreground">{tmpl.desc}</div>
-                    </TooltipContent>
-                  </Tooltip>
-                );
-              })}
             </div>
           ) : (
             <>
-              <div className="p-3 border-b space-y-2">
-                <div className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Transcripts</div>
+              <div className="p-2 border-b space-y-1.5">
+                <div className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">Transcripts</div>
                 <div className="relative">
-                  <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Search className="size-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     placeholder="Search..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-7 pl-8 text-xs"
+                    className="h-6 pl-7 text-[10px]"
                   />
                 </div>
               </div>
               <ScrollArea className="flex-1">
-                <div className="p-2 space-y-1">
+                <div className="p-1.5 space-y-0.5">
                   {filtered.map((tr) => {
                     const isSelected = tr.fileId === selectedId;
                     const speakers = new Set(tr.utterances.map((u) => u.speaker)).size;
-                    const durationMs = tr.utterances.length > 0 ? tr.utterances[tr.utterances.length - 1].endMs : 0;
-                    const durationStr = formatMsDuration(durationMs);
                     return (
                       <div
                         key={tr.fileId}
-                        className={`p-2.5 rounded cursor-pointer text-xs transition-colors ${isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted/50 border border-transparent"}`}
+                        className={`px-2 py-1.5 rounded cursor-pointer text-[10px] transition-colors ${isSelected ? "bg-primary/10 border-l-2 border-l-primary" : "hover:bg-muted/50 border-l-2 border-l-transparent"}`}
                         onClick={() => selectTranscript(tr.fileId)}
                         onDoubleClick={() => { selectTranscript(tr.fileId); setShowModal(true); }}
                       >
                         <div className="font-medium truncate">{tr.fileName}</div>
-                        <div className="text-muted-foreground mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5">
-                          <span>Speakers: {speakers}</span>
-                          <span>Segments: {tr.utterances.length}</span>
-                          <span>Duration: {durationStr}</span>
-                          <span>{tr.languageCode.toUpperCase()}</span>
+                        <div className="text-muted-foreground mt-0.5 flex gap-2">
+                          <span>{speakers} spk</span>
+                          <span>{tr.utterances.length} seg</span>
+                          <span className="uppercase">{tr.languageCode}</span>
                         </div>
                       </div>
                     );
                   })}
                 </div>
               </ScrollArea>
-              {/* Template selector */}
-              <div className="p-3 border-t space-y-2">
-                <div className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Template</div>
-                <div className="space-y-1">
-                  {templates.map((tmpl) => (
-                    <div
-                      key={tmpl.id}
-                      className={`p-2 rounded cursor-pointer text-xs transition-colors ${settings.template === tmpl.id ? "bg-primary/10 border border-primary/30" : "hover:bg-muted/50"}`}
-                      onClick={() => updateSettings({ template: tmpl.id })}
-                    >
-                      <div className="font-medium">{tmpl.label}</div>
-                      <div className="text-muted-foreground">{tmpl.desc}</div>
-                    </div>
-                  ))}
-                </div>
+              {/* Template selector — compact dropdown */}
+              <div className="p-2 border-t">
+                <div className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium mb-1">Template</div>
+                <Select value={settings.template} onValueChange={(v) => applyTemplate(v)}>
+                  <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {allTemplates.map((tmpl) => (
+                      <SelectItem key={tmpl.id} value={tmpl.id} className="text-[10px]">{tmpl.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </>
           )}
@@ -435,21 +408,21 @@ export function PdfEditor() {
         {/* Main area: Preview + Settings */}
         <div className="flex-1 min-w-0">
           <ResizablePanelGroup direction="horizontal" className="h-full">
-            {/* Center: PDF Preview */}
-            <ResizablePanel defaultSize={60} minSize={40}>
+            {/* Center: PDF Preview — dominant */}
+            <ResizablePanel defaultSize={68} minSize={50}>
               <div className="h-full flex flex-col bg-muted/20">
-                <div className="p-2 border-b flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground uppercase tracking-wider font-medium flex-1">Preview</span>
-                  {previewLoading && <Badge variant="outline" className="text-[10px] h-5 gap-1"><RefreshCw className="size-3 animate-spin" />Updating</Badge>}
-                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => setZoom((z) => Math.max(50, z - 10))} title="Zoom out">
-                    <ZoomOut className="size-3.5" />
+                <div className="h-7 px-2 border-b flex items-center gap-1.5 shrink-0">
+                  <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium flex-1">Preview</span>
+                  {previewLoading && <Badge variant="outline" className="text-[9px] h-4 gap-0.5"><RefreshCw className="size-2.5 animate-spin" />Updating</Badge>}
+                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setZoom((z) => Math.max(50, z - 10))} title="Zoom out">
+                    <ZoomOut className="size-3" />
                   </Button>
-                  <span className="text-xs font-mono w-8 text-center">{zoom}%</span>
-                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => setZoom((z) => Math.min(200, z + 10))} title="Zoom in">
-                    <ZoomIn className="size-3.5" />
+                  <span className="text-[9px] font-mono w-7 text-center">{zoom}%</span>
+                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setZoom((z) => Math.min(200, z + 10))} title="Zoom in">
+                    <ZoomIn className="size-3" />
                   </Button>
-                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowModal(true)} title="Fullscreen preview" disabled={!active}>
-                    <Maximize2 className="size-3.5" />
+                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setZoom(100)} title="Fit width">
+                    <Maximize2 className="size-3" />
                   </Button>
                 </div>
                 <ScrollArea className="flex-1 p-4">
@@ -487,11 +460,11 @@ export function PdfEditor() {
 
             <ResizableHandle withHandle />
 
-            {/* Right: Settings */}
-            <ResizablePanel defaultSize={40} minSize={25} maxSize={50}>
+            {/* Right: Settings — compact inspector */}
+            <ResizablePanel defaultSize={32} minSize={22} maxSize={42}>
               <div className="h-full border-l flex flex-col">
-                <div className="p-3 border-b text-xs text-muted-foreground uppercase tracking-wider font-medium">
-                  PDF Settings
+                <div className="h-7 px-2.5 border-b flex items-center shrink-0">
+                  <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">Inspector</span>
                 </div>
                 <ScrollArea className="flex-1">
                   <PdfSettingsPanel
@@ -513,20 +486,27 @@ export function PdfEditor() {
         </div>
       </div>
 
-      {/* Bottom action bar */}
-      <div className="h-12 border-t bg-card flex items-center px-4 gap-3 shrink-0">
-        <div className="flex-1 text-xs text-muted-foreground">
-          {active ? `${active.fileName} · ${active.utterances.length} segments` : "No transcript selected"}
+      {/* Bottom action bar — compact status bar */}
+      <div className="h-8 border-t bg-card flex items-center px-3 gap-2 shrink-0">
+        <div className="flex-1 text-[10px] text-muted-foreground font-mono flex items-center gap-3">
+          {active ? (
+            <>
+              <span>{active.utterances.length} segments</span>
+              <span>{new Set(active.utterances.map((u) => u.speaker)).size} speakers</span>
+              <span>{active.languageCode.toUpperCase()}</span>
+              <span>{settings.template}</span>
+            </>
+          ) : "No transcript selected"}
         </div>
-        <Button size="sm" variant="ghost" onClick={() => setShowSaveTemplate(true)}>
-          <Save className="size-4 mr-1" /> Save Template
+        <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setShowSaveTemplate(true)}>
+          <Save className="size-3 mr-1" />Save Template
         </Button>
-        <Button size="sm" variant="outline" disabled={!active || printing} onClick={printPdf}>
-          {printing ? <Loader2 className="size-4 mr-1 animate-spin" /> : <Printer className="size-4 mr-1" />}
-          Print PDF
+        <Button size="sm" variant="outline" className="h-6 text-[10px]" disabled={!active || printing} onClick={printPdf}>
+          {printing ? <Loader2 className="size-3 mr-1 animate-spin" /> : <Printer className="size-3 mr-1" />}
+          Print
         </Button>
-        <Button size="sm" disabled={!active || exporting} onClick={exportPdf}>
-          {exporting ? <Loader2 className="size-4 mr-1 animate-spin" /> : <Download className="size-4 mr-1" />}
+        <Button size="sm" className="h-6 text-[10px]" disabled={!active || exporting} onClick={exportPdf}>
+          {exporting ? <Loader2 className="size-3 mr-1 animate-spin" /> : <Download className="size-3 mr-1" />}
           Export PDF
         </Button>
       </div>
