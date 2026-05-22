@@ -58,6 +58,8 @@ export function SettingsPanel() {
   const [gptKey, setGptKey] = useState("");
   const [gptState, setGptState] = useState<CheckState>("idle");
   const [gptModel, setGptModel] = useState("gpt-4o");
+  const [gptProviderType, setGptProviderType] = useState<"official" | "custom">("official");
+  const [gptBaseUrl, setGptBaseUrl] = useState("https://api.openai.com/v1");
 
   const [summaryProvider, setSummaryProvider] = useState<"gemini" | "chatgpt">("gemini");
   const [summaryLang, setSummaryLang] = useState("en");
@@ -88,6 +90,11 @@ export function SettingsPanel() {
         if (models.assemblyai) setAsmModel(models.assemblyai);
         if (models.gemini) setGemModel(models.gemini);
         if (models.chatgpt) setGptModel(models.chatgpt);
+      }
+      const openaiProv = await api.get('openaiProvider') as { providerType?: string; baseUrl?: string } | null;
+      if (openaiProv) {
+        if (openaiProv.providerType === "custom" || openaiProv.providerType === "official") setGptProviderType(openaiProv.providerType);
+        if (openaiProv.baseUrl) setGptBaseUrl(openaiProv.baseUrl);
       }
       const prefs = await api.get('preferences') as Record<string, unknown> | null;
       if (prefs) {
@@ -130,15 +137,31 @@ export function SettingsPanel() {
   };
 
   const checkOpenAI = async () => {
+    if (!gptKey.trim()) { toast.error("Missing API key"); setGptState("fail"); return; }
     setGptState("checking");
+    const baseUrl = gptProviderType === "custom" ? gptBaseUrl.trim().replace(/\/+$/, '') : "https://api.openai.com/v1";
     try {
-      const response = await fetch("https://api.openai.com/v1/models", {
+      const response = await fetch(`${baseUrl}/models`, {
         headers: { "Authorization": `Bearer ${gptKey.trim()}` },
       });
-      setGptState(response.status === 200 ? "ok" : "fail");
-      if (response.status === 200) toast.success("OpenAI connected");
-      else toast.error("OpenAI key invalid");
-    } catch { setGptState("fail"); toast.error("OpenAI: network error"); }
+      if (response.status === 200) {
+        setGptState("ok");
+        toast.success(`Connected to ${gptProviderType === "custom" ? baseUrl : "OpenAI"}`);
+      } else if (response.status === 401) {
+        setGptState("fail");
+        toast.error("Invalid API key", { description: "The key was rejected by the provider." });
+      } else if (response.status === 404) {
+        setGptState("fail");
+        toast.error("Wrong base URL", { description: `${baseUrl}/models returned 404.` });
+      } else {
+        setGptState("fail");
+        const body = await response.text().catch(() => "");
+        toast.error(`Provider error (${response.status})`, { description: body.slice(0, 120) || "Unexpected response." });
+      }
+    } catch (err: any) {
+      setGptState("fail");
+      toast.error("Network error", { description: `Could not reach ${baseUrl}. Check the URL and your connection.` });
+    }
   };
 
   const saveAll = async () => {
@@ -152,6 +175,7 @@ export function SettingsPanel() {
 
     await api.set('apiKeys', keysToSave);
     await api.set('models', { assemblyai: asmModel, gemini: gemModel, chatgpt: gptModel });
+    await api.set('openaiProvider', { providerType: gptProviderType, baseUrl: gptBaseUrl });
     await api.set('preferences', { summaryProvider, asmDiarize, asmLang, summaryLang, autoRetry, autoCompress, autoSaveTxt });
     setDirty(false);
     toast.success("Settings saved");
@@ -212,6 +236,8 @@ export function SettingsPanel() {
               gptKey={gptKey} setGptKey={(v) => { setGptKey(v); markDirty(); }}
               gptState={gptState} checkOpenAI={checkOpenAI}
               gptModel={gptModel} setGptModel={(v) => { setGptModel(v); markDirty(); }}
+              gptProviderType={gptProviderType} setGptProviderType={(v) => { setGptProviderType(v); markDirty(); }}
+              gptBaseUrl={gptBaseUrl} setGptBaseUrl={(v) => { setGptBaseUrl(v); markDirty(); }}
               asmState={asmState}
               ffmpegOk={ffmpegOk}
             />
@@ -370,7 +396,7 @@ function TranscriptionTab({ asmKey, setAsmKey, asmState, checkAssembly, asmModel
 }
 
 // --- Tab: AI Providers ---
-function AIProvidersTab({ summaryProvider, setSummaryProvider, summaryLang, setSummaryLang, gemKey, setGemKey, gemState, checkGemini, gemModel, setGemModel, gptKey, setGptKey, gptState, checkOpenAI, gptModel, setGptModel, asmState, ffmpegOk }: {
+function AIProvidersTab({ summaryProvider, setSummaryProvider, summaryLang, setSummaryLang, gemKey, setGemKey, gemState, checkGemini, gemModel, setGemModel, gptKey, setGptKey, gptState, checkOpenAI, gptModel, setGptModel, gptProviderType, setGptProviderType, gptBaseUrl, setGptBaseUrl, asmState, ffmpegOk }: {
   summaryProvider: "gemini" | "chatgpt"; setSummaryProvider: (v: "gemini" | "chatgpt") => void;
   summaryLang: string; setSummaryLang: (v: string) => void;
   gemKey: string; setGemKey: (v: string) => void;
@@ -379,6 +405,8 @@ function AIProvidersTab({ summaryProvider, setSummaryProvider, summaryLang, setS
   gptKey: string; setGptKey: (v: string) => void;
   gptState: CheckState; checkOpenAI: () => void;
   gptModel: string; setGptModel: (v: string) => void;
+  gptProviderType: "official" | "custom"; setGptProviderType: (v: "official" | "custom") => void;
+  gptBaseUrl: string; setGptBaseUrl: (v: string) => void;
   asmState: CheckState;
   ffmpegOk: boolean | null;
 }) {
@@ -455,24 +483,48 @@ function AIProvidersTab({ summaryProvider, setSummaryProvider, summaryLang, setS
 
       <Separator />
 
-      {/* OpenAI */}
-      <SectionLabel>OpenAI ChatGPT</SectionLabel>
+      {/* OpenAI / Compatible */}
+      <SectionLabel>OpenAI / Compatible Provider</SectionLabel>
       <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] w-16 shrink-0">Provider</span>
+          <div className="flex gap-0.5 flex-1">
+            {([["official", "Official OpenAI"], ["custom", "Custom / Compatible"]] as const).map(([v, label]) => (
+              <button key={v} className={`flex-1 h-7 rounded text-[10px] border transition-colors ${gptProviderType === v ? "bg-primary/10 border-primary text-primary" : "hover:bg-muted/50"}`}
+                onClick={() => setGptProviderType(v)}>{label}</button>
+            ))}
+          </div>
+        </div>
+        {gptProviderType === "custom" && (
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] w-16 shrink-0">Base URL</span>
+            <Input value={gptBaseUrl} onChange={(e) => setGptBaseUrl(e.target.value)} placeholder="https://api.openai.com/v1" className="h-7 text-[11px] flex-1 font-mono" />
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <span className="text-[11px] w-16 shrink-0">API Key</span>
           <KeyInput value={gptKey} onChange={setGptKey} placeholder="sk-..." onTest={checkOpenAI} state={gptState} />
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[11px] w-16 shrink-0">Model</span>
-          <Select value={gptModel} onValueChange={setGptModel}>
-            <SelectTrigger className="h-7 text-[11px] flex-1"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-              <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
-              <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
-            </SelectContent>
-          </Select>
+          {gptProviderType === "official" ? (
+            <Select value={gptModel} onValueChange={setGptModel}>
+              <SelectTrigger className="h-7 text-[11px] flex-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+                <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input value={gptModel} onChange={(e) => setGptModel(e.target.value)} placeholder="gpt-4o" className="h-7 text-[11px] flex-1 font-mono" />
+          )}
         </div>
+        {gptProviderType === "custom" && (
+          <div className="text-[9px] text-muted-foreground pl-[72px]">
+            Any OpenAI-compatible endpoint. Test connection uses the base URL and model above.
+          </div>
+        )}
       </div>
     </div>
   );
