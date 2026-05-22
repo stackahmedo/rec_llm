@@ -578,7 +578,7 @@ function PdfPreview({ transcript, summary, settings, speakerColorMap, draft, onE
 
   return (
     <div className={`bg-white text-black rounded shadow-lg mx-auto max-w-[700px] ${fontSizeClass}`}
-      style={{ aspectRatio: settings.orientation === "portrait" ? "210/297" : "297/210", padding: "32px" }}
+      style={{ padding: "32px", minHeight: settings.orientation === "portrait" ? "900px" : "600px" }}
     >
       {/* Header */}
       {settings.showHeader && (
@@ -658,12 +658,12 @@ function PdfPreview({ transcript, summary, settings, speakerColorMap, draft, onE
       {settings.sections.transcript && (
         <div className="mb-3">
           <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-1">Transcript</div>
-          <div className="space-y-1 max-h-[200px] overflow-hidden">
-            {transcript.utterances.slice(0, 8).map((u: any, i: number) => {
+          <div className="space-y-0.5">
+            {transcript.utterances.slice(0, 50).map((u: any, i: number) => {
               const displayText = draft.editedUtterances[i] || u.text;
               const displaySpeaker = draft.speakerNames[u.speaker] || u.speaker;
               return (
-                <div key={i} className="text-[9px] flex gap-2 group">
+                <div key={i} className="text-[9px] flex gap-2 group leading-tight">
                   <span className="font-mono text-gray-400 shrink-0 w-12">
                     {msToTs(u.startMs)}
                   </span>
@@ -683,7 +683,7 @@ function PdfPreview({ transcript, summary, settings, speakerColorMap, draft, onE
                     />
                   ) : (
                     <span
-                      className="truncate cursor-text hover:bg-blue-50/50 rounded px-0.5 -mx-0.5"
+                      className="flex-1 cursor-text hover:bg-blue-50/50 rounded px-0.5 -mx-0.5"
                       onClick={() => setEditingIdx(i)}
                       title="Click to edit"
                     >
@@ -693,8 +693,8 @@ function PdfPreview({ transcript, summary, settings, speakerColorMap, draft, onE
                 </div>
               );
             })}
-            {transcript.utterances.length > 8 && (
-              <div className="text-[9px] text-gray-400 italic">... {transcript.utterances.length - 8} more segments</div>
+            {transcript.utterances.length > 50 && (
+              <div className="text-[9px] text-gray-400 italic pt-1">... {transcript.utterances.length - 50} more segments (visible in exported PDF)</div>
             )}
           </div>
         </div>

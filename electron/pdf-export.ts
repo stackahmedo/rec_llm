@@ -86,19 +86,19 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function getMarginPx(margin: string): number {
+function getMarginMm(margin: string): number {
   switch (margin) {
-    case 'small': return 24;
-    case 'large': return 56;
-    default: return 40;
+    case 'small': return 10;
+    case 'large': return 25;
+    default: return 15;
   }
 }
 
 function getFontSizePx(size: string): number {
   switch (size) {
     case 'small': return 9;
-    case 'large': return 13;
-    default: return 11;
+    case 'large': return 12;
+    default: return 10;
   }
 }
 
@@ -115,9 +115,8 @@ function getAlignStyle(alignment: string): string {
 // --- HTML Builder ---
 function buildHtml(data: PdfExportData): string {
   const config = data.config || getDefaultConfig();
-  const marginPx = getMarginPx(config.margin);
+  const marginMm = getMarginMm(config.margin);
   const baseFontSize = getFontSizePx(config.fontSize);
-  const lineHeight = 1.6;
 
   const sections: string[] = [];
 
@@ -138,7 +137,7 @@ function buildHtml(data: PdfExportData): string {
       <div class="header" style="${align}">
         <h1>${escapeHtml(title)}</h1>
         ${subtitle ? `<div class="subtitle">${escapeHtml(subtitle)}</div>` : ''}
-        ${metaParts.length > 0 ? `<div class="header-meta">${metaParts.join(' · ')}</div>` : ''}
+        ${metaParts.length > 0 ? `<div class="header-meta">${metaParts.join(' &middot; ')}</div>` : ''}
       </div>
     `);
   }
@@ -259,19 +258,13 @@ function buildHtml(data: PdfExportData): string {
         ? `<td class="ts">${msToTimestamp(u.startMs)}${showEndTime ? `<br/><span class="ts-end">${msToTimestamp(u.endMs)}</span>` : ''}</td>`
         : '';
 
-      return `
-        <tr>
-          ${timeCell}
-          <td class="speaker"${speakerStyle}>${escapeHtml(name)}</td>
-          <td class="text-cell">${escapeHtml(u.text)}</td>
-        </tr>
-      `;
+      return `<tr>${timeCell}<td class="speaker"${speakerStyle}>${escapeHtml(name)}</td><td class="text-cell">${escapeHtml(u.text)}</td></tr>`;
     }).join('\n');
 
     const timeHeader = showTime ? '<th class="ts-header">Time</th>' : '';
 
     sections.push(`
-      <div class="section transcript">
+      <div class="section transcript-section">
         <h2>Transcript${data.languageCode ? ` (${escapeHtml(data.languageCode)})` : ''}</h2>
         <table>
           <thead>
@@ -289,32 +282,35 @@ function buildHtml(data: PdfExportData): string {
   const footerHtml = buildFooterHtml(config.footer);
 
   // --- Full HTML ---
+  // Use explicit UTF-8 meta + Japanese-first font stack for CJK support
   return `<!DOCTYPE html>
 <html lang="${data.languageCode || 'en'}">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
   <style>
     @page {
       size: ${config.pageSize} ${config.orientation};
-      margin: ${marginPx}px;
+      margin: ${marginMm}mm;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", "Meiryo", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: "Noto Sans JP", "Yu Gothic", "Meiryo", "Hiragino Sans", "Hiragino Kaku Gothic ProN", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: ${baseFontSize}px;
-      line-height: ${lineHeight};
+      line-height: 1.45;
       color: #1a1a1a;
-      padding: ${marginPx}px;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
+      -webkit-font-smoothing: antialiased;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     .header {
       border-bottom: 2px solid #2563eb;
-      padding-bottom: 12px;
-      margin-bottom: 20px;
+      padding-bottom: 10px;
+      margin-bottom: 14px;
+      page-break-inside: avoid;
     }
     .header h1 {
-      font-size: ${baseFontSize + 9}px;
+      font-size: ${baseFontSize + 8}px;
       color: #2563eb;
       margin-bottom: 2px;
     }
@@ -324,26 +320,27 @@ function buildHtml(data: PdfExportData): string {
       margin-top: 2px;
     }
     .header .header-meta {
-      font-size: ${baseFontSize - 2}px;
+      font-size: ${baseFontSize - 1}px;
       color: #64748b;
       margin-top: 4px;
     }
     .meta-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      margin-bottom: 20px;
-      padding: 12px;
+      gap: 6px;
+      margin-bottom: 14px;
+      padding: 10px;
       background: #f8fafc;
       border: 1px solid #e2e8f0;
-      border-radius: 6px;
+      border-radius: 4px;
+      page-break-inside: avoid;
     }
     .meta-item { display: flex; flex-direction: column; }
     .meta-label {
       font-size: ${baseFontSize - 2}px;
       text-transform: uppercase;
       color: #64748b;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.4px;
     }
     .meta-value {
       font-size: ${baseFontSize}px;
@@ -351,53 +348,67 @@ function buildHtml(data: PdfExportData): string {
       color: #1e293b;
       word-break: break-all;
     }
-    .section { margin-bottom: 16px; }
+    .section { margin-bottom: 12px; }
     .section h2 {
       font-size: ${baseFontSize + 2}px;
       color: #2563eb;
       border-bottom: 1px solid #e5e7eb;
-      padding-bottom: 4px;
-      margin-bottom: 8px;
+      padding-bottom: 3px;
+      margin-bottom: 6px;
+      page-break-after: avoid;
     }
     .section p {
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       word-wrap: break-word;
       overflow-wrap: break-word;
     }
-    .section ol, .section ul { padding-left: 20px; }
+    .section ol, .section ul { padding-left: 18px; }
     .section li {
-      margin-bottom: 4px;
+      margin-bottom: 3px;
       word-wrap: break-word;
       overflow-wrap: break-word;
     }
     .no-data { color: #94a3b8; font-style: italic; }
-    .speaker-legend { margin-bottom: 12px; }
-    .legend-row { display: flex; flex-wrap: wrap; gap: 12px; }
+    .speaker-legend {
+      margin-bottom: 10px;
+      page-break-inside: avoid;
+    }
+    .legend-row { display: flex; flex-wrap: wrap; gap: 10px; }
     .legend-item { display: inline-flex; align-items: center; gap: 4px; font-size: ${baseFontSize - 1}px; }
-    .speaker-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .speaker-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+
+    /* Transcript table — compact, allows row splitting across pages */
+    .transcript-section { page-break-before: auto; }
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: ${baseFontSize - 1}px;
+      font-size: ${baseFontSize}px;
       table-layout: fixed;
     }
+    thead { display: table-header-group; }
+    tfoot { display: table-footer-group; }
+    tr { page-break-inside: auto; }
     th, td {
       border: 1px solid #e5e7eb;
-      padding: 4px 8px;
+      padding: 3px 6px;
       text-align: left;
       vertical-align: top;
       word-wrap: break-word;
       overflow-wrap: break-word;
+      line-height: 1.4;
     }
-    th { background: #f3f4f6; font-weight: 600; }
-    .ts, .ts-header { width: 70px; white-space: nowrap; font-family: monospace; }
+    th {
+      background: #f3f4f6;
+      font-weight: 600;
+      font-size: ${baseFontSize - 1}px;
+    }
+    .ts, .ts-header { width: 58px; white-space: nowrap; font-family: "SF Mono", "Consolas", "Liberation Mono", monospace; font-size: ${baseFontSize - 1}px; }
     .ts-end { color: #94a3b8; font-size: ${baseFontSize - 2}px; }
-    .speaker, .speaker-header { width: 90px; white-space: nowrap; }
+    .speaker, .speaker-header { width: 80px; white-space: nowrap; font-size: ${baseFontSize - 1}px; }
     .text-cell { width: auto; }
-    .transcript { page-break-before: always; }
     .footer {
-      margin-top: 30px;
-      padding-top: 10px;
+      margin-top: 20px;
+      padding-top: 8px;
       border-top: 1px solid #e5e7eb;
       color: #999;
       font-size: ${baseFontSize - 2}px;
@@ -405,7 +416,7 @@ function buildHtml(data: PdfExportData): string {
     ${config.columns === 2 ? `
     .section p, .section ol, .section ul {
       column-count: 2;
-      column-gap: 24px;
+      column-gap: 20px;
     }` : ''}
   </style>
 </head>
@@ -424,10 +435,9 @@ function buildFooterHtml(footer: FooterConfig): string {
   if (footer.showConfidential) parts.push('CONFIDENTIAL');
   if (footer.mode === 'custom' && footer.text) parts.push(escapeHtml(footer.text));
   parts.push(new Date().toISOString().slice(0, 10));
-  if (footer.showPageNumbers) parts.push('Page 1');
 
   const align = getAlignStyle(footer.alignment);
-  return `<div class="footer" style="${align}">${parts.join(' · ')}</div>`;
+  return `<div class="footer" style="${align}">${parts.join(' &middot; ')}</div>`;
 }
 
 function getDefaultConfig(): PdfExportConfig {
@@ -455,6 +465,48 @@ function getDefaultConfig(): PdfExportConfig {
   };
 }
 
+/**
+ * Write HTML to a temp file and load via file:// URL.
+ * This ensures Chromium can properly resolve system fonts (especially CJK)
+ * and embed them correctly in the PDF output.
+ */
+async function renderPdf(html: string, config: PdfExportConfig): Promise<Buffer> {
+  const tmpHtml = path.join(os.tmpdir(), `recllm-pdf-${Date.now()}.html`);
+  fs.writeFileSync(tmpHtml, html, 'utf-8');
+
+  const pdfWin = new BrowserWindow({
+    show: false,
+    width: 800,
+    height: 1200,
+    webPreferences: { offscreen: true },
+  });
+
+  try {
+    await pdfWin.loadFile(tmpHtml);
+    // Wait for fonts to load and layout to settle
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    const marginMm = getMarginMm(config.margin);
+    const pdfBuffer = await pdfWin.webContents.printToPDF({
+      printBackground: true,
+      margins: {
+        top: marginMm / 25.4,
+        bottom: marginMm / 25.4,
+        left: marginMm / 25.4,
+        right: marginMm / 25.4,
+      },
+      pageSize: config.pageSize === 'Letter' ? 'Letter' : 'A4',
+      landscape: config.orientation === 'landscape',
+    });
+
+    return Buffer.from(pdfBuffer);
+  } finally {
+    pdfWin.close();
+    // Clean up temp HTML
+    try { fs.unlinkSync(tmpHtml); } catch {}
+  }
+}
+
 // --- IPC Handlers ---
 export function registerPdfHandlers(): void {
   ipcMain.handle('pdf:exportReport', async (_event, data: PdfExportData): Promise<{ ok: boolean; error?: string; filePath?: string }> => {
@@ -476,25 +528,7 @@ export function registerPdfHandlers(): void {
 
     try {
       const html = buildHtml(data);
-
-      const pdfWin = new BrowserWindow({
-        show: false,
-        width: 800,
-        height: 600,
-        webPreferences: { offscreen: true },
-      });
-
-      await pdfWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-      await new Promise((resolve) => setTimeout(resolve, 600));
-
-      const pdfBuffer = await pdfWin.webContents.printToPDF({
-        printBackground: true,
-        margins: { top: 0, bottom: 0, left: 0, right: 0 },
-        pageSize: config.pageSize === 'Letter' ? 'Letter' : 'A4',
-        landscape: config.orientation === 'landscape',
-      });
-
-      pdfWin.close();
+      const pdfBuffer = await renderPdf(html, config);
       fs.writeFileSync(result.filePath, pdfBuffer);
       return { ok: true, filePath: result.filePath };
     } catch (err: unknown) {
@@ -511,25 +545,7 @@ export function registerPdfHandlers(): void {
     try {
       const html = buildHtml(data);
       const config = data.config || getDefaultConfig();
-
-      const pdfWin = new BrowserWindow({
-        show: false,
-        width: 800,
-        height: 600,
-        webPreferences: { offscreen: true },
-      });
-
-      await pdfWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-      await new Promise((resolve) => setTimeout(resolve, 600));
-
-      const pdfBuffer = await pdfWin.webContents.printToPDF({
-        printBackground: true,
-        margins: { top: 0, bottom: 0, left: 0, right: 0 },
-        pageSize: config.pageSize === 'Letter' ? 'Letter' : 'A4',
-        landscape: config.orientation === 'landscape',
-      });
-
-      pdfWin.close();
+      const pdfBuffer = await renderPdf(html, config);
 
       // Write temp file
       const tmpPath = path.join(os.tmpdir(), `recllm-print-${Date.now()}.pdf`);
