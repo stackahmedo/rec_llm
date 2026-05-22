@@ -4,25 +4,33 @@ import { UploadPanel } from "./upload-panel";
 import { ProcessingContext } from "./processing-context";
 import { ResourceMonitor } from "./resource-monitor";
 import { useTranscripts } from "../transcript-store";
+import { useUploadJobs } from "../upload-job-store";
 
 export function UploadWorkstation() {
   const { history } = useTranscripts();
+  const { jobs } = useUploadJobs();
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
-  const [fileStates, setFileStates] = useState<Map<string, any>>(new Map());
 
-  // Derive queue stats from history + active processing
-  const queueStats = useMemo(() => {
-    const states = Array.from(fileStates.values());
-    return {
-      queued: states.filter((f) => f.stage === "queued").length,
-      processing: states.filter((f) => ["uploading", "transcribing", "analyzing", "preprocessing"].includes(f.stage)).length,
-      done: states.filter((f) => f.stage === "done").length,
-      failed: states.filter((f) => f.stage === "failed").length,
-    };
-  }, [fileStates]);
+  // Derive queue stats from global job store
+  const queueStats = useMemo(() => ({
+    queued: jobs.filter((f) => f.stage === "queued").length,
+    processing: jobs.filter((f) => ["uploading", "transcribing", "analyzing", "summarizing", "saving"].includes(f.stage)).length,
+    done: jobs.filter((f) => f.stage === "done").length,
+    failed: jobs.filter((f) => f.stage === "failed").length,
+  }), [jobs]);
 
-  // Get active file for context panel
-  const activeFile = selectedFileId ? fileStates.get(selectedFileId) || null : null;
+  // Get active file for context panel — map UploadJob to ActiveFile shape
+  const activeJob = selectedFileId ? jobs.find((j) => j.id === selectedFileId) || null : null;
+  const activeFile = activeJob ? {
+    id: activeJob.id,
+    name: activeJob.fileName,
+    stage: activeJob.stage,
+    sizeBytes: activeJob.sizeBytes,
+    audioMeta: activeJob.audioMeta,
+    recommendation: activeJob.recommendation,
+    processingStartedAt: activeJob.startedAt,
+    speakers: activeJob.speakers,
+  } : null;
 
   return (
     <div className="flex flex-col h-full -m-6">
@@ -33,11 +41,6 @@ export function UploadWorkstation() {
           <ResizablePanel defaultSize={72} minSize={50}>
             <div className="h-full overflow-auto p-4">
               <UploadPanel
-                onFileStateChange={(files) => {
-                  const map = new Map<string, any>();
-                  files.forEach((f) => map.set(f.id, f));
-                  setFileStates(map);
-                }}
                 onFileSelect={(id) => setSelectedFileId(id)}
                 selectedFileId={selectedFileId}
               />

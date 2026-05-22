@@ -9,6 +9,7 @@ import { Search, Sparkles, Loader2 } from "lucide-react";
 import { Toaster } from "./components/ui/sonner";
 import { I18nProvider, useT } from "./i18n";
 import { TranscriptProvider } from "./transcript-store";
+import { UploadJobProvider } from "./upload-job-store";
 
 // Lazy-loaded heavy pages
 const UploadWorkstation = lazy(() => import("./components/upload-workstation").then((m) => ({ default: m.UploadWorkstation })));
@@ -130,7 +131,9 @@ export default function App() {
   return (
     <I18nProvider>
       <TranscriptProvider>
-        <Shell />
+        <UploadJobProvider>
+          <Shell />
+        </UploadJobProvider>
       </TranscriptProvider>
     </I18nProvider>
   );

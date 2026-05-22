@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
+import { Progress } from "./ui/progress";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
   DropdownMenuSeparator, DropdownMenuLabel,
@@ -14,87 +15,69 @@ import {
 } from "lucide-react";
 import { useT } from "../i18n";
 import { useTranscripts } from "../transcript-store";
-import { ProcessingPresets } from "./processing-presets";
+import { useUploadJobs, UploadJob, JobStage, getStageProgress, getStageLabel } from "../upload-job-store";
 
-type Stage = "queued" | "analyzing" | "uploading" | "transcribing" | "done" | "failed" | "paused";
-
-interface FileItem {
-  id: string;
-  name: string;
-  sizeBytes: number;
-  format: string;
-  speakers: number;
-  language: string;
-  stage: Stage;
-  startedAt: number;
-  processingStartedAt?: number;
-  error?: string;
-  filePath?: string;
-  audioMeta?: { duration: number; codec: string; bitrate: number; sampleRate: number; channels: number };
-  recommendation?: { action: string; reason: string };
-  compressedPath?: string;
-}
-
-interface StageStyle {
-  key: string;
-  icon: any;
-  color: string;
-  variant: "default" | "secondary" | "outline" | "destructive";
-  bar: string;
-  card: string;
-  iconBg: string;
-  progress: string;
-  badge: string;
-  dot: string;
-}
-
-const stageMeta: Record<Stage, StageStyle> = {
+const stageMeta: Record<JobStage, { icon: any; color: string; bar: string; card: string; iconBg: string; badge: string; dot: string }> = {
   queued: {
-    key: "stage.queued", icon: FileAudio, color: "text-slate-600", variant: "outline",
+    icon: FileAudio, color: "text-slate-600",
     bar: "bg-slate-400", card: "border-slate-200 bg-slate-50/40 dark:bg-slate-950/20",
-    iconBg: "bg-slate-100 dark:bg-slate-900/40", progress: "[&>div]:bg-slate-500",
+    iconBg: "bg-slate-100 dark:bg-slate-900/40",
     badge: "bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-900/40 dark:text-slate-200",
     dot: "bg-slate-400",
   },
   analyzing: {
-    key: "stage.analyzing", icon: ScanText, color: "text-purple-600", variant: "secondary",
+    icon: ScanText, color: "text-purple-600",
     bar: "bg-purple-500", card: "border-purple-300/60 bg-purple-50/60 dark:bg-purple-950/20",
-    iconBg: "bg-purple-100 dark:bg-purple-900/40", progress: "[&>div]:bg-purple-500",
+    iconBg: "bg-purple-100 dark:bg-purple-900/40",
     badge: "bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900/40 dark:text-purple-200",
     dot: "bg-purple-500",
   },
   uploading: {
-    key: "stage.uploading", icon: UploadCloud, color: "text-blue-600", variant: "secondary",
+    icon: UploadCloud, color: "text-blue-600",
     bar: "bg-blue-500", card: "border-blue-300/60 bg-blue-50/60 dark:bg-blue-950/20",
-    iconBg: "bg-blue-100 dark:bg-blue-900/40", progress: "[&>div]:bg-blue-500",
+    iconBg: "bg-blue-100 dark:bg-blue-900/40",
     badge: "bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/40 dark:text-blue-200",
     dot: "bg-blue-500",
   },
   transcribing: {
-    key: "stage.transcribing", icon: ScanText, color: "text-indigo-600", variant: "secondary",
+    icon: ScanText, color: "text-indigo-600",
     bar: "bg-indigo-500", card: "border-indigo-300/60 bg-indigo-50/60 dark:bg-indigo-950/20",
-    iconBg: "bg-indigo-100 dark:bg-indigo-900/40", progress: "[&>div]:bg-indigo-500",
+    iconBg: "bg-indigo-100 dark:bg-indigo-900/40",
     badge: "bg-indigo-100 text-indigo-700 border-indigo-300 dark:bg-indigo-900/40 dark:text-indigo-200",
     dot: "bg-indigo-500",
   },
+  summarizing: {
+    icon: ScanText, color: "text-violet-600",
+    bar: "bg-violet-500", card: "border-violet-300/60 bg-violet-50/60 dark:bg-violet-950/20",
+    iconBg: "bg-violet-100 dark:bg-violet-900/40",
+    badge: "bg-violet-100 text-violet-700 border-violet-300 dark:bg-violet-900/40 dark:text-violet-200",
+    dot: "bg-violet-500",
+  },
+  saving: {
+    icon: HardDrive, color: "text-teal-600",
+    bar: "bg-teal-500", card: "border-teal-300/60 bg-teal-50/60 dark:bg-teal-950/20",
+    iconBg: "bg-teal-100 dark:bg-teal-900/40",
+    badge: "bg-teal-100 text-teal-700 border-teal-300 dark:bg-teal-900/40 dark:text-teal-200",
+    dot: "bg-teal-500",
+  },
   done: {
-    key: "stage.done", icon: CheckCircle2, color: "text-emerald-600", variant: "default",
+    icon: CheckCircle2, color: "text-emerald-600",
     bar: "bg-emerald-500", card: "border-emerald-300/60 bg-emerald-50/60 dark:bg-emerald-950/20",
-    iconBg: "bg-emerald-100 dark:bg-emerald-900/40", progress: "[&>div]:bg-emerald-500",
+    iconBg: "bg-emerald-100 dark:bg-emerald-900/40",
     badge: "bg-emerald-600 text-white border-transparent",
     dot: "bg-emerald-500",
   },
   failed: {
-    key: "stage.failed", icon: AlertCircle, color: "text-red-600", variant: "destructive",
+    icon: AlertCircle, color: "text-red-600",
     bar: "bg-red-500", card: "border-red-300/60 bg-red-50/60 dark:bg-red-950/20",
-    iconBg: "bg-red-100 dark:bg-red-900/40", progress: "[&>div]:bg-red-500",
+    iconBg: "bg-red-100 dark:bg-red-900/40",
     badge: "bg-red-600 text-white border-transparent",
     dot: "bg-red-500",
   },
   paused: {
-    key: "stage.paused", icon: Pause, color: "text-yellow-600", variant: "outline",
+    icon: Pause, color: "text-yellow-600",
     bar: "bg-yellow-500", card: "border-yellow-300/60 bg-yellow-50/60 dark:bg-yellow-950/20",
-    iconBg: "bg-yellow-100 dark:bg-yellow-900/40", progress: "[&>div]:bg-yellow-500",
+    iconBg: "bg-yellow-100 dark:bg-yellow-900/40",
     badge: "bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/40 dark:text-yellow-200",
     dot: "bg-yellow-500",
   },
@@ -130,50 +113,16 @@ function ElapsedTime({ startMs }: { startMs: number }) {
   return <span className="inline-flex items-center gap-1 text-muted-foreground"><Clock className="size-3" />{m}:{s.toString().padStart(2, "0")}</span>;
 }
 
-const pipelineSteps = [
-  { key: "analyzing", label: "Preprocessing" },
-  { key: "uploading", label: "Uploading" },
-  { key: "transcribing", label: "Transcription" },
-  { key: "done", label: "Complete" },
-];
-
-function PipelineSteps({ currentStage }: { currentStage: string }) {
-  const currentIdx = pipelineSteps.findIndex((s) => s.key === currentStage);
-  return (
-    <div className="flex items-center gap-1 pl-2 text-xs">
-      {pipelineSteps.map((step, i) => {
-        const isDone = i < currentIdx;
-        const isActive = i === currentIdx;
-        return (
-          <div key={step.key} className="flex items-center gap-1">
-            {i > 0 && <span className={`w-3 h-px ${isDone ? 'bg-emerald-500' : 'bg-border'}`} />}
-            <span className={`size-4 rounded-full flex items-center justify-center text-[9px] font-medium border ${
-              isDone ? 'bg-emerald-500/20 border-emerald-500 text-emerald-600' :
-              isActive ? 'bg-primary/20 border-primary text-primary animate-pulse' :
-              'bg-muted border-border text-muted-foreground'
-            }`}>
-              {isDone ? '✓' : i + 1}
-            </span>
-            <span className={`hidden sm:inline ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>{step.label}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }: {
-  onFileStateChange?: (files: FileItem[]) => void;
+export function UploadPanel({ onFileSelect, selectedFileId }: {
   onFileSelect?: (id: string) => void;
   selectedFileId?: string | null;
 } = {}) {
   const { t } = useT();
   const { addTranscript, addHistoryJob } = useTranscripts();
-  const [files, setFiles] = useState<FileItem[]>([]);
+  const { jobs, addJobs, updateJob, removeJob, clearDone } = useUploadJobs();
   const [drag, setDrag] = useState(false);
-  const [preset, setPreset] = useState("balanced");
-  const [language, setLanguage] = useState("auto");
   const inputRef = useRef<HTMLInputElement>(null);
+  const processingRef = useRef(false);
 
   const onDrop = useCallback((e: React.DragEvent) => {
     setDrag(false);
@@ -182,19 +131,22 @@ export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }:
 
   const handleFiles = (list: FileList | null) => {
     if (!list || list.length === 0) return;
-    const incoming: FileItem[] = Array.from(list).map((file, i) => ({
+    const incoming: UploadJob[] = Array.from(list).map((file, i) => ({
       id: `u${Date.now()}-${i}`,
-      name: file.name,
+      fileName: file.name,
       sizeBytes: file.size,
       format: (file.name.split(".").pop() || "AUD").toUpperCase(),
-      speakers: 0, language: "auto",
-      stage: "queued" as Stage, startedAt: Date.now(),
+      speakers: 0,
+      language: "auto",
+      stage: "queued" as JobStage,
+      progress: 0,
+      createdAt: Date.now(),
     }));
-    setFiles((prev) => [...incoming, ...prev]);
+    addJobs(incoming);
     toast.success(`${incoming.length} file${incoming.length > 1 ? "s" : ""} queued`, {
       description: `${formatBytes(incoming.reduce((s, f) => s + f.sizeBytes, 0))} total`,
     });
-    incoming.forEach((f) => notifySessionStarted(f.name));
+    incoming.forEach((f) => notifySessionStarted(f.fileName));
   };
 
   const openNativePicker = async () => {
@@ -204,39 +156,39 @@ export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }:
     }
     const results = await window.electronAPI.openAudioFiles();
     if (results.length === 0) return;
-    const incoming: FileItem[] = results.map((meta) => ({
+    const incoming: UploadJob[] = results.map((meta) => ({
       id: meta.id,
-      name: meta.fileName,
+      fileName: meta.fileName,
       sizeBytes: meta.sizeBytes,
       format: meta.extension.toUpperCase(),
-      speakers: 0, language: "auto",
-      stage: "queued" as Stage, startedAt: Date.now(),
+      speakers: 0,
+      language: "auto",
+      stage: "queued" as JobStage,
+      progress: 0,
+      createdAt: Date.now(),
       filePath: meta.filePath,
     }));
-    setFiles((prev) => [...incoming, ...prev]);
+    addJobs(incoming);
     toast.success(`${incoming.length} file${incoming.length > 1 ? "s" : ""} queued`, {
       description: `${formatBytes(incoming.reduce((s, f) => s + f.sizeBytes, 0))} total`,
     });
-    incoming.forEach((f) => notifySessionStarted(f.name));
+    incoming.forEach((f) => notifySessionStarted(f.fileName));
   };
 
   const pauseResume = (id: string) => {
-    setFiles((p) => p.map((f) => f.id === id ? { ...f, stage: f.stage === "paused" ? "queued" : "paused" } : f));
+    const job = jobs.find((j) => j.id === id);
+    if (job) updateJob(id, { stage: job.stage === "paused" ? "queued" : "paused", progress: 0 });
   };
   const retry = (id: string) => {
-    setFiles((p) => p.map((f) => f.id === id ? { ...f, stage: "queued", stageProgress: 0, uploadedBytes: 0, error: undefined } : f));
+    updateJob(id, { stage: "queued", progress: 0, error: undefined });
   };
-  const remove = (id: string) => setFiles((p) => p.filter((f) => f.id !== id));
-  const clearDone = () => setFiles((p) => p.filter((f) => f.stage !== "done"));
 
   // Sequential queue processor
-  const processingRef = useRef(false);
-
   const processNext = useCallback(async () => {
     if (processingRef.current) return;
     if (!window.electronAPI?.assemblyai) return;
 
-    const queue = files.filter((f) => f.stage === "queued" && f.filePath);
+    const queue = jobs.filter((f) => f.stage === "queued" && f.filePath);
     if (queue.length === 0) return;
 
     const file = queue[0];
@@ -245,22 +197,17 @@ export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }:
     // Step 1: Analyze audio metadata
     let uploadPath = file.filePath!;
     if (window.electronAPI?.audio) {
-      setFiles((p) => p.map((f) => f.id === file.id ? { ...f, stage: "analyzing" as Stage } : f));
+      updateJob(file.id, { stage: "analyzing", progress: 10 });
       const metaResult = await window.electronAPI.audio.metadata(file.filePath!);
       if (metaResult.ok && metaResult.metadata && metaResult.recommendation) {
-        setFiles((p) => p.map((f) => f.id === file.id ? {
-          ...f,
-          audioMeta: metaResult.metadata,
-          recommendation: metaResult.recommendation,
-        } : f));
+        updateJob(file.id, { audioMeta: metaResult.metadata, recommendation: metaResult.recommendation, progress: 15 });
 
-        // Auto-compress if recommended
         if (metaResult.recommendation.action === 'compress') {
           toast.info("Compressing audio", { description: metaResult.recommendation.reason });
           const compressResult = await window.electronAPI.audio.compress(file.filePath!);
           if (compressResult.ok && compressResult.outputPath) {
             uploadPath = compressResult.outputPath;
-            setFiles((p) => p.map((f) => f.id === file.id ? { ...f, compressedPath: compressResult.outputPath } : f));
+            updateJob(file.id, { compressedPath: compressResult.outputPath, progress: 20 });
             toast.success("Compressed", { description: `Saved ${compressResult.savedMB} MB` });
           }
         }
@@ -268,26 +215,23 @@ export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }:
     }
 
     // Step 2: Upload and transcribe
-    setFiles((p) => p.map((f) => f.id === file.id ? { ...f, stage: "uploading" as Stage, processingStartedAt: Date.now() } : f));
+    updateJob(file.id, { stage: "uploading", progress: 25, startedAt: Date.now() });
 
     const result = await window.electronAPI.assemblyai.transcribeFile(uploadPath, file.id);
     const now = new Date().toISOString();
 
     if (result.ok) {
+      // Step 3: Save
+      updateJob(file.id, { stage: "saving", progress: 90 });
+
       const speakerCount = result.utterances?.length
         ? new Set(result.utterances.map((u) => u.speaker)).size
         : 0;
       const languageCode = result.languageCode || 'unknown';
 
-      setFiles((p) => p.map((f) => f.id === file.id ? {
-        ...f,
-        stage: "done",
-        speakers: speakerCount,
-        language: languageCode,
-      } : f));
       addTranscript({
         fileId: file.id,
-        fileName: file.name,
+        fileName: file.fileName,
         fullText: result.fullText || '',
         languageCode,
         utterances: result.utterances || [],
@@ -295,13 +239,13 @@ export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }:
       });
       const historyJob = {
         id: file.id,
-        fileName: file.name,
+        fileName: file.fileName,
         filePath: file.filePath!,
         sizeBytes: file.sizeBytes,
         status: 'done' as const,
         languageCode,
         speakerCount,
-        createdAt: new Date(file.startedAt).toISOString(),
+        createdAt: new Date(file.createdAt).toISOString(),
         completedAt: now,
         transcript: {
           fullText: result.fullText || '',
@@ -310,38 +254,43 @@ export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }:
       };
       addHistoryJob(historyJob);
       window.electronAPI?.history?.save(historyJob);
-      toast.success(`Transcription complete: ${file.name}`, {
+
+      updateJob(file.id, {
+        stage: "done",
+        progress: 100,
+        speakers: speakerCount,
+        language: languageCode,
+        completedAt: now,
+        resultFileId: file.id,
+      });
+      toast.success(`Transcription complete: ${file.fileName}`, {
         description: `${result.utterances?.length || 0} conversation segments · ${languageCode}`,
       });
-      notifySessionCompleted(file.name);
+      notifySessionCompleted(file.fileName);
     } else {
-      setFiles((p) => p.map((f) => f.id === file.id ? {
-        ...f,
-        stage: "failed",
-        error: result.error,
-      } : f));
-      toast.error(`Transcription failed: ${file.name}`, { description: result.error });
-      notifySessionFailed(file.name, result.error);
+      updateJob(file.id, { stage: "failed", progress: 0, error: result.error });
+      toast.error(`Transcription failed: ${file.fileName}`, { description: result.error });
+      notifySessionFailed(file.fileName, result.error);
     }
 
     processingRef.current = false;
-  }, [files, addTranscript, addHistoryJob]);
+  }, [jobs, addTranscript, addHistoryJob, updateJob]);
 
-  // Auto-advance queue when files change
+  // Auto-advance queue when jobs change
   useEffect(() => {
     if (processingRef.current) return;
-    const hasQueued = files.some((f) => f.stage === "queued" && f.filePath);
+    const hasQueued = jobs.some((f) => f.stage === "queued" && f.filePath);
     if (hasQueued) {
       processNext();
     }
-  }, [files, processNext]);
+  }, [jobs, processNext]);
 
   // Listen for progress updates from main process
   useEffect(() => {
     const api = window.electronAPI?.assemblyai;
     if (!api) return;
     api.onProgress((data) => {
-      const stageMap: Record<string, Stage> = {
+      const stageMap: Record<string, JobStage> = {
         uploading: "uploading",
         transcribing: "transcribing",
         done: "done",
@@ -349,25 +298,18 @@ export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }:
       };
       const mapped = stageMap[data.stage];
       if (mapped) {
-        setFiles((p) => p.map((f) => f.id === data.jobId ? { ...f, stage: mapped } : f));
+        updateJob(data.jobId, { stage: mapped, progress: getStageProgress(mapped) });
       }
     });
     return () => { api.offProgress(); };
-  }, []);
+  }, [updateJob]);
 
-  const totals = useMemo(() => {
-    return {
-      count: files.length,
-      active: files.filter((f) => f.stage === "uploading" || f.stage === "transcribing").length,
-      totalBytes: files.reduce((s, f) => s + f.sizeBytes, 0),
-      done: files.filter((f) => f.stage === "done").length,
-    };
-  }, [files]);
-
-  // Notify parent of file state changes
-  useEffect(() => {
-    onFileStateChange?.(files);
-  }, [files, onFileStateChange]);
+  const totals = useMemo(() => ({
+    count: jobs.length,
+    active: jobs.filter((f) => ["uploading", "transcribing", "analyzing", "summarizing", "saving"].includes(f.stage)).length,
+    totalBytes: jobs.reduce((s, f) => s + f.sizeBytes, 0),
+    done: jobs.filter((f) => f.stage === "done").length,
+  }), [jobs]);
 
   return (
     <Card>
@@ -377,7 +319,7 @@ export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }:
             <CardTitle>{t("upload.title")}</CardTitle>
             <CardDescription>{t("upload.desc")}</CardDescription>
           </div>
-          {files.length > 0 && (
+          {jobs.length > 0 && (
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="gap-1"><HardDrive className="size-3" />{formatBytes(totals.totalBytes)}</Badge>
               <Badge variant="outline" className="gap-1">{totals.done}/{totals.count} done</Badge>
@@ -387,33 +329,22 @@ export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }:
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Processing Presets */}
-        <ProcessingPresets
-          value={preset}
-          onChange={setPreset}
-          language={language}
-          onLanguageChange={setLanguage}
-        />
-
         <div
           onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDrag(true); }}
           onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDrag(false); }}
           onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDrop(e); }}
           onClick={(e) => { e.preventDefault(); openNativePicker(); }}
-          className={`border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center text-center transition-colors cursor-pointer
+          className={`border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-center transition-colors cursor-pointer
             ${drag ? "border-primary bg-primary/10" : "bg-muted/30 hover:bg-muted/50"}`}
         >
-          <div className="size-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-3">
-            <UploadCloud className="size-6" />
+          <div className="size-10 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-2">
+            <UploadCloud className="size-5" />
           </div>
-          <div>{drag ? t("upload.release") : t("upload.drag")}</div>
-          <div className="text-muted-foreground mt-1">{t("upload.formats")}</div>
-          <div className="flex gap-2 mt-4" onClick={(e) => e.stopPropagation()}>
-            <Button type="button" onClick={() => openNativePicker()}>
-              <UploadCloud className="size-4 mr-1" /> {t("upload.select")}
-            </Button>
-            <Button type="button" variant="outline" onClick={() => toast.message("Folder picker not available in preview")}>
-              {t("upload.selectFolder")}
+          <div className="text-sm">{drag ? t("upload.release") : t("upload.drag")}</div>
+          <div className="text-muted-foreground text-xs mt-1">{t("upload.formats")}</div>
+          <div className="flex gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
+            <Button type="button" size="sm" onClick={() => openNativePicker()}>
+              <UploadCloud className="size-3.5 mr-1" /> {t("upload.select")}
             </Button>
           </div>
           <input
@@ -426,101 +357,89 @@ export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }:
           />
         </div>
 
-        {files.length > 0 && (
+        {jobs.length > 0 && (
           <div className="flex items-center justify-between">
-            <div className="text-muted-foreground">{t("upload.queue")} ({files.length})</div>
+            <div className="text-muted-foreground text-sm">{t("upload.queue")} ({jobs.length})</div>
             <Button variant="ghost" size="sm" onClick={clearDone} disabled={totals.done === 0}>
-              <Trash2 className="size-4 mr-1" /> {t("upload.clearDone")}
+              <Trash2 className="size-3.5 mr-1" /> {t("upload.clearDone")}
             </Button>
           </div>
         )}
 
-        {files.length === 0 ? (
-          <div className="text-center text-muted-foreground py-8">
+        {jobs.length === 0 ? (
+          <div className="text-center text-muted-foreground py-6 text-sm">
             No files selected. Use the area above to pick audio files.
           </div>
         ) : (
-        <div className="space-y-3">
-          {files.map((f) => {
+        <div className="space-y-2">
+          {jobs.map((f) => {
             const meta = stageMeta[f.stage];
             const Icon = meta.icon;
-            const spinning = f.stage === "uploading" || f.stage === "transcribing";
+            const spinning = ["uploading", "transcribing", "analyzing", "summarizing", "saving"].includes(f.stage);
 
             return (
               <div
                 key={f.id}
-                className={`relative border rounded-lg p-3 space-y-3 overflow-hidden transition-colors cursor-pointer ${meta.card} ${selectedFileId === f.id ? 'ring-1 ring-primary' : ''}`}
+                className={`relative border rounded-lg p-3 space-y-2 overflow-hidden transition-colors cursor-pointer ${meta.card} ${selectedFileId === f.id ? 'ring-1 ring-primary' : ''}`}
                 onClick={() => onFileSelect?.(f.id)}
               >
-                <span className={`absolute left-0 top-0 bottom-0 w-1.5 ${meta.bar}`} />
+                <span className={`absolute left-0 top-0 bottom-0 w-1 ${meta.bar}`} />
                 <div className="flex items-start gap-3 pl-2">
-                  <div className={`size-9 rounded-md flex items-center justify-center shrink-0 ${meta.iconBg} ${meta.color}`}>
+                  <div className={`size-8 rounded-md flex items-center justify-center shrink-0 ${meta.iconBg} ${meta.color}`}>
                     <Icon className={`size-4 ${spinning ? "animate-pulse" : ""}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="truncate">{f.name}</span>
-                      <Badge variant="outline" className="shrink-0">{f.format}</Badge>
-                      {f.language !== "auto" && <Badge variant="outline" className="shrink-0">{f.language}</Badge>}
+                      <span className="text-sm truncate">{f.fileName}</span>
+                      <Badge variant="outline" className="shrink-0 text-[10px] h-4">{f.format}</Badge>
                     </div>
-                    <div className="text-muted-foreground mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                    <div className="text-muted-foreground text-xs mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
                       <span className="inline-flex items-center gap-1"><HardDrive className="size-3" />{formatBytes(f.sizeBytes)}</span>
-                      {f.audioMeta && <span className="font-mono text-xs">{f.audioMeta.codec.toUpperCase()} · {f.audioMeta.bitrate}kbps · {f.audioMeta.sampleRate}Hz · {f.audioMeta.channels}ch</span>}
-                      {f.audioMeta && <span className="font-mono text-xs">{formatDuration(f.audioMeta.duration)}</span>}
+                      {f.audioMeta && <span className="font-mono">{formatDuration(f.audioMeta.duration)}</span>}
                       {f.speakers > 0 && <span>{f.speakers} speakers</span>}
-                      {spinning && f.processingStartedAt && <ElapsedTime startMs={f.processingStartedAt} />}
+                      {spinning && f.startedAt && <ElapsedTime startMs={f.startedAt} />}
                     </div>
                   </div>
-                  <Badge variant="outline" className={`shrink-0 gap-1.5 ${meta.badge}`}>
-                    <span className={`size-1.5 rounded-full ${meta.dot} ${spinning ? "animate-pulse" : ""}`} />
-                    {t(meta.key)}
-                  </Badge>
                   <div className="flex items-center gap-1 shrink-0">
-                    {f.stage === "failed" ? (
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => retry(f.id)} title={t("upload.retry")}>
-                        <RotateCw className="size-4" />
-                      </Button>
-                    ) : f.stage !== "done" && f.stage !== "uploading" && f.stage !== "transcribing" && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => pauseResume(f.id)} title={f.stage === "paused" ? t("upload.resume") : t("upload.pause")}>
-                        {f.stage === "paused" ? <Play className="size-4" /> : <Pause className="size-4" />}
+                    <Badge variant="outline" className={`gap-1 text-[10px] h-5 ${meta.badge}`}>
+                      <span className={`size-1.5 rounded-full ${meta.dot} ${spinning ? "animate-pulse" : ""}`} />
+                      {getStageLabel(f.stage)}
+                    </Badge>
+                    {f.stage === "failed" && (
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); retry(f.id); }} title="Retry">
+                        <RotateCw className="size-3.5" />
                       </Button>
                     )}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="size-4" /></Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>{f.name}</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        {f.filePath && f.stage === "failed" && (
-                          <DropdownMenuItem onClick={() => retry(f.id)}>
-                            <RotateCw className="size-4 mr-2" />Retry transcription
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem onClick={() => retry(f.id)}><RotateCw className="size-4 mr-2" />{t("upload.restart")}</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive" onClick={() => remove(f.id)}>
-                          <X className="size-4 mr-2" />{t("upload.remove")}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {f.stage !== "done" && !spinning && f.stage !== "failed" && (
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); pauseResume(f.id); }}>
+                        {f.stage === "paused" ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); removeJob(f.id); }}>
+                      <X className="size-3.5" />
+                    </Button>
                   </div>
                 </div>
 
-                {f.stage === "failed" && f.error && (
-                  <div className="text-destructive flex items-start gap-1.5 text-xs pl-2">
-                    <AlertCircle className="size-3.5 mt-0.5 shrink-0" />{f.error}
+                {/* Progress bar */}
+                {f.stage !== "done" && f.stage !== "failed" && f.stage !== "paused" && f.stage !== "queued" && (
+                  <div className="pl-2 pr-1">
+                    <div className="flex items-center gap-2">
+                      <Progress value={f.progress} className="h-1.5 flex-1" />
+                      <span className="text-[10px] text-muted-foreground w-8 text-right">{f.progress}%</span>
+                    </div>
                   </div>
                 )}
 
-                {/* Pipeline visualization for active files */}
-                {(spinning || f.stage === "analyzing") && (
-                  <PipelineSteps currentStage={f.stage} />
+                {f.stage === "done" && (
+                  <div className="pl-2">
+                    <Progress value={100} className="h-1 [&>div]:bg-emerald-500" />
+                  </div>
                 )}
 
-                {spinning && f.sizeBytes > 50 * 1024 * 1024 && (
-                  <div className="text-muted-foreground text-xs pl-2">
-                    Long audio may take several minutes depending on file size. Do not close the app.
+                {f.stage === "failed" && f.error && (
+                  <div className="text-destructive flex items-start gap-1.5 text-xs pl-2">
+                    <AlertCircle className="size-3 mt-0.5 shrink-0" />{f.error}
                   </div>
                 )}
               </div>
