@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -7,8 +7,11 @@ import {
   CheckCircle2, XCircle, AlertCircle, Clock, FileAudio, HardDrive,
   Zap, Download, AlertTriangle, Database, Wifi, Upload, Play,
   Cpu, MemoryStick, Sparkles, ArrowRight, Trash2, FileText, Bell,
+  RefreshCw, Settings,
 } from "lucide-react";
 import { useTranscripts } from "../transcript-store";
+import { checkAllProviders, loadCachedStatus, getStatusDisplay, ApiStatusState, ProviderStatus } from "../api-status-service";
+import { notifyApiStatus } from "../notification-store";
 
 function formatBytes(b: number) {
   if (b < 1024) return `${b} B`;
@@ -45,6 +48,9 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
   const [provider, setProvider] = useState<string>("gemini");
   const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
   const [ffmpegOk, setFfmpegOk] = useState<boolean | null>(null);
+  const [apiStatus, setApiStatus] = useState<ApiStatusState | null>(loadCachedStatus);
+  const [apiChecking, setApiChecking] = useState(false);
+  const prevStatusRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
     const api = window.electronAPI?.settings;
@@ -64,6 +70,34 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
     })();
     window.electronAPI?.audio?.ffmpegCheck().then((r) => setFfmpegOk(r.ok));
   }, []);
+
+  // API status check on mount
+  useEffect(() => {
+    runApiCheck(false);
+  }, []);
+
+  const runApiCheck = async (manual: boolean) => {
+    setApiChecking(true);
+    try {
+      const result = await checkAllProviders();
+      setApiStatus(result);
+
+      // Notify only on meaningful status changes (not on first load unless manual)
+      if (manual || Object.keys(prevStatusRef.current).length > 0) {
+        for (const p of result.providers) {
+          const prev = prevStatusRef.current[p.provider];
+          if (prev && prev !== p.status) {
+            notifyApiStatus(p.label, p.status === "connected");
+          }
+        }
+      }
+      // Update prev ref
+      const newPrev: Record<string, string> = {};
+      result.providers.forEach((p) => { newPrev[p.provider] = p.status; });
+      prevStatusRef.current = newPrev;
+    } catch {}
+    setApiChecking(false);
+  };
 
   useEffect(() => {
     const api = window.electronAPI?.storage;
@@ -194,16 +228,67 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
 
       {/* Row 2: Mixed sizes */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {/* System Status */}
+        {/* API Status */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><Wifi className="size-4" />System Status</CardTitle>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Wifi className="size-4" />API Status
+              <div className="flex-1" />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5"
+                onClick={() => runApiCheck(true)}
+                disabled={apiChecking}
+                title="Check again"
+              >
+                <RefreshCw className={`size-3 ${apiChecking ? "animate-spin" : ""}`} />
+              </Button>
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-0">
-            <StatusDot active={keyStatus.assemblyai} label="AssemblyAI" />
-            <StatusDot active={keyStatus.gemini} label="Gemini" />
-            <StatusDot active={keyStatus.chatgpt} label="ChatGPT" />
-            <StatusDot active={ffmpegOk === null ? "na" : ffmpegOk} label="FFmpeg" />
+          <CardContent className="space-y-1">
+            {apiStatus ? (
+              <>
+                {apiStatus.providers.map((p) => {
+                  const display = getStatusDisplay(p.status);
+                  return (
+                    <div key={p.provider} className="flex items-center justify-between py-1">
+                      <span className="text-xs">{p.label}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`size-2 rounded-full ${display.bgColor}`} />
+                        <span className={`text-[10px] w-16 ${display.color}`}>{display.label}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-xs">FFmpeg</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`size-2 rounded-full ${ffmpegOk === null ? "bg-gray-400" : ffmpegOk ? "bg-emerald-500" : "bg-red-500"}`} />
+                    <span className="text-[10px] text-muted-foreground w-16">{ffmpegOk === null ? "Unknown" : ffmpegOk ? "Ready" : "Missing"}</span>
+                  </div>
+                </div>
+                {apiStatus.lastFullCheck && (
+                  <div className="text-[9px] text-muted-foreground pt-1 border-t mt-1">
+                    Checked {new Date(apiStatus.lastFullCheck).toLocaleTimeString()}
+                  </div>
+                )}
+                {apiStatus.providers.some((p) => p.status === "missing_key") && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[10px] w-full mt-1"
+                    onClick={() => onNavigate?.("settings")}
+                  >
+                    <Settings className="size-3 mr-1" />Configure keys
+                  </Button>
+                )}
+              </>
+            ) : (
+              <div className="text-xs text-muted-foreground">Checking...</div>
+            )}
           </CardContent>
         </Card>
 
