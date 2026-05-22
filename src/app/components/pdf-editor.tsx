@@ -16,6 +16,8 @@ import {
   Download, Printer, FileText, Search, CheckCircle2, AlertTriangle,
   Loader2, Palette, PanelLeftClose, PanelLeftOpen, FileAudio, LayoutTemplate,
   ZoomIn, ZoomOut, Maximize2, RefreshCw, Save, FileEdit, Sparkles,
+  MousePointer2, Type, Image, MessageSquare, Highlighter, EyeOff, StickyNote,
+  Eye, Pencil, Columns2, Keyboard,
 } from "lucide-react";
 import { useTranscripts } from "../transcript-store";
 import { usePdfDraft } from "../pdf-draft-store";
@@ -104,6 +106,8 @@ export function PdfEditor() {
   const [previewKey, setPreviewKey] = useState(0);
   const [zoom, setZoom] = useState(100);
   const [showModal, setShowModal] = useState(false);
+  const [editorMode, setEditorMode] = useState<"preview" | "edit" | "print">("preview");
+  const [activeTool, setActiveTool] = useState<string>("select");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const active = transcripts.find((t) => t.fileId === selectedId) || null;
@@ -299,11 +303,27 @@ export function PdfEditor() {
 
   return (
     <Tabs defaultValue="document" className="h-full flex flex-col -m-6">
-      <div className="border-b px-6 pt-2">
+      <div className="border-b px-6 pt-2 flex items-center gap-3">
         <TabsList className="h-8">
           <TabsTrigger value="document" className="text-xs gap-1.5"><FileEdit className="size-3" />Document</TabsTrigger>
           <TabsTrigger value="export" className="text-xs gap-1.5"><Download className="size-3" />Export PDF</TabsTrigger>
         </TabsList>
+        <div className="flex-1" />
+        {/* Editor mode switcher */}
+        <div className="flex items-center border rounded h-6 overflow-hidden">
+          {([["preview", Eye, "Preview"], ["edit", Pencil, "Edit"], ["print", Printer, "Print"]] as const).map(([mode, Icon, label]) => (
+            <button
+              key={mode}
+              className={`h-6 px-2 flex items-center gap-1 text-[9px] transition-colors ${editorMode === mode ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/40"}`}
+              onClick={() => setEditorMode(mode)}
+              title={`${label} mode`}
+            >
+              <Icon className="size-3" />{label}
+            </button>
+          ))}
+        </div>
+        {/* Keyboard shortcut hint */}
+        <div className="text-[8px] text-muted-foreground font-mono hidden xl:block">⌘P print · ⌘E export · ⌘S save</div>
       </div>
 
       <TabsContent value="document" className="flex-1 overflow-auto p-6 mt-0">
@@ -315,6 +335,9 @@ export function PdfEditor() {
     <div className="flex flex-col h-full">
       {/* Main content */}
       <div className="flex-1 min-h-0 flex">
+        {/* Left vertical editing toolbar */}
+        <EditorToolbar activeTool={activeTool} setActiveTool={setActiveTool} editorMode={editorMode} />
+
         {/* Collapsible Left Sidebar */}
         <div className={`h-full border-r flex flex-col shrink-0 transition-all duration-200 ${sidebarCollapsed ? "w-10" : "w-44"}`}>
           {/* Collapse toggle */}
@@ -1145,6 +1168,54 @@ function SectionComposer({ settings, onUpdate, onUpdateSections }: {
               </button>
             </div>
           </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// --- Editor Toolbar (vertical, left side) ---
+const editorTools = [
+  { id: "select", icon: MousePointer2, label: "Select", shortcut: "V" },
+  { id: "text", icon: Type, label: "Text", shortcut: "T" },
+  { id: "image", icon: Image, label: "Image", shortcut: "I" },
+  { id: "annotate", icon: StickyNote, label: "Annotate", shortcut: "A" },
+  { id: "highlight", icon: Highlighter, label: "Highlight", shortcut: "H" },
+  { id: "redact", icon: EyeOff, label: "Redact", shortcut: "R" },
+  { id: "comment", icon: MessageSquare, label: "Comment", shortcut: "C" },
+];
+
+function EditorToolbar({ activeTool, setActiveTool, editorMode }: {
+  activeTool: string;
+  setActiveTool: (tool: string) => void;
+  editorMode: string;
+}) {
+  const isEditMode = editorMode === "edit";
+
+  return (
+    <div className="w-8 border-r bg-muted/10 flex flex-col items-center py-1.5 gap-0.5 shrink-0">
+      {editorTools.map((tool) => {
+        const Icon = tool.icon;
+        const active = activeTool === tool.id;
+        const disabled = !isEditMode && tool.id !== "select";
+        return (
+          <Tooltip key={tool.id}>
+            <TooltipTrigger asChild>
+              <button
+                className={`size-6 rounded flex items-center justify-center transition-colors
+                  ${active ? "bg-primary/20 text-primary" : disabled ? "text-muted-foreground/40 cursor-not-allowed" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+                onClick={() => !disabled && setActiveTool(tool.id)}
+                disabled={disabled}
+              >
+                <Icon className="size-3" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right" className="text-[10px]">
+              <span>{tool.label}</span>
+              <span className="ml-1.5 text-muted-foreground font-mono">{tool.shortcut}</span>
+              {disabled && <span className="ml-1 text-muted-foreground">(Edit mode)</span>}
+            </TooltipContent>
+          </Tooltip>
         );
       })}
     </div>
