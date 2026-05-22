@@ -30,6 +30,17 @@ function isPlaceholderKey(key: string): boolean {
   return PLACEHOLDER_KEYS.some((p) => lower === p.replace(/[^a-z0-9_-]/g, ''));
 }
 
+function modelDisplayName(providerId: string, model: string): string {
+  if (providerId === "assembly") {
+    switch (model) {
+      case "best": return "Best (auto-select latest)";
+      case "universal-2": return "Universal-2 — stable";
+      default: return model;
+    }
+  }
+  return model;
+}
+
 interface ProviderCardProps {
   id: string;
   name: string;
@@ -96,7 +107,11 @@ function ProviderCard(p: ProviderCardProps) {
           <Select value={p.model} onValueChange={p.onModelChange}>
             <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {p.models.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+              {p.models.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {modelDisplayName(p.id, m)}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -390,7 +405,7 @@ export function SettingsPanel() {
             state={asmState}
             onCheck={checkAssembly}
             active
-            models={["universal-2", "universal-1", "nano", "best"]}
+            models={["universal-2", "best"]}
             model={asmModel}
             onModelChange={setAsmModel}
           />
@@ -405,8 +420,9 @@ export function SettingsPanel() {
                 <SelectContent>
                   <SelectItem value="auto">Auto-detect</SelectItem>
                   <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="es-PE">Spanish (Peru)</SelectItem>
-                  <SelectItem value="qu-PE">Quechua (Peru)</SelectItem>
+                  <SelectItem value="ja">Japanese</SelectItem>
+                  <SelectItem value="es">Spanish</SelectItem>
+                  <SelectItem value="bn">Bengali</SelectItem>
                 </SelectContent>
               </Select>
             </div>

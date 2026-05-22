@@ -26,6 +26,14 @@ async function getApiKey(): Promise<string | null> {
   return key;
 }
 
+async function getSpeechModel(): Promise<string> {
+  let store: any = null;
+  const { default: Store } = await import('electron-store');
+  store = new Store({ name: 'recllm-settings', encryptionKey: 'recllm-local-encryption-key' });
+  const models = store.get('models') as Record<string, string> | undefined;
+  return models?.assemblyai || 'universal-2';
+}
+
 interface Utterance {
   speaker: string;
   startMs: number;
@@ -121,13 +129,15 @@ async function uploadFile(filePath: string, apiKey: string): Promise<string> {
 }
 
 async function createTranscript(uploadUrl: string, apiKey: string): Promise<string> {
-  const body = {
+  const speechModel = await getSpeechModel();
+  const body: Record<string, unknown> = {
     audio_url: uploadUrl,
     speaker_labels: true,
-    speech_models: ['universal-2'],
+    speech_model: speechModel,
   };
 
   console.log(`[assemblyai:createTranscript] uploadUrl exists: ${!!uploadUrl}, starts with https: ${uploadUrl?.startsWith('https')}`);
+  console.log(`[assemblyai:createTranscript] speech_model: ${speechModel}`);
   console.log(`[assemblyai:createTranscript] request body: ${JSON.stringify(body)}`);
 
   if (!uploadUrl || !uploadUrl.startsWith('https')) {
