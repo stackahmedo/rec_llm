@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -7,10 +7,11 @@ import { ScrollArea } from "./ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Switch } from "./ui/switch";
 import { Separator } from "./ui/separator";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { toast } from "sonner";
 import {
   Download, Printer, FileText, Search, CheckCircle2, AlertTriangle,
-  Loader2, Palette,
+  Loader2, Palette, PanelLeftClose, PanelLeftOpen, FileAudio, LayoutTemplate,
 } from "lucide-react";
 import { useTranscripts } from "../transcript-store";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./ui/resizable";
@@ -86,6 +87,13 @@ export function PdfEditor() {
   const [searchQuery, setSearchQuery] = useState("");
   const [exporting, setExporting] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem("recllm-pdf-sidebar") === "collapsed"; } catch { return false; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem("recllm-pdf-sidebar", sidebarCollapsed ? "collapsed" : "expanded"); } catch {}
+  }, [sidebarCollapsed]);
 
   const active = transcripts.find((t) => t.fileId === selectedId) || null;
   const summary = selectedId ? getActiveSummary() : null;
@@ -183,13 +191,71 @@ export function PdfEditor() {
   }
 
   return (
+    <TooltipProvider delayDuration={200}>
     <div className="flex flex-col h-full -m-6">
       {/* Main content */}
-      <div className="flex-1 min-h-0">
-        <ResizablePanelGroup direction="horizontal" className="h-full">
-          {/* Left: Transcript selector + Template */}
-          <ResizablePanel defaultSize={22} minSize={18} maxSize={30}>
-            <div className="h-full border-r flex flex-col">
+      <div className="flex-1 min-h-0 flex">
+        {/* Collapsible Left Sidebar */}
+        <div className={`h-full border-r flex flex-col shrink-0 transition-all duration-200 ${sidebarCollapsed ? "w-12" : "w-56"}`}>
+          {/* Collapse toggle */}
+          <div className="p-2 border-b flex items-center justify-center">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {sidebarCollapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+            </Button>
+          </div>
+
+          {/* Transcripts section */}
+          {sidebarCollapsed ? (
+            <div className="flex-1 flex flex-col items-center py-2 gap-1 overflow-hidden">
+              {filtered.slice(0, 10).map((tr) => {
+                const isSelected = tr.fileId === selectedId;
+                return (
+                  <Tooltip key={tr.fileId}>
+                    <TooltipTrigger asChild>
+                      <button
+                        className={`size-8 rounded flex items-center justify-center transition-colors ${isSelected ? "bg-primary/20 text-primary" : "hover:bg-muted text-muted-foreground"}`}
+                        onClick={() => selectTranscript(tr.fileId)}
+                      >
+                        <FileAudio className="size-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="text-xs">
+                      <div className="font-medium">{tr.fileName}</div>
+                      <div className="text-muted-foreground">Speakers: {new Set(tr.utterances.map((u) => u.speaker)).size} · Segments: {tr.utterances.length}</div>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+              <Separator className="my-1 w-6" />
+              {templates.map((tmpl) => {
+                const isActive = settings.template === tmpl.id;
+                return (
+                  <Tooltip key={tmpl.id}>
+                    <TooltipTrigger asChild>
+                      <button
+                        className={`size-8 rounded flex items-center justify-center transition-colors ${isActive ? "bg-primary/20 text-primary" : "hover:bg-muted text-muted-foreground"}`}
+                        onClick={() => updateSettings({ template: tmpl.id })}
+                      >
+                        <LayoutTemplate className="size-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="text-xs">
+                      <div className="font-medium">{tmpl.label}</div>
+                      <div className="text-muted-foreground">{tmpl.desc}</div>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </div>
+          ) : (
+            <>
               <div className="p-3 border-b space-y-2">
                 <div className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Transcripts</div>
                 <div className="relative">
@@ -205,7 +271,6 @@ export function PdfEditor() {
               <ScrollArea className="flex-1">
                 <div className="p-2 space-y-1">
                   {filtered.map((tr) => {
-                    const hasSummary = transcripts.some(() => false); // simplified
                     const isSelected = tr.fileId === selectedId;
                     const speakers = new Set(tr.utterances.map((u) => u.speaker)).size;
                     return (
@@ -216,9 +281,8 @@ export function PdfEditor() {
                       >
                         <div className="font-medium truncate">{tr.fileName}</div>
                         <div className="text-muted-foreground mt-0.5 flex gap-2">
-                          <span>{tr.languageCode}</span>
-                          <span>{speakers}sp</span>
-                          <span>{tr.utterances.length}seg</span>
+                          <span>Speakers: {speakers}</span>
+                          <span>Segments: {tr.utterances.length}</span>
                         </div>
                       </div>
                     );
@@ -241,54 +305,57 @@ export function PdfEditor() {
                   ))}
                 </div>
               </div>
-            </div>
-          </ResizablePanel>
+            </>
+          )}
+        </div>
 
-          <ResizableHandle withHandle />
-
-          {/* Center: PDF Preview */}
-          <ResizablePanel defaultSize={50} minSize={35}>
-            <div className="h-full flex flex-col bg-muted/20">
-              <div className="p-3 border-b text-xs text-muted-foreground uppercase tracking-wider font-medium">
-                Preview
+        {/* Main area: Preview + Settings */}
+        <div className="flex-1 min-w-0">
+          <ResizablePanelGroup direction="horizontal" className="h-full">
+            {/* Center: PDF Preview */}
+            <ResizablePanel defaultSize={60} minSize={40}>
+              <div className="h-full flex flex-col bg-muted/20">
+                <div className="p-3 border-b text-xs text-muted-foreground uppercase tracking-wider font-medium">
+                  Preview
+                </div>
+                <ScrollArea className="flex-1 p-4">
+                  {!active ? (
+                    <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                      Select a transcript to preview
+                    </div>
+                  ) : (
+                    <PdfPreview
+                      transcript={active}
+                      summary={summary}
+                      settings={settings}
+                      speakerColorMap={speakerColorMap}
+                    />
+                  )}
+                </ScrollArea>
               </div>
-              <ScrollArea className="flex-1 p-4">
-                {!active ? (
-                  <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-                    Select a transcript to preview
-                  </div>
-                ) : (
-                  <PdfPreview
-                    transcript={active}
-                    summary={summary}
+            </ResizablePanel>
+
+            <ResizableHandle withHandle />
+
+            {/* Right: Settings */}
+            <ResizablePanel defaultSize={40} minSize={25} maxSize={50}>
+              <div className="h-full border-l flex flex-col">
+                <div className="p-3 border-b text-xs text-muted-foreground uppercase tracking-wider font-medium">
+                  PDF Settings
+                </div>
+                <ScrollArea className="flex-1">
+                  <PdfSettingsPanel
                     settings={settings}
+                    onUpdate={updateSettings}
+                    onUpdateSections={updateSections}
                     speakerColorMap={speakerColorMap}
+                    hasSummary={!!summary}
                   />
-                )}
-              </ScrollArea>
-            </div>
-          </ResizablePanel>
-
-          <ResizableHandle withHandle />
-
-          {/* Right: Settings */}
-          <ResizablePanel defaultSize={28} minSize={20} maxSize={35}>
-            <div className="h-full border-l flex flex-col">
-              <div className="p-3 border-b text-xs text-muted-foreground uppercase tracking-wider font-medium">
-                PDF Settings
+                </ScrollArea>
               </div>
-              <ScrollArea className="flex-1">
-                <PdfSettingsPanel
-                  settings={settings}
-                  onUpdate={updateSettings}
-                  onUpdateSections={updateSections}
-                  speakerColorMap={speakerColorMap}
-                  hasSummary={!!summary}
-                />
-              </ScrollArea>
-            </div>
-          </ResizablePanel>
-        </ResizablePanelGroup>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        </div>
       </div>
 
       {/* Bottom action bar */}
@@ -306,6 +373,7 @@ export function PdfEditor() {
         </Button>
       </div>
     </div>
+    </TooltipProvider>
   );
 }
 
