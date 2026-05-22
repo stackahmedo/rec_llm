@@ -645,64 +645,114 @@ function PdfPreview({ transcript, summary, settings, speakerColorMap, draft, onE
         </div>
       )}
 
-      {/* Executive Summary */}
-      {settings.sections.summary && summary?.summary && (
-        <div className="mb-4">
-          <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-2">Executive Summary</div>
-          <div className="text-[10px] leading-relaxed">{summary.summary}</div>
-        </div>
-      )}
-
-      {/* Discussion Topics / Key Points */}
-      {settings.sections.keyPoints && summary?.pointNotes?.length > 0 && (
-        <div className="mb-4">
-          <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-2">Discussion Topics</div>
-          <ol className="text-[10px] pl-4 space-y-1 list-decimal">
-            {summary.pointNotes.map((n: string, i: number) => (
-              <li key={i} className="leading-relaxed">{n}</li>
-            ))}
-          </ol>
-        </div>
-      )}
-
-      {/* Action Items */}
-      {settings.sections.actionItems && summary?.actionItems?.length > 0 && (
-        <div className="mb-4">
-          <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-2">Action Items</div>
-          <ul className="text-[10px] pl-4 space-y-1">
-            {summary.actionItems.map((a: string, i: number) => (
-              <li key={i} className="flex items-start gap-1.5">
-                <span className="size-3 border border-gray-300 rounded-sm shrink-0 mt-0.5" />
-                <span className="leading-relaxed">{a}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Decisions */}
-      {settings.sections.decisions && summary?.decisions?.length > 0 && (
-        <div className="mb-4">
-          <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-2">Decisions</div>
-          <ul className="text-[10px] pl-4 space-y-1 list-disc">
-            {summary.decisions.map((d: string, i: number) => (
-              <li key={i} className="leading-relaxed">{d}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Risks */}
-      {settings.sections.risks && summary?.risks?.length > 0 && (
-        <div className="mb-4">
-          <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-2">Risks & Concerns</div>
-          <ul className="text-[10px] pl-4 space-y-1 list-disc">
-            {summary.risks.map((r: string, i: number) => (
-              <li key={i} className="leading-relaxed">{r}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* Sections rendered in configured order */}
+      {settings.sectionOrder.map((sectionKey) => {
+        if (!settings.sections[sectionKey as keyof typeof settings.sections]) return null;
+        switch (sectionKey) {
+          case "summary":
+            if (!summary?.summary) return null;
+            return (
+              <div key={sectionKey} className="mb-4">
+                <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-2">Executive Summary</div>
+                <div className="text-[10px] leading-relaxed">{summary.summary}</div>
+              </div>
+            );
+          case "keyPoints":
+            if (!summary?.pointNotes?.length) return null;
+            return (
+              <div key={sectionKey} className="mb-4">
+                <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-2">Discussion Topics</div>
+                <ol className="text-[10px] pl-4 space-y-1 list-decimal">
+                  {summary.pointNotes.map((n: string, i: number) => (
+                    <li key={i} className="leading-relaxed">{n}</li>
+                  ))}
+                </ol>
+              </div>
+            );
+          case "actionItems":
+            if (!summary?.actionItems?.length) return null;
+            return (
+              <div key={sectionKey} className="mb-4">
+                <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-2">Action Items</div>
+                <ul className="text-[10px] pl-4 space-y-1">
+                  {summary.actionItems.map((a: string, i: number) => (
+                    <li key={i} className="flex items-start gap-1.5">
+                      <span className="size-3 border border-gray-300 rounded-sm shrink-0 mt-0.5" />
+                      <span className="leading-relaxed">{a}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          case "decisions":
+            if (!summary?.decisions?.length) return null;
+            return (
+              <div key={sectionKey} className="mb-4">
+                <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-2">Decisions</div>
+                <ul className="text-[10px] pl-4 space-y-1 list-disc">
+                  {summary.decisions.map((d: string, i: number) => (
+                    <li key={i} className="leading-relaxed">{d}</li>
+                  ))}
+                </ul>
+              </div>
+            );
+          case "risks":
+            if (!summary?.risks?.length) return null;
+            return (
+              <div key={sectionKey} className="mb-4">
+                <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-2">Risks & Concerns</div>
+                <ul className="text-[10px] pl-4 space-y-1 list-disc">
+                  {summary.risks.map((r: string, i: number) => (
+                    <li key={i} className="leading-relaxed">{r}</li>
+                  ))}
+                </ul>
+              </div>
+            );
+          case "transcript":
+            return (
+              <div key={sectionKey} className="mb-3">
+                <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-1">
+                  Transcript <span className="font-normal text-gray-400">({transcript.utterances.length} segments)</span>
+                </div>
+                <div className="space-y-0.5">
+                  {transcript.utterances.map((u: any, i: number) => {
+                    const displayText = draft.editedUtterances[i] || u.text;
+                    const displaySpeaker = draft.speakerNames[u.speaker] || u.speaker;
+                    const showPageBreak = i > 0 && i % 40 === 0;
+                    return (
+                      <div key={i}>
+                        {showPageBreak && (
+                          <div className="border-t border-dashed border-gray-300 my-1.5 relative">
+                            <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-white px-2 text-[8px] text-gray-300">page break</span>
+                          </div>
+                        )}
+                        <div className="text-[9px] flex gap-2 group leading-tight">
+                          <span className="font-mono text-gray-400 shrink-0 w-12">{msToTs(u.startMs)}</span>
+                          <span className="font-medium shrink-0 w-16" style={{ color: settings.showSpeakerColors ? speakerColorMap.get(u.speaker) : undefined }}>{displaySpeaker}</span>
+                          {editingIdx === i ? (
+                            <input
+                              className="flex-1 border-b border-blue-300 outline-none bg-blue-50/50 text-[9px]"
+                              defaultValue={displayText}
+                              autoFocus
+                              onBlur={(e) => { onEditUtterance(i, e.target.value); setEditingIdx(null); }}
+                              onKeyDown={(e) => { if (e.key === "Enter") { onEditUtterance(i, (e.target as HTMLInputElement).value); setEditingIdx(null); } }}
+                            />
+                          ) : (
+                            <span className="flex-1 cursor-text hover:bg-blue-50/50 rounded px-0.5 -mx-0.5" onClick={() => setEditingIdx(i)} title="Click to edit">{displayText}</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          case "appendix":
+            return null; // Appendix placeholder
+          default:
+            return null;
+        }
+      })}
 
       {/* Speaker Legend */}
       {settings.showSpeakerColors && speakerColorMap.size > 0 && (
