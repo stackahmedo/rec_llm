@@ -32,6 +32,26 @@ import { DocumentEditor } from "./document-editor";
 import { loadDocument } from "../document-store";
 
 // --- Types ---
+type AnnotationType = "highlight" | "comment" | "redact" | "text";
+
+interface Annotation {
+  id: string;
+  type: AnnotationType;
+  segmentIndex: number;
+  text?: string;
+  color?: string;
+  createdAt: string;
+}
+
+interface ExportQueueItem {
+  id: string;
+  fileId: string;
+  fileName: string;
+  status: "pending" | "exporting" | "done" | "failed";
+  template: string;
+  addedAt: string;
+}
+
 interface PdfSettings {
   template: string;
   fontSize: "small" | "medium" | "large";
@@ -104,12 +124,17 @@ export function PdfEditor() {
   });
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewKey, setPreviewKey] = useState(0);
-  const [zoom, setZoom] = useState(100);
+  const [zoom, setZoom] = useState(() => {
+    try { return Number(localStorage.getItem("recllm-pdf-zoom")) || 100; } catch { return 100; }
+  });
   const [showModal, setShowModal] = useState(false);
   const [editorMode, setEditorMode] = useState<"preview" | "edit" | "print">(() => {
     try { return (localStorage.getItem("recllm-pdf-mode") as any) || "preview"; } catch { return "preview"; }
   });
   const [activeTool, setActiveTool] = useState<string>("select");
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [exportQueue, setExportQueue] = useState<ExportQueueItem[]>([]);
+  const [openTabs, setOpenTabs] = useState<string[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Persist editor mode
@@ -198,6 +223,8 @@ export function PdfEditor() {
     setSelectedId(id);
     setActiveId(id);
     resetDraft(id);
+    // Add to open tabs if not already there
+    setOpenTabs((prev) => prev.includes(id) ? prev : [...prev, id]);
     // Load or generate speaker profiles
     const tr = transcripts.find((t) => t.fileId === id);
     if (tr) {
@@ -359,6 +386,34 @@ export function PdfEditor() {
         {/* Keyboard shortcut hint */}
         <div className="text-[8px] text-muted-foreground font-mono hidden xl:block">⌘P print · ⌘E export · ⌘S save</div>
       </div>
+
+      {/* Multi-document tabs */}
+      {openTabs.length > 0 && (
+        <div className="h-6 border-b bg-muted/10 flex items-center px-1 gap-0.5 overflow-x-auto shrink-0">
+          {openTabs.map((tabId) => {
+            const tr = transcripts.find((t) => t.fileId === tabId);
+            if (!tr) return null;
+            const isActive = tabId === selectedId;
+            return (
+              <div
+                key={tabId}
+                className={`flex items-center gap-1 h-5 px-2 rounded text-[9px] cursor-pointer shrink-0 transition-colors
+                  ${isActive ? "bg-background border shadow-sm" : "text-muted-foreground hover:bg-muted/40"}`}
+                onClick={() => selectTranscript(tabId)}
+              >
+                <FileAudio className="size-2.5" />
+                <span className="truncate max-w-[100px]">{tr.fileName}</span>
+                <button
+                  className="size-3 rounded-sm hover:bg-muted flex items-center justify-center ml-0.5"
+                  onClick={(e) => { e.stopPropagation(); setOpenTabs((prev) => prev.filter((id) => id !== tabId)); if (tabId === selectedId && openTabs.length > 1) { const remaining = openTabs.filter((id) => id !== tabId); selectTranscript(remaining[0]); } }}
+                >
+                  <span className="text-[8px]">×</span>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <TabsContent value="document" className="flex-1 overflow-auto p-6 mt-0">
         <DocumentEditor />
