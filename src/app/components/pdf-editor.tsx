@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import {
   Download, Printer, FileText, Search, CheckCircle2, AlertTriangle,
   Loader2, Palette, PanelLeftClose, PanelLeftOpen, FileAudio, LayoutTemplate,
-  ZoomIn, ZoomOut, Maximize2, RefreshCw, Save, FileEdit,
+  ZoomIn, ZoomOut, Maximize2, RefreshCw, Save, FileEdit, Sparkles,
 } from "lucide-react";
 import { useTranscripts } from "../transcript-store";
 import { usePdfDraft } from "../pdf-draft-store";
@@ -635,13 +635,6 @@ function PdfPreview({ transcript, summary, settings, speakerColorMap, draft, onE
         </div>
       )}
 
-      {/* Metadata */}
-      <div className="grid grid-cols-3 gap-2 mb-4 p-2 bg-gray-50 rounded border text-[9px]">
-        <div><span className="text-gray-500 uppercase">Language</span><br />{transcript.languageCode}</div>
-        <div><span className="text-gray-500 uppercase">Speakers</span><br />{new Set(transcript.utterances.map((u: any) => u.speaker)).size}</div>
-        <div><span className="text-gray-500 uppercase">Segments</span><br />{transcript.utterances.length}</div>
-      </div>
-
       {/* No summary warning */}
       {!summary && settings.sections.summary && (
         <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded text-[10px] text-amber-700 mb-3">
@@ -650,27 +643,66 @@ function PdfPreview({ transcript, summary, settings, speakerColorMap, draft, onE
         </div>
       )}
 
-      {/* Summary */}
+      {/* Executive Summary */}
       {settings.sections.summary && summary?.summary && (
-        <div className="mb-3">
-          <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-1">Summary</div>
-          <div className="text-[10px] leading-relaxed line-clamp-4">{summary.summary}</div>
+        <div className="mb-4">
+          <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-2">Executive Summary</div>
+          <div className="text-[10px] leading-relaxed">{summary.summary}</div>
         </div>
       )}
 
-      {/* Key Points */}
+      {/* Discussion Topics / Key Points */}
       {settings.sections.keyPoints && summary?.pointNotes?.length > 0 && (
-        <div className="mb-3">
-          <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-1">Key Points</div>
-          <ol className="text-[10px] pl-4 space-y-0.5">
-            {summary.pointNotes.slice(0, 5).map((n: string, i: number) => (
-              <li key={i}>{n}</li>
+        <div className="mb-4">
+          <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-2">Discussion Topics</div>
+          <ol className="text-[10px] pl-4 space-y-1 list-decimal">
+            {summary.pointNotes.map((n: string, i: number) => (
+              <li key={i} className="leading-relaxed">{n}</li>
             ))}
           </ol>
         </div>
       )}
 
-      {/* Speaker Color Legend */}
+      {/* Action Items */}
+      {settings.sections.actionItems && summary?.actionItems?.length > 0 && (
+        <div className="mb-4">
+          <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-2">Action Items</div>
+          <ul className="text-[10px] pl-4 space-y-1">
+            {summary.actionItems.map((a: string, i: number) => (
+              <li key={i} className="flex items-start gap-1.5">
+                <span className="size-3 border border-gray-300 rounded-sm shrink-0 mt-0.5" />
+                <span className="leading-relaxed">{a}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Decisions */}
+      {settings.sections.decisions && summary?.decisions?.length > 0 && (
+        <div className="mb-4">
+          <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-2">Decisions</div>
+          <ul className="text-[10px] pl-4 space-y-1 list-disc">
+            {summary.decisions.map((d: string, i: number) => (
+              <li key={i} className="leading-relaxed">{d}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Risks */}
+      {settings.sections.risks && summary?.risks?.length > 0 && (
+        <div className="mb-4">
+          <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-2">Risks & Concerns</div>
+          <ul className="text-[10px] pl-4 space-y-1 list-disc">
+            {summary.risks.map((r: string, i: number) => (
+              <li key={i} className="leading-relaxed">{r}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Speaker Legend */}
       {settings.showSpeakerColors && speakerColorMap.size > 0 && (
         <div className="mb-3">
           <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-1">Speakers</div>
@@ -685,7 +717,7 @@ function PdfPreview({ transcript, summary, settings, speakerColorMap, draft, onE
         </div>
       )}
 
-      {/* Transcript preview */}
+      {/* Transcript */}
       {settings.sections.transcript && (
         <div className="mb-3">
           <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-1">
@@ -782,8 +814,88 @@ function PdfSettingsPanel({ settings, onUpdate, onUpdateSections, speakerProfile
   const toggle = (key: string) => setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
   const isOpen = (key: string) => !collapsed[key];
 
+  const reportPresets = [
+    { id: "business", label: "Business Meeting" },
+    { id: "legal", label: "Legal Transcript" },
+    { id: "interview", label: "Interview" },
+    { id: "podcast", label: "Podcast Summary" },
+    { id: "medical", label: "Medical Notes" },
+  ];
+
+  const applyPreset = (id: string) => {
+    switch (id) {
+      case "business":
+        onUpdateSections({ summary: true, keyPoints: true, actionItems: true, decisions: true, risks: true, transcript: true, appendix: false });
+        break;
+      case "legal":
+        onUpdateSections({ summary: false, keyPoints: false, actionItems: false, decisions: false, risks: false, transcript: true, appendix: true });
+        break;
+      case "interview":
+        onUpdateSections({ summary: true, keyPoints: true, actionItems: false, decisions: false, risks: false, transcript: true, appendix: false });
+        break;
+      case "podcast":
+        onUpdateSections({ summary: true, keyPoints: true, actionItems: false, decisions: false, risks: false, transcript: false, appendix: false });
+        break;
+      case "medical":
+        onUpdateSections({ summary: true, keyPoints: true, actionItems: true, decisions: true, risks: true, transcript: true, appendix: true });
+        break;
+    }
+  };
+
   return (
     <div className="text-[10px]">
+      {/* Report Preset */}
+      <InspectorGroup title="Report Preset" open={isOpen("preset")} onToggle={() => toggle("preset")}>
+        <div className="grid grid-cols-2 gap-1">
+          {reportPresets.map((p) => (
+            <button
+              key={p.id}
+              className="h-5 rounded border text-[9px] hover:bg-primary/5 hover:border-primary/30 transition-colors truncate px-1.5"
+              onClick={() => applyPreset(p.id)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </InspectorGroup>
+
+      {/* Section Composer */}
+      <InspectorGroup title="Sections" open={isOpen("sections")} onToggle={() => toggle("sections")}>
+        {!hasSummary && (
+          <div className="flex items-center gap-1 p-1 bg-amber-500/10 border border-amber-500/20 rounded text-amber-600 text-[9px] mb-1">
+            <AlertTriangle className="size-2.5" />
+            <span>No summary generated</span>
+          </div>
+        )}
+        <div className="space-y-0.5">
+          <InspectorCheck label="Executive Summary" checked={settings.sections.summary} onChange={(v) => onUpdateSections({ summary: v })} />
+          <InspectorCheck label="Discussion Topics" checked={settings.sections.keyPoints} onChange={(v) => onUpdateSections({ keyPoints: v })} />
+          <InspectorCheck label="Action Items" checked={settings.sections.actionItems} onChange={(v) => onUpdateSections({ actionItems: v })} />
+          <InspectorCheck label="Decisions" checked={settings.sections.decisions} onChange={(v) => onUpdateSections({ decisions: v })} />
+          <InspectorCheck label="Risks & Concerns" checked={settings.sections.risks} onChange={(v) => onUpdateSections({ risks: v })} />
+          <InspectorCheck label="Transcript" checked={settings.sections.transcript} onChange={(v) => onUpdateSections({ transcript: v })} />
+          <InspectorCheck label="Appendix" checked={settings.sections.appendix} onChange={(v) => onUpdateSections({ appendix: v })} />
+        </div>
+      </InspectorGroup>
+
+      {/* AI Actions */}
+      <InspectorGroup title="AI Actions" open={isOpen("ai")} onToggle={() => toggle("ai")}>
+        <div className="space-y-1">
+          <button className="w-full h-5 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors" disabled={hasSummary}>
+            <Sparkles className="size-2.5" />Generate Summary
+          </button>
+          <button className="w-full h-5 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors" disabled>
+            <CheckCircle2 className="size-2.5" />Extract Tasks
+          </button>
+          <button className="w-full h-5 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors" disabled>
+            <FileText className="size-2.5" />Create Minutes
+          </button>
+          <button className="w-full h-5 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors" disabled>
+            <Search className="size-2.5" />Redact Sensitive
+          </button>
+        </div>
+      </InspectorGroup>
+
       {/* Layout */}
       <InspectorGroup title="Layout" open={isOpen("layout")} onToggle={() => toggle("layout")}>
         <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
