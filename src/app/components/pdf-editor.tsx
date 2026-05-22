@@ -676,45 +676,53 @@ function PdfPreview({ transcript, summary, settings, speakerColorMap, draft, onE
       {/* Transcript preview */}
       {settings.sections.transcript && (
         <div className="mb-3">
-          <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-1">Transcript</div>
+          <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-1">
+            Transcript <span className="font-normal text-gray-400">({transcript.utterances.length} segments)</span>
+          </div>
           <div className="space-y-0.5">
-            {transcript.utterances.slice(0, 50).map((u: any, i: number) => {
+            {transcript.utterances.map((u: any, i: number) => {
               const displayText = draft.editedUtterances[i] || u.text;
               const displaySpeaker = draft.speakerNames[u.speaker] || u.speaker;
+              // Visual page break indicator every 40 rows
+              const showPageBreak = i > 0 && i % 40 === 0;
               return (
-                <div key={i} className="text-[9px] flex gap-2 group leading-tight">
-                  <span className="font-mono text-gray-400 shrink-0 w-12">
-                    {msToTs(u.startMs)}
-                  </span>
-                  <span
-                    className="font-medium shrink-0 w-16"
-                    style={{ color: settings.showSpeakerColors ? speakerColorMap.get(u.speaker) : undefined }}
-                  >
-                    {displaySpeaker}
-                  </span>
-                  {editingIdx === i ? (
-                    <input
-                      className="flex-1 border-b border-blue-300 outline-none bg-blue-50/50 text-[9px]"
-                      defaultValue={displayText}
-                      autoFocus
-                      onBlur={(e) => { onEditUtterance(i, e.target.value); setEditingIdx(null); }}
-                      onKeyDown={(e) => { if (e.key === "Enter") { onEditUtterance(i, (e.target as HTMLInputElement).value); setEditingIdx(null); } }}
-                    />
-                  ) : (
-                    <span
-                      className="flex-1 cursor-text hover:bg-blue-50/50 rounded px-0.5 -mx-0.5"
-                      onClick={() => setEditingIdx(i)}
-                      title="Click to edit"
-                    >
-                      {displayText}
-                    </span>
+                <div key={i}>
+                  {showPageBreak && (
+                    <div className="border-t border-dashed border-gray-300 my-1.5 relative">
+                      <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-white px-2 text-[8px] text-gray-300">page break</span>
+                    </div>
                   )}
+                  <div className="text-[9px] flex gap-2 group leading-tight">
+                    <span className="font-mono text-gray-400 shrink-0 w-12">
+                      {msToTs(u.startMs)}
+                    </span>
+                    <span
+                      className="font-medium shrink-0 w-16"
+                      style={{ color: settings.showSpeakerColors ? speakerColorMap.get(u.speaker) : undefined }}
+                    >
+                      {displaySpeaker}
+                    </span>
+                    {editingIdx === i ? (
+                      <input
+                        className="flex-1 border-b border-blue-300 outline-none bg-blue-50/50 text-[9px]"
+                        defaultValue={displayText}
+                        autoFocus
+                        onBlur={(e) => { onEditUtterance(i, e.target.value); setEditingIdx(null); }}
+                        onKeyDown={(e) => { if (e.key === "Enter") { onEditUtterance(i, (e.target as HTMLInputElement).value); setEditingIdx(null); } }}
+                      />
+                    ) : (
+                      <span
+                        className="flex-1 cursor-text hover:bg-blue-50/50 rounded px-0.5 -mx-0.5"
+                        onClick={() => setEditingIdx(i)}
+                        title="Click to edit"
+                      >
+                        {displayText}
+                      </span>
+                    )}
+                  </div>
                 </div>
               );
             })}
-            {transcript.utterances.length > 50 && (
-              <div className="text-[9px] text-gray-400 italic pt-1">... {transcript.utterances.length - 50} more segments (visible in exported PDF)</div>
-            )}
           </div>
         </div>
       )}
