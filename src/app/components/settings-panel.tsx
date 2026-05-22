@@ -33,8 +33,8 @@ function isPlaceholderKey(key: string): boolean {
 function modelDisplayName(providerId: string, model: string): string {
   if (providerId === "assembly") {
     switch (model) {
-      case "best": return "Best (auto-select latest)";
-      case "universal-2": return "Universal-2 — stable";
+      case "universal-3-pro": return "Universal-3 Pro — best accuracy";
+      case "universal-2": return "Universal-2 — stable fallback";
       default: return model;
     }
   }
@@ -405,7 +405,7 @@ export function SettingsPanel() {
             state={asmState}
             onCheck={checkAssembly}
             active
-            models={["universal-2", "best"]}
+            models={["universal-2", "universal-3-pro"]}
             model={asmModel}
             onModelChange={setAsmModel}
           />

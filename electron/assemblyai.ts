@@ -31,7 +31,11 @@ async function getSpeechModel(): Promise<string> {
   const { default: Store } = await import('electron-store');
   store = new Store({ name: 'recllm-settings', encryptionKey: 'recllm-local-encryption-key' });
   const models = store.get('models') as Record<string, string> | undefined;
-  return models?.assemblyai || 'universal-2';
+  const model = models?.assemblyai || 'universal-2';
+  // Only allow known valid API values
+  const validModels = ['universal-3-pro', 'universal-2'];
+  if (validModels.includes(model)) return model;
+  return 'universal-2'; // safe fallback
 }
 
 interface Utterance {
