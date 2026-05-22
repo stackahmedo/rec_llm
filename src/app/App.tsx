@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { SidebarNav } from "./components/sidebar-nav";
 import { UploadPanel } from "./components/upload-panel";
+import { UploadWorkstation } from "./components/upload-workstation";
 import { TranscriptViewer } from "./components/transcript-viewer";
 import { SpeakerPanel } from "./components/speaker-panel";
 import { SummaryCard } from "./components/summary-card";
@@ -55,10 +56,7 @@ function Shell() {
           )}
 
           {view === "upload" && (
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-              <div className="xl:col-span-2"><UploadPanel /></div>
-              <SummaryCard />
-            </div>
+            <UploadWorkstation />
           )}
 
           {view === "transcripts" && (

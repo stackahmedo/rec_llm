@@ -119,7 +119,11 @@ function ElapsedTime({ startMs }: { startMs: number }) {
   return <span className="inline-flex items-center gap-1 text-muted-foreground"><Clock className="size-3" />{m}:{s.toString().padStart(2, "0")}</span>;
 }
 
-export function UploadPanel() {
+export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }: {
+  onFileStateChange?: (files: FileItem[]) => void;
+  onFileSelect?: (id: string) => void;
+  selectedFileId?: string | null;
+} = {}) {
   const { t } = useT();
   const { addTranscript, addHistoryJob } = useTranscripts();
   const [files, setFiles] = useState<FileItem[]>([]);
@@ -311,6 +315,11 @@ export function UploadPanel() {
     };
   }, [files]);
 
+  // Notify parent of file state changes
+  useEffect(() => {
+    onFileStateChange?.(files);
+  }, [files, onFileStateChange]);
+
   return (
     <Card>
       <CardHeader>
@@ -381,7 +390,11 @@ export function UploadPanel() {
             const spinning = f.stage === "uploading" || f.stage === "transcribing";
 
             return (
-              <div key={f.id} className={`relative border rounded-lg p-3 space-y-3 overflow-hidden transition-colors ${meta.card}`}>
+              <div
+                key={f.id}
+                className={`relative border rounded-lg p-3 space-y-3 overflow-hidden transition-colors cursor-pointer ${meta.card} ${selectedFileId === f.id ? 'ring-1 ring-primary' : ''}`}
+                onClick={() => onFileSelect?.(f.id)}
+              >
                 <span className={`absolute left-0 top-0 bottom-0 w-1.5 ${meta.bar}`} />
                 <div className="flex items-start gap-3 pl-2">
                   <div className={`size-9 rounded-md flex items-center justify-center shrink-0 ${meta.iconBg} ${meta.color}`}>
