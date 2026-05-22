@@ -8,12 +8,13 @@ import { Separator } from "./ui/separator";
 import { toast } from "sonner";
 import {
   Eye, EyeOff, CheckCircle2, XCircle, Loader2, Save, RotateCcw,
-  Settings2, Mic, Sparkles, Cpu, Download, Wrench,
+  Settings2, Mic, Sparkles, Cpu, Download, Wrench, Database, GitBranch,
+  Wifi, HardDrive, Trash2, FolderOpen,
 } from "lucide-react";
 import { useT, Lang } from "../i18n";
 
 type CheckState = "idle" | "checking" | "ok" | "fail";
-type SettingsTab = "general" | "transcription" | "ai-models" | "processing" | "export" | "advanced";
+type SettingsTab = "general" | "transcription" | "ai-providers" | "pipeline" | "processing" | "storage" | "export" | "advanced";
 
 const PLACEHOLDER_KEYS = [
   'your_api_key', 'your_api_key_here', 'paste_key_here',
@@ -29,8 +30,10 @@ function isPlaceholderKey(key: string): boolean {
 const tabs: { id: SettingsTab; label: string; icon: any }[] = [
   { id: "general", label: "General", icon: Settings2 },
   { id: "transcription", label: "Transcription", icon: Mic },
-  { id: "ai-models", label: "AI Models", icon: Sparkles },
+  { id: "ai-providers", label: "AI Providers", icon: Sparkles },
+  { id: "pipeline", label: "Pipeline Roles", icon: GitBranch },
   { id: "processing", label: "Processing", icon: Cpu },
+  { id: "storage", label: "Storage & Cache", icon: Database },
   { id: "export", label: "Export", icon: Download },
   { id: "advanced", label: "Advanced", icon: Wrench },
 ];
@@ -198,8 +201,8 @@ export function SettingsPanel() {
               asmDiarize={asmDiarize} setAsmDiarize={(v) => { setAsmDiarize(v); markDirty(); }}
             />
           )}
-          {activeTab === "ai-models" && (
-            <AIModelsTab
+          {activeTab === "ai-providers" && (
+            <AIProvidersTab
               summaryProvider={summaryProvider} setSummaryProvider={(v) => { setSummaryProvider(v); markDirty(); }}
               summaryLang={summaryLang} setSummaryLang={(v) => { setSummaryLang(v); markDirty(); }}
               gemKey={gemKey} setGemKey={(v) => { setGemKey(v); markDirty(); }}
@@ -208,8 +211,11 @@ export function SettingsPanel() {
               gptKey={gptKey} setGptKey={(v) => { setGptKey(v); markDirty(); }}
               gptState={gptState} checkOpenAI={checkOpenAI}
               gptModel={gptModel} setGptModel={(v) => { setGptModel(v); markDirty(); }}
+              asmState={asmState}
+              ffmpegOk={ffmpegOk}
             />
           )}
+          {activeTab === "pipeline" && <PipelineTab summaryProvider={summaryProvider} />}
           {activeTab === "processing" && (
             <ProcessingTab
               autoRetry={autoRetry} setAutoRetry={(v) => { setAutoRetry(v); markDirty(); }}
@@ -217,6 +223,9 @@ export function SettingsPanel() {
               autoSaveTxt={autoSaveTxt} setAutoSaveTxt={(v) => { setAutoSaveTxt(v); markDirty(); }}
               asmDiarize={asmDiarize} setAsmDiarize={(v) => { setAsmDiarize(v); markDirty(); }}
             />
+          )}
+          {activeTab === "storage" && (
+            <StorageTab storageSize={storageSize} transcriptCount={transcriptCount} />
           )}
           {activeTab === "export" && <ExportTab />}
           {activeTab === "advanced" && (
@@ -359,8 +368,8 @@ function TranscriptionTab({ asmKey, setAsmKey, asmState, checkAssembly, asmModel
   );
 }
 
-// --- Tab: AI Models ---
-function AIModelsTab({ summaryProvider, setSummaryProvider, summaryLang, setSummaryLang, gemKey, setGemKey, gemState, checkGemini, gemModel, setGemModel, gptKey, setGptKey, gptState, checkOpenAI, gptModel, setGptModel }: {
+// --- Tab: AI Providers ---
+function AIProvidersTab({ summaryProvider, setSummaryProvider, summaryLang, setSummaryLang, gemKey, setGemKey, gemState, checkGemini, gemModel, setGemModel, gptKey, setGptKey, gptState, checkOpenAI, gptModel, setGptModel, asmState, ffmpegOk }: {
   summaryProvider: "gemini" | "chatgpt"; setSummaryProvider: (v: "gemini" | "chatgpt") => void;
   summaryLang: string; setSummaryLang: (v: string) => void;
   gemKey: string; setGemKey: (v: string) => void;
@@ -369,9 +378,35 @@ function AIModelsTab({ summaryProvider, setSummaryProvider, summaryLang, setSumm
   gptKey: string; setGptKey: (v: string) => void;
   gptState: CheckState; checkOpenAI: () => void;
   gptModel: string; setGptModel: (v: string) => void;
+  asmState: CheckState;
+  ffmpegOk: boolean | null;
 }) {
   return (
     <div className="space-y-4">
+      {/* Connection Health */}
+      <SectionLabel>Connection Health</SectionLabel>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[11px] border rounded p-2 bg-muted/10">
+        <div className="flex items-center gap-1.5">
+          <StatusDot state={asmState} />
+          <span>AssemblyAI</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <StatusDot state={gemState} />
+          <span>Gemini</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <StatusDot state={gptState} />
+          <span>OpenAI</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className={`size-2 rounded-full ${ffmpegOk ? "bg-emerald-500" : ffmpegOk === null ? "bg-yellow-500" : "bg-red-500"}`} />
+          <span>FFmpeg</span>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Summary Provider */}
       <SectionLabel>Summary Provider</SectionLabel>
       <div className="grid grid-cols-2 gap-2">
         {([["gemini", "Google Gemini"], ["chatgpt", "OpenAI ChatGPT"]] as const).map(([v, label]) => (
@@ -384,7 +419,6 @@ function AIModelsTab({ summaryProvider, setSummaryProvider, summaryLang, setSumm
           </button>
         ))}
       </div>
-
       <div className="flex items-center gap-2">
         <span className="text-[11px] w-24 shrink-0">Summary language</span>
         <Select value={summaryLang} onValueChange={setSummaryLang}>
@@ -398,6 +432,7 @@ function AIModelsTab({ summaryProvider, setSummaryProvider, summaryLang, setSumm
 
       <Separator />
 
+      {/* Gemini */}
       <SectionLabel>Google Gemini</SectionLabel>
       <div className="space-y-2">
         <div className="flex items-center gap-2">
@@ -419,6 +454,7 @@ function AIModelsTab({ summaryProvider, setSummaryProvider, summaryLang, setSumm
 
       <Separator />
 
+      {/* OpenAI */}
       <SectionLabel>OpenAI ChatGPT</SectionLabel>
       <div className="space-y-2">
         <div className="flex items-center gap-2">
@@ -436,6 +472,39 @@ function AIModelsTab({ summaryProvider, setSummaryProvider, summaryLang, setSumm
             </SelectContent>
           </Select>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Tab: Pipeline Roles ---
+function PipelineTab({ summaryProvider }: { summaryProvider: string }) {
+  const roles = [
+    { role: "Transcription", provider: "AssemblyAI", model: "Universal-3 Pro" },
+    { role: "Summarization", provider: summaryProvider === "gemini" ? "Gemini" : "OpenAI", model: summaryProvider === "gemini" ? "1.5 Pro" : "GPT-4o" },
+    { role: "Translation", provider: "Gemini", model: "1.5 Pro" },
+    { role: "Speaker ID", provider: "AssemblyAI", model: "Diarization" },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <SectionLabel>Role → Provider Mapping</SectionLabel>
+      <div className="border rounded overflow-hidden">
+        <div className="grid grid-cols-3 gap-0 text-[10px] text-muted-foreground uppercase tracking-wider bg-muted/30 px-2.5 py-1.5 border-b">
+          <span>Role</span>
+          <span>Provider</span>
+          <span>Model</span>
+        </div>
+        {roles.map((r) => (
+          <div key={r.role} className="grid grid-cols-3 gap-0 text-[11px] px-2.5 py-1.5 border-b last:border-b-0 hover:bg-muted/20">
+            <span className="font-medium">{r.role}</span>
+            <span className="text-muted-foreground">{r.provider}</span>
+            <span className="font-mono text-[10px]">{r.model}</span>
+          </div>
+        ))}
+      </div>
+      <div className="text-[10px] text-muted-foreground">
+        Configure providers in the AI Providers tab. Role assignments update automatically.
       </div>
     </div>
   );
@@ -486,6 +555,40 @@ function ExportTab() {
   );
 }
 
+// --- Tab: Storage & Cache ---
+function StorageTab({ storageSize, transcriptCount }: { storageSize: number; transcriptCount: number }) {
+  return (
+    <div className="space-y-4">
+      <SectionLabel>Workspace</SectionLabel>
+      <div className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5 text-[11px]">
+        <span className="text-muted-foreground">Storage path</span>
+        <span className="font-mono text-[10px] truncate">recllm-data/</span>
+        <span className="text-muted-foreground">Total size</span>
+        <span className="font-mono">{(storageSize / (1024 * 1024)).toFixed(1)} MB</span>
+        <span className="text-muted-foreground">Transcripts</span>
+        <span className="font-mono">{transcriptCount}</span>
+        <span className="text-muted-foreground">Export directory</span>
+        <span className="font-mono text-[10px] truncate">~/Documents/</span>
+        <span className="text-muted-foreground">Temp directory</span>
+        <span className="font-mono text-[10px] truncate">recllm-data/temp/</span>
+      </div>
+
+      <Separator />
+
+      <SectionLabel>Cache</SectionLabel>
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] text-muted-foreground flex-1">Audio compression cache and intermediate files</span>
+        <Button type="button" variant="outline" size="sm" className="h-6 text-[10px]" disabled>
+          <Trash2 className="size-2.5 mr-1" />Clear Cache
+        </Button>
+        <Button type="button" variant="outline" size="sm" className="h-6 text-[10px]" disabled>
+          <FolderOpen className="size-2.5 mr-1" />Open
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // --- Tab: Advanced ---
 function AdvancedTab({ ffmpegOk, storageSize, transcriptCount, resetAll }: {
   ffmpegOk: boolean | null; storageSize: number; transcriptCount: number; resetAll: () => void;
@@ -499,26 +602,27 @@ function AdvancedTab({ ffmpegOk, storageSize, transcriptCount, resetAll }: {
           <span>FFmpeg</span>
           <span className="text-muted-foreground ml-auto font-mono">{ffmpegOk ? "Ready" : ffmpegOk === null ? "Checking..." : "Not found"}</span>
         </div>
-      </div>
-
-      <Separator />
-
-      <SectionLabel>Storage</SectionLabel>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
-        <span className="text-muted-foreground">Total size</span>
-        <span className="font-mono">{(storageSize / (1024 * 1024)).toFixed(1)} MB</span>
-        <span className="text-muted-foreground">Transcripts</span>
-        <span className="font-mono">{transcriptCount}</span>
-        <span className="text-muted-foreground">Location</span>
-        <span className="font-mono text-[10px] truncate">recllm-data/</span>
+        <div className="flex items-center gap-2 text-[11px]">
+          <span className="size-2 rounded-full bg-slate-400" />
+          <span>GPU</span>
+          <span className="text-muted-foreground ml-auto font-mono">Not detected</span>
+        </div>
       </div>
 
       <Separator />
 
       <SectionLabel>Danger Zone</SectionLabel>
-      <Button type="button" variant="destructive" size="sm" className="h-7 text-[10px]" onClick={resetAll}>
-        <RotateCcw className="size-3 mr-1" />Reset All Settings
-      </Button>
+      <div className="space-y-1.5">
+        <Button type="button" variant="outline" size="sm" className="h-7 text-[10px] w-full justify-start border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20" onClick={resetAll}>
+          <RotateCcw className="size-3 mr-1.5" />Reset All Settings
+        </Button>
+        <Button type="button" variant="outline" size="sm" className="h-7 text-[10px] w-full justify-start border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20" disabled>
+          <Trash2 className="size-3 mr-1.5" />Clear Processing Queue
+        </Button>
+        <Button type="button" variant="outline" size="sm" className="h-7 text-[10px] w-full justify-start border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20" disabled>
+          <Trash2 className="size-3 mr-1.5" />Delete All Cache
+        </Button>
+      </div>
     </div>
   );
 }
