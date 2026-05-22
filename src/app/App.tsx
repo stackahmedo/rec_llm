@@ -1,6 +1,7 @@
 import { useState, lazy, Suspense } from "react";
 import { SidebarNav } from "./components/sidebar-nav";
 import { DashboardStatus } from "./components/dashboard-status";
+import { SearchPanel } from "./components/search-panel";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Search, Sparkles, Loader2 } from "lucide-react";
@@ -28,6 +29,7 @@ function PageLoader() {
 function Shell() {
   const { t } = useT();
   const [view, setView] = useState("dashboard");
+  const [searchOpen, setSearchOpen] = useState(false);
   const titles: Record<string, { title: string; sub: string }> = {
     dashboard:   { title: t("nav.dashboard"),   sub: t("page.dashboard.sub")   },
     upload:      { title: t("nav.upload"),      sub: t("page.upload.sub")      },
@@ -51,12 +53,24 @@ function Shell() {
           </div>
           <div className="relative w-72 max-w-full">
             <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder={t("header.search")} className="pl-9" />
+            <Input
+              placeholder={t("header.search")}
+              className="pl-9 cursor-pointer"
+              readOnly
+              onClick={() => setSearchOpen(true)}
+              onFocus={() => setSearchOpen(true)}
+            />
           </div>
           <Button>
             <Sparkles className="size-4 mr-2" /> {t("header.newSession")}
           </Button>
         </header>
+
+        <SearchPanel
+          open={searchOpen}
+          onOpenChange={setSearchOpen}
+          onNavigate={(v, fileId) => { setView(v); }}
+        />
 
         <div className="flex-1 overflow-auto p-6 space-y-6">
           {view === "dashboard" && (
