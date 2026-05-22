@@ -106,9 +106,43 @@ export function PdfEditor() {
   const [previewKey, setPreviewKey] = useState(0);
   const [zoom, setZoom] = useState(100);
   const [showModal, setShowModal] = useState(false);
-  const [editorMode, setEditorMode] = useState<"preview" | "edit" | "print">("preview");
+  const [editorMode, setEditorMode] = useState<"preview" | "edit" | "print">(() => {
+    try { return (localStorage.getItem("recllm-pdf-mode") as any) || "preview"; } catch { return "preview"; }
+  });
   const [activeTool, setActiveTool] = useState<string>("select");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Persist editor mode
+  useEffect(() => {
+    try { localStorage.setItem("recllm-pdf-mode", editorMode); } catch {}
+  }, [editorMode]);
+
+  // Persist zoom
+  useEffect(() => {
+    try { localStorage.setItem("recllm-pdf-zoom", String(zoom)); } catch {}
+  }, [zoom]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey;
+      if (meta && e.key === "p") { e.preventDefault(); if (active) printPdf(); }
+      if (meta && e.key === "e") { e.preventDefault(); if (active) exportPdf(); }
+      if (meta && e.key === "s") { e.preventDefault(); setShowSaveTemplate(true); }
+      if (meta && e.key === "f") { e.preventDefault(); if (active) setShowModal(true); }
+      // Tool shortcuts (only in edit mode)
+      if (editorMode === "edit" && !meta && !e.altKey) {
+        const toolMap: Record<string, string> = { v: "select", t: "text", i: "image", a: "annotate", h: "highlight", r: "redact", c: "comment" };
+        if (toolMap[e.key]) { setActiveTool(toolMap[e.key]); }
+      }
+      // Zoom shortcuts
+      if (meta && (e.key === "=" || e.key === "+")) { e.preventDefault(); setZoom((z) => Math.min(200, z + 10)); }
+      if (meta && e.key === "-") { e.preventDefault(); setZoom((z) => Math.max(50, z - 10)); }
+      if (meta && e.key === "0") { e.preventDefault(); setZoom(100); }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [editorMode, selectedId]);
 
   const active = transcripts.find((t) => t.fileId === selectedId) || null;
   const summary = selectedId ? getActiveSummary() : null;
