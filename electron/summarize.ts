@@ -1,12 +1,13 @@
 import { ipcMain, net } from 'electron';
 
-async function getSettings(): Promise<{ apiKeys: Record<string, string>; models: Record<string, string>; preferences: Record<string, unknown> }> {
+async function getSettings(): Promise<{ apiKeys: Record<string, string>; models: Record<string, string>; preferences: Record<string, unknown>; openaiProvider?: { providerType?: string; baseUrl?: string } }> {
   const { default: Store } = await import('electron-store');
   const store: any = new Store({ name: 'recllm-settings', encryptionKey: 'recllm-local-encryption-key' });
   return {
     apiKeys: (store.get('apiKeys') as Record<string, string>) || {},
     models: (store.get('models') as Record<string, string>) || {},
     preferences: (store.get('preferences') as Record<string, unknown>) || {},
+    openaiProvider: (store.get('openaiProvider') as { providerType?: string; baseUrl?: string }) || undefined,
   };
 }
 
@@ -195,8 +196,9 @@ async function callGemini(apiKey: string, model: string, prompt: string): Promis
   return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
-async function callOpenAI(apiKey: string, model: string, prompt: string): Promise<string> {
-  const response = await net.fetch('https://api.openai.com/v1/chat/completions', {
+async function callOpenAI(apiKey: string, model: string, prompt: string, baseUrl?: string): Promise<string> {
+  const url = (baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '') + '/chat/completions';
+  const response = await net.fetch(url, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
@@ -254,15 +256,15 @@ function parseResponse(raw: string): ParsedChunk {
   };
 }
 
-async function callLLM(provider: string, apiKey: string, model: string, prompt: string): Promise<string> {
+async function callLLM(provider: string, apiKey: string, model: string, prompt: string, openaiBaseUrl?: string): Promise<string> {
   if (provider === 'gemini') return callGemini(apiKey, model, prompt);
-  if (provider === 'chatgpt') return callOpenAI(apiKey, model, prompt);
+  if (provider === 'chatgpt') return callOpenAI(apiKey, model, prompt, openaiBaseUrl);
   return callGemma(apiKey, model, prompt);
 }
 
 export function registerSummarizeHandlers(): void {
   ipcMain.handle('summarize:generate', async (_event, request: SummaryRequest): Promise<SummaryResult> => {
-    const { apiKeys, models, preferences } = await getSettings();
+    const { apiKeys, models, preferences, openaiProvider } = await getSettings();
     const provider = (preferences.summaryProvider as string) || 'gemini';
 
     const apiKey = apiKeys[provider];
@@ -271,6 +273,7 @@ export function registerSummarizeHandlers(): void {
     }
 
     const model = models[provider] || (provider === 'gemini' ? 'gemini-1.5-pro' : provider === 'chatgpt' ? 'gpt-4o' : 'gemma-2-27b-it');
+    const openaiBaseUrl = openaiProvider?.providerType === 'custom' ? openaiProvider.baseUrl : undefined;
 
     try {
       // Determine chunks
@@ -284,7 +287,7 @@ export function registerSummarizeHandlers(): void {
       // Single chunk — direct summarization
       if (chunks.length === 1) {
         const prompt = buildSinglePrompt(chunks[0], request.language);
-        const raw = await callLLM(provider, apiKey, model, prompt);
+        const raw = await callLLM(provider, apiKey, model, prompt, openaiBaseUrl);
         const parsed = parseResponse(raw);
         return { ok: true, ...parsed };
       }
@@ -293,13 +296,13 @@ export function registerSummarizeHandlers(): void {
       const chunkResults: ParsedChunk[] = [];
       for (let i = 0; i < chunks.length; i++) {
         const prompt = buildChunkPrompt(chunks[i], i, chunks.length, request.language);
-        const raw = await callLLM(provider, apiKey, model, prompt);
+        const raw = await callLLM(provider, apiKey, model, prompt, openaiBaseUrl);
         chunkResults.push(parseResponse(raw));
       }
 
       // Merge all chunk summaries
       const mergePrompt = buildMergePrompt(chunkResults, request.language);
-      const mergeRaw = await callLLM(provider, apiKey, model, mergePrompt);
+      const mergeRaw = await callLLM(provider, apiKey, model, mergePrompt, openaiBaseUrl);
       const merged = parseResponse(mergeRaw);
       return { ok: true, ...merged };
     } catch (err: any) {
