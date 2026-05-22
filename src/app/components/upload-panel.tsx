@@ -16,6 +16,7 @@ import {
 import { useT } from "../i18n";
 import { useTranscripts } from "../transcript-store";
 import { useUploadJobs, UploadJob, JobStage, getStageProgress, getStageLabel } from "../upload-job-store";
+import { UploadConfirmDialog } from "./upload-confirm-dialog";
 
 const stageMeta: Record<JobStage, { icon: any; color: string; bar: string; card: string; iconBg: string; badge: string; dot: string }> = {
   queued: {
@@ -121,6 +122,8 @@ export function UploadPanel({ onFileSelect, selectedFileId }: {
   const { addTranscript, addHistoryJob } = useTranscripts();
   const { jobs, addJobs, updateJob, removeJob, clearDone } = useUploadJobs();
   const [drag, setDrag] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<UploadJob[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const processingRef = useRef(false);
 
@@ -138,15 +141,12 @@ export function UploadPanel({ onFileSelect, selectedFileId }: {
       format: (file.name.split(".").pop() || "AUD").toUpperCase(),
       speakers: 0,
       language: "auto",
-      stage: "queued" as JobStage,
+      stage: "paused" as JobStage, // paused until confirmed
       progress: 0,
       createdAt: Date.now(),
     }));
-    addJobs(incoming);
-    toast.success(`${incoming.length} file${incoming.length > 1 ? "s" : ""} queued`, {
-      description: `${formatBytes(incoming.reduce((s, f) => s + f.sizeBytes, 0))} total`,
-    });
-    incoming.forEach((f) => notifySessionStarted(f.fileName));
+    setPendingFiles(incoming);
+    setConfirmOpen(true);
   };
 
   const openNativePicker = async () => {
@@ -163,16 +163,30 @@ export function UploadPanel({ onFileSelect, selectedFileId }: {
       format: meta.extension.toUpperCase(),
       speakers: 0,
       language: "auto",
-      stage: "queued" as JobStage,
+      stage: "paused" as JobStage, // paused until confirmed
       progress: 0,
       createdAt: Date.now(),
       filePath: meta.filePath,
     }));
-    addJobs(incoming);
-    toast.success(`${incoming.length} file${incoming.length > 1 ? "s" : ""} queued`, {
-      description: `${formatBytes(incoming.reduce((s, f) => s + f.sizeBytes, 0))} total`,
+    setPendingFiles(incoming);
+    setConfirmOpen(true);
+  };
+
+  const handleConfirmStart = (fileIds: string[]) => {
+    // Move confirmed files to queued state and add to global store
+    const confirmed = pendingFiles
+      .filter((f) => fileIds.includes(f.id))
+      .map((f) => ({ ...f, stage: "queued" as JobStage }));
+    addJobs(confirmed);
+    toast.success(`${confirmed.length} file${confirmed.length > 1 ? "s" : ""} queued`, {
+      description: `${formatBytes(confirmed.reduce((s, f) => s + f.sizeBytes, 0))} total`,
     });
-    incoming.forEach((f) => notifySessionStarted(f.fileName));
+    confirmed.forEach((f) => notifySessionStarted(f.fileName));
+    setPendingFiles([]);
+  };
+
+  const handleRemovePending = (id: string) => {
+    setPendingFiles((prev) => prev.filter((f) => f.id !== id));
   };
 
   const pauseResume = (id: string) => {
@@ -312,6 +326,7 @@ export function UploadPanel({ onFileSelect, selectedFileId }: {
   }), [jobs]);
 
   return (
+    <>
     <Card>
       <CardHeader>
         <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -449,5 +464,15 @@ export function UploadPanel({ onFileSelect, selectedFileId }: {
         )}
       </CardContent>
     </Card>
+
+    {/* Upload confirmation popup */}
+    <UploadConfirmDialog
+      open={confirmOpen}
+      onOpenChange={(v) => { if (!v) setPendingFiles([]); setConfirmOpen(v); }}
+      files={pendingFiles}
+      onConfirm={handleConfirmStart}
+      onRemoveFile={handleRemovePending}
+    />
+    </>
   );
 }
