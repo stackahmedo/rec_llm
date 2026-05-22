@@ -33,8 +33,8 @@ function isPlaceholderKey(key: string): boolean {
 function modelDisplayName(providerId: string, model: string): string {
   if (providerId === "assembly") {
     switch (model) {
-      case "universal-3-pro": return "Universal-3 Pro — best accuracy";
-      case "universal-2": return "Universal-2 — stable fallback";
+      case "universal-3-pro+universal-2": return "Universal-3 Pro + fallback (recommended)";
+      case "universal-2": return "Universal-2 only (99 languages)";
       default: return model;
     }
   }
@@ -138,7 +138,7 @@ export function SettingsPanel() {
   // Transcription — AssemblyAI
   const [asmKey, setAsmKey] = useState("");
   const [asmState, setAsmState] = useState<CheckState>("idle");
-  const [asmModel, setAsmModel] = useState("universal-2");
+  const [asmModel, setAsmModel] = useState("universal-3-pro+universal-2");
   const [asmDiarize, setAsmDiarize] = useState(true);
   const [asmLang, setAsmLang] = useState("auto");
 
@@ -405,7 +405,7 @@ export function SettingsPanel() {
             state={asmState}
             onCheck={checkAssembly}
             active
-            models={["universal-2", "universal-3-pro"]}
+            models={["universal-3-pro+universal-2", "universal-2"]}
             model={asmModel}
             onModelChange={setAsmModel}
           />

@@ -26,16 +26,23 @@ async function getApiKey(): Promise<string | null> {
   return key;
 }
 
-async function getSpeechModel(): Promise<string> {
+async function getSpeechModels(): Promise<string[]> {
   let store: any = null;
   const { default: Store } = await import('electron-store');
   store = new Store({ name: 'recllm-settings', encryptionKey: 'recllm-local-encryption-key' });
   const models = store.get('models') as Record<string, string> | undefined;
-  const model = models?.assemblyai || 'universal-2';
-  // Only allow known valid API values
-  const validModels = ['universal-3-pro', 'universal-2'];
-  if (validModels.includes(model)) return model;
-  return 'universal-2'; // safe fallback
+  const model = models?.assemblyai || 'universal-3-pro+universal-2';
+  // Map stored value to API array
+  switch (model) {
+    case 'universal-3-pro+universal-2':
+      return ['universal-3-pro', 'universal-2'];
+    case 'universal-2':
+      return ['universal-2'];
+    case 'universal-3-pro':
+      return ['universal-3-pro', 'universal-2']; // always include fallback for language coverage
+    default:
+      return ['universal-3-pro', 'universal-2'];
+  }
 }
 
 interface Utterance {
@@ -133,16 +140,18 @@ async function uploadFile(filePath: string, apiKey: string): Promise<string> {
 }
 
 async function createTranscript(uploadUrl: string, apiKey: string): Promise<string> {
-  const speechModel = await getSpeechModel();
-  const body: Record<string, unknown> = {
+  const speechModels = await getSpeechModels();
+
+  // Build payload, omit undefined values
+  const payload: Record<string, unknown> = {
     audio_url: uploadUrl,
     speaker_labels: true,
-    speech_model: speechModel,
+    speech_models: speechModels,
   };
 
   console.log(`[assemblyai:createTranscript] uploadUrl exists: ${!!uploadUrl}, starts with https: ${uploadUrl?.startsWith('https')}`);
-  console.log(`[assemblyai:createTranscript] speech_model: ${speechModel}`);
-  console.log(`[assemblyai:createTranscript] request body: ${JSON.stringify(body)}`);
+  console.log(`[assemblyai:createTranscript] speech_models: ${JSON.stringify(speechModels)}`);
+  console.log(`[assemblyai:createTranscript] request body: ${JSON.stringify(payload)}`);
 
   if (!uploadUrl || !uploadUrl.startsWith('https')) {
     throw new Error(`Invalid upload URL: expected https URL, got ${uploadUrl ? uploadUrl.slice(0, 30) : 'empty'}`);
@@ -154,7 +163,7 @@ async function createTranscript(uploadUrl: string, apiKey: string): Promise<stri
       'Authorization': apiKey,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
 
   if (response.status !== 200) {
