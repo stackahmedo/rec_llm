@@ -844,6 +844,21 @@ function PdfSettingsPanel({ settings, onUpdate, onUpdateSections, speakerProfile
 
   return (
     <div className="text-[10px]">
+      {/* Document Outline */}
+      <InspectorGroup title="Document Outline" open={isOpen("outline")} onToggle={() => toggle("outline")}>
+        <div className="space-y-0.5 text-[9px]">
+          {headerConfig.enabled && <div className="flex items-center gap-1.5 py-0.5 text-muted-foreground"><span className="size-1 rounded-full bg-blue-500" />Header</div>}
+          {settings.sections.summary && <div className="flex items-center gap-1.5 py-0.5"><span className="size-1 rounded-full bg-emerald-500" />Executive Summary</div>}
+          {settings.sections.keyPoints && <div className="flex items-center gap-1.5 py-0.5"><span className="size-1 rounded-full bg-violet-500" />Discussion Topics</div>}
+          {settings.sections.actionItems && <div className="flex items-center gap-1.5 py-0.5"><span className="size-1 rounded-full bg-amber-500" />Action Items</div>}
+          {settings.sections.decisions && <div className="flex items-center gap-1.5 py-0.5"><span className="size-1 rounded-full bg-cyan-500" />Decisions</div>}
+          {settings.sections.risks && <div className="flex items-center gap-1.5 py-0.5"><span className="size-1 rounded-full bg-red-500" />Risks & Concerns</div>}
+          {settings.sections.transcript && <div className="flex items-center gap-1.5 py-0.5"><span className="size-1 rounded-full bg-slate-500" />Transcript</div>}
+          {settings.sections.appendix && <div className="flex items-center gap-1.5 py-0.5 text-muted-foreground"><span className="size-1 rounded-full bg-slate-400" />Appendix</div>}
+          {footerConfig.enabled && <div className="flex items-center gap-1.5 py-0.5 text-muted-foreground"><span className="size-1 rounded-full bg-slate-400" />Footer</div>}
+        </div>
+      </InspectorGroup>
+
       {/* Report Preset */}
       <InspectorGroup title="Report Preset" open={isOpen("preset")} onToggle={() => toggle("preset")}>
         <div className="grid grid-cols-2 gap-1">
