@@ -14,11 +14,16 @@ import { toast } from "sonner";
 import {
   Download, Printer, FileText, Search, CheckCircle2, AlertTriangle,
   Loader2, Palette, PanelLeftClose, PanelLeftOpen, FileAudio, LayoutTemplate,
-  ZoomIn, ZoomOut, Maximize2, RefreshCw,
+  ZoomIn, ZoomOut, Maximize2, RefreshCw, Save,
 } from "lucide-react";
 import { useTranscripts } from "../transcript-store";
 import { usePdfDraft } from "../pdf-draft-store";
+import { SpeakerProfile, generateProfiles, loadSpeakerProfiles, saveSpeakerProfiles, getColor, getDisplayName } from "../pdf-speaker-store";
+import { PdfTemplateConfig, HeaderConfig, FooterConfig, builtInTemplates, getAllTemplates, loadCustomTemplates, saveCustomTemplates } from "../pdf-template-store";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./ui/resizable";
+import { SpeakerEditor } from "./pdf-speaker-editor";
+import { HeaderFooterEditor } from "./pdf-header-footer-editor";
+import { SaveTemplateDialog } from "./pdf-save-template-dialog";
 
 // --- Types ---
 interface PdfSettings {
@@ -78,11 +83,6 @@ const templates = [
   { id: "japanese", label: "Japanese Enterprise", desc: "日本語ビジネス形式" },
 ];
 
-const speakerColors = [
-  "#2563eb", "#dc2626", "#d97706", "#059669",
-  "#7c3aed", "#0891b2", "#be185d", "#ea580c",
-];
-
 // --- Main Component ---
 export function PdfEditor() {
   const { transcripts, getActiveSummary, setActiveId } = useTranscripts();
@@ -103,6 +103,16 @@ export function PdfEditor() {
   const active = transcripts.find((t) => t.fileId === selectedId) || null;
   const summary = selectedId ? getActiveSummary() : null;
   const { draft, updateDraft, resetDraft, setSpeakerName, setUtteranceText } = usePdfDraft(selectedId, settings.headerText);
+  const [speakerProfiles, setSpeakerProfiles] = useState<SpeakerProfile[]>([]);
+  const [headerConfig, setHeaderConfig] = useState<HeaderConfig>({
+    enabled: true, mode: "auto", title: "RecLLM — Transcript Report", subtitle: "",
+    showFileName: true, showDate: true, showTime: false, showLogo: true, companyName: "", alignment: "left",
+  });
+  const [footerConfig, setFooterConfig] = useState<FooterConfig>({
+    enabled: true, mode: "auto", text: "", showPageNumbers: true, showConfidential: false, showGeneratedBy: true, alignment: "center",
+  });
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [allTemplates, setAllTemplates] = useState<PdfTemplateConfig[]>(getAllTemplates);
 
   useEffect(() => {
     try { localStorage.setItem("recllm-pdf-sidebar", sidebarCollapsed ? "collapsed" : "expanded"); } catch {}
@@ -131,19 +141,64 @@ export function PdfEditor() {
     );
   }, [transcripts, searchQuery]);
 
-  // Speaker color map
+  // Speaker color map derived from profiles
   const speakerColorMap = useMemo(() => {
-    if (!active) return new Map<string, string>();
-    const speakers = Array.from(new Set(active.utterances.map((u) => u.speaker)));
     const map = new Map<string, string>();
-    speakers.forEach((s, i) => map.set(s, speakerColors[i % speakerColors.length]));
+    speakerProfiles.forEach((p) => {
+      if (p.enabled) map.set(p.id, p.color);
+    });
     return map;
-  }, [active]);
+  }, [speakerProfiles]);
 
   const selectTranscript = (id: string) => {
     setSelectedId(id);
     setActiveId(id);
     resetDraft(id);
+    // Load or generate speaker profiles
+    const tr = transcripts.find((t) => t.fileId === id);
+    if (tr) {
+      const saved = loadSpeakerProfiles(id);
+      if (saved) {
+        setSpeakerProfiles(saved);
+      } else {
+        const speakers = Array.from(new Set(tr.utterances.map((u) => u.speaker)));
+        setSpeakerProfiles(generateProfiles(speakers));
+      }
+    }
+  };
+
+  // Save speaker profiles when they change
+  const handleSpeakerProfilesChange = (profiles: SpeakerProfile[]) => {
+    setSpeakerProfiles(profiles);
+    if (selectedId) saveSpeakerProfiles(selectedId, profiles);
+    triggerPreviewRefresh();
+  };
+
+  const handleHeaderChange = (patch: Partial<HeaderConfig>) => {
+    setHeaderConfig((prev) => ({ ...prev, ...patch }));
+    triggerPreviewRefresh();
+  };
+
+  const handleFooterChange = (patch: Partial<FooterConfig>) => {
+    setFooterConfig((prev) => ({ ...prev, ...patch }));
+    triggerPreviewRefresh();
+  };
+
+  // Apply template
+  const applyTemplate = (templateId: string) => {
+    const tmpl = allTemplates.find((t) => t.id === templateId);
+    if (!tmpl) return;
+    updateSettings({ template: templateId });
+    setHeaderConfig(tmpl.settings.header);
+    setFooterConfig(tmpl.settings.footer);
+    updateSettings({
+      fontSize: tmpl.settings.fontSize,
+      pageSize: tmpl.settings.pageSize,
+      orientation: tmpl.settings.orientation,
+      columns: tmpl.settings.columns,
+      showSpeakerColors: tmpl.settings.speakerColorsEnabled,
+    });
+    updateSections(tmpl.settings.sections);
   };
 
   const updateSettings = (patch: Partial<PdfSettings>) => {
@@ -404,7 +459,12 @@ export function PdfEditor() {
                     settings={settings}
                     onUpdate={updateSettings}
                     onUpdateSections={updateSections}
-                    speakerColorMap={speakerColorMap}
+                    speakerProfiles={speakerProfiles}
+                    onSpeakerProfilesChange={handleSpeakerProfilesChange}
+                    headerConfig={headerConfig}
+                    footerConfig={footerConfig}
+                    onHeaderChange={handleHeaderChange}
+                    onFooterChange={handleFooterChange}
                     hasSummary={!!summary}
                   />
                 </ScrollArea>
@@ -419,6 +479,9 @@ export function PdfEditor() {
         <div className="flex-1 text-xs text-muted-foreground">
           {active ? `${active.fileName} · ${active.utterances.length} segments` : "No transcript selected"}
         </div>
+        <Button size="sm" variant="ghost" onClick={() => setShowSaveTemplate(true)}>
+          <Save className="size-4 mr-1" /> Save Template
+        </Button>
         <Button size="sm" variant="outline" disabled={!active || printing} onClick={printPdf}>
           {printing ? <Loader2 className="size-4 mr-1 animate-spin" /> : <Printer className="size-4 mr-1" />}
           Print PDF
@@ -461,6 +524,24 @@ export function PdfEditor() {
         </ScrollArea>
       </DialogContent>
     </Dialog>
+
+    {/* Save Template Dialog */}
+    <SaveTemplateDialog
+      open={showSaveTemplate}
+      onOpenChange={setShowSaveTemplate}
+      currentSettings={{
+        fontSize: settings.fontSize,
+        pageSize: settings.pageSize,
+        orientation: settings.orientation,
+        columns: settings.columns,
+        margin: "medium",
+        header: headerConfig,
+        footer: footerConfig,
+        sections: settings.sections,
+        speakerColorsEnabled: settings.showSpeakerColors,
+      }}
+      onSaved={() => { setAllTemplates(getAllTemplates()); toast.success("Template saved"); }}
+    />
     </TooltipProvider>
   );
 }
@@ -632,11 +713,16 @@ function formatMsDuration(ms: number): string {
 }
 
 // --- Settings Panel ---
-function PdfSettingsPanel({ settings, onUpdate, onUpdateSections, speakerColorMap, hasSummary }: {
+function PdfSettingsPanel({ settings, onUpdate, onUpdateSections, speakerProfiles, onSpeakerProfilesChange, headerConfig, footerConfig, onHeaderChange, onFooterChange, hasSummary }: {
   settings: PdfSettings;
   onUpdate: (patch: Partial<PdfSettings>) => void;
   onUpdateSections: (patch: Partial<PdfSettings["sections"]>) => void;
-  speakerColorMap: Map<string, string>;
+  speakerProfiles: SpeakerProfile[];
+  onSpeakerProfilesChange: (profiles: SpeakerProfile[]) => void;
+  headerConfig: HeaderConfig;
+  footerConfig: FooterConfig;
+  onHeaderChange: (patch: Partial<HeaderConfig>) => void;
+  onFooterChange: (patch: Partial<FooterConfig>) => void;
   hasSummary: boolean;
 }) {
   return (
@@ -647,7 +733,7 @@ function PdfSettingsPanel({ settings, onUpdate, onUpdateSections, speakerColorMa
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="text-muted-foreground">Size</label>
-            <Select value={settings.pageSize} onValueChange={(v) => onUpdate({ pageSize: v as any })}>
+            <Select value={settings.pageSize} onValueChange={(v) => onUpdate({ pageSize: v as "A4" | "Letter" })}>
               <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="A4">A4</SelectItem>
@@ -657,7 +743,7 @@ function PdfSettingsPanel({ settings, onUpdate, onUpdateSections, speakerColorMa
           </div>
           <div>
             <label className="text-muted-foreground">Orientation</label>
-            <Select value={settings.orientation} onValueChange={(v) => onUpdate({ orientation: v as any })}>
+            <Select value={settings.orientation} onValueChange={(v) => onUpdate({ orientation: v as "portrait" | "landscape" })}>
               <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="portrait">Portrait</SelectItem>
@@ -669,7 +755,7 @@ function PdfSettingsPanel({ settings, onUpdate, onUpdateSections, speakerColorMa
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="text-muted-foreground">Font Size</label>
-            <Select value={settings.fontSize} onValueChange={(v) => onUpdate({ fontSize: v as any })}>
+            <Select value={settings.fontSize} onValueChange={(v) => onUpdate({ fontSize: v as "small" | "medium" | "large" })}>
               <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="small">Small</SelectItem>
@@ -694,22 +780,12 @@ function PdfSettingsPanel({ settings, onUpdate, onUpdateSections, speakerColorMa
       <Separator />
 
       {/* Header/Footer */}
-      <div className="space-y-2">
-        <div className="font-medium text-muted-foreground uppercase tracking-wider">Header & Footer</div>
-        <SettingRow label="Header" checked={settings.showHeader} onChange={(v) => onUpdate({ showHeader: v })} />
-        {settings.showHeader && (
-          <Input
-            value={settings.headerText}
-            onChange={(e) => onUpdate({ headerText: e.target.value })}
-            className="h-7 text-xs"
-            placeholder="Header text"
-          />
-        )}
-        <SettingRow label="Footer" checked={settings.showFooter} onChange={(v) => onUpdate({ showFooter: v })} />
-        <SettingRow label="Page numbers" checked={settings.showPageNumbers} onChange={(v) => onUpdate({ showPageNumbers: v })} />
-        <SettingRow label="Date/time" checked={settings.showDateTime} onChange={(v) => onUpdate({ showDateTime: v })} />
-        <SettingRow label="Logo" checked={settings.showLogo} onChange={(v) => onUpdate({ showLogo: v })} />
-      </div>
+      <HeaderFooterEditor
+        header={headerConfig}
+        footer={footerConfig}
+        onHeaderChange={onHeaderChange}
+        onFooterChange={onFooterChange}
+      />
 
       <Separator />
 
@@ -733,23 +809,8 @@ function PdfSettingsPanel({ settings, onUpdate, onUpdateSections, speakerColorMa
 
       <Separator />
 
-      {/* Speaker Colors */}
-      <div className="space-y-2">
-        <div className="font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-          <Palette className="size-3" /> Speaker Colors
-        </div>
-        <SettingRow label="Enable colors" checked={settings.showSpeakerColors} onChange={(v) => onUpdate({ showSpeakerColors: v })} />
-        {settings.showSpeakerColors && speakerColorMap.size > 0 && (
-          <div className="space-y-1 pl-1">
-            {Array.from(speakerColorMap.entries()).map(([speaker, color]) => (
-              <div key={speaker} className="flex items-center gap-2">
-                <span className="size-3 rounded-full border" style={{ backgroundColor: color }} />
-                <span>{speaker}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Speaker Editor */}
+      <SpeakerEditor profiles={speakerProfiles} onChange={onSpeakerProfilesChange} />
     </div>
   );
 }
