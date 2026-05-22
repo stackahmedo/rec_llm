@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from "react";
+import { useState, lazy, Suspense, useEffect } from "react";
 import { SidebarNav } from "./components/sidebar-nav";
 import { DashboardStatus } from "./components/dashboard-status";
 import { SearchPanel } from "./components/search-panel";
@@ -32,6 +32,24 @@ function Shell() {
   const [view, setView] = useState("dashboard");
   const [searchOpen, setSearchOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey;
+      if (meta && e.key === "k") { e.preventDefault(); setSearchOpen(true); }
+      if (meta && e.key === "n") { e.preventDefault(); setView("upload"); }
+      if (meta && e.key === "e") { e.preventDefault(); setView("pdf"); }
+      if (meta && e.key === ",") { e.preventDefault(); setView("settings"); }
+      if (meta && e.key === "1") { e.preventDefault(); setView("dashboard"); }
+      if (meta && e.key === "2") { e.preventDefault(); setView("upload"); }
+      if (meta && e.key === "3") { e.preventDefault(); setView("transcripts"); }
+      if (meta && e.key === "4") { e.preventDefault(); setView("pdf"); }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   const titles: Record<string, { title: string; sub: string }> = {
     dashboard:   { title: t("nav.dashboard"),   sub: t("page.dashboard.sub")   },
     upload:      { title: t("nav.upload"),      sub: t("page.upload.sub")      },
