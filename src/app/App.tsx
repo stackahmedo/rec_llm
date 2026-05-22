@@ -1,21 +1,29 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { SidebarNav } from "./components/sidebar-nav";
-import { UploadPanel } from "./components/upload-panel";
-import { UploadWorkstation } from "./components/upload-workstation";
-import { TranscriptViewer } from "./components/transcript-viewer";
-import { SpeakerPanel } from "./components/speaker-panel";
-import { SummaryCard } from "./components/summary-card";
-import { PdfEditor } from "./components/pdf-editor";
-import { FileLibrary } from "./components/file-library";
-import { SettingsPanel } from "./components/settings-panel";
 import { DashboardStatus } from "./components/dashboard-status";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
-import { Badge } from "./components/ui/badge";
-import { Search, Sparkles } from "lucide-react";
+import { Search, Sparkles, Loader2 } from "lucide-react";
 import { Toaster } from "./components/ui/sonner";
 import { I18nProvider, useT } from "./i18n";
 import { TranscriptProvider } from "./transcript-store";
+
+// Lazy-loaded heavy pages
+const UploadWorkstation = lazy(() => import("./components/upload-workstation").then((m) => ({ default: m.UploadWorkstation })));
+const TranscriptViewer = lazy(() => import("./components/transcript-viewer").then((m) => ({ default: m.TranscriptViewer })));
+const SummaryCard = lazy(() => import("./components/summary-card").then((m) => ({ default: m.SummaryCard })));
+const PdfEditor = lazy(() => import("./components/pdf-editor").then((m) => ({ default: m.PdfEditor })));
+const FileLibrary = lazy(() => import("./components/file-library").then((m) => ({ default: m.FileLibrary })));
+const SpeakerPanel = lazy(() => import("./components/speaker-panel").then((m) => ({ default: m.SpeakerPanel })));
+const SettingsPanel = lazy(() => import("./components/settings-panel").then((m) => ({ default: m.SettingsPanel })));
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center h-32">
+      <Loader2 className="size-5 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
 
 function Shell() {
   const { t } = useT();
@@ -55,24 +63,24 @@ function Shell() {
             <DashboardStatus onNavigate={setView} />
           )}
 
-          {view === "upload" && (
-            <UploadWorkstation />
-          )}
+          <Suspense fallback={<PageLoader />}>
+            {view === "upload" && <UploadWorkstation />}
 
-          {view === "transcripts" && (
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-              <div className="xl:col-span-2"><TranscriptViewer /></div>
-              <SummaryCard />
-            </div>
-          )}
+            {view === "transcripts" && (
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                <div className="xl:col-span-2"><TranscriptViewer /></div>
+                <SummaryCard />
+              </div>
+            )}
 
-          {view === "pdf" && <PdfEditor />}
+            {view === "pdf" && <PdfEditor />}
 
-          {view === "library" && <FileLibrary />}
+            {view === "library" && <FileLibrary />}
 
-          {view === "speakers" && <SpeakerPanel />}
+            {view === "speakers" && <SpeakerPanel />}
 
-          {view === "settings" && <SettingsPanel />}
+            {view === "settings" && <SettingsPanel />}
+          </Suspense>
         </div>
       </main>
       <Toaster />

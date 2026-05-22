@@ -36,7 +36,7 @@ export function SummaryCard() {
     setGenerating(false);
 
     if (result.ok) {
-      addSummary({
+      const summaryData = {
         fileId: active.fileId,
         language,
         summary: result.summary || '',
@@ -45,7 +45,35 @@ export function SummaryCard() {
         decisions: result.decisions || [],
         risks: result.risks || [],
         generatedAt: new Date().toISOString(),
+      };
+      addSummary(summaryData);
+
+      // Persist summary to disk
+      window.electronAPI?.history?.save({
+        id: active.fileId,
+        fileName: active.fileName,
+        filePath: '',
+        sizeBytes: 0,
+        status: 'done' as const,
+        languageCode: active.languageCode,
+        speakerCount: new Set(active.utterances.map((u) => u.speaker)).size,
+        createdAt: '',
+        completedAt: active.completedAt || new Date().toISOString(),
+        transcript: {
+          fullText: active.fullText,
+          utterances: active.utterances,
+        },
+        summary: {
+          language: summaryData.language,
+          summary: summaryData.summary,
+          pointNotes: summaryData.pointNotes,
+          actionItems: summaryData.actionItems,
+          decisions: summaryData.decisions,
+          risks: summaryData.risks,
+          generatedAt: summaryData.generatedAt,
+        },
       });
+
       toast.success("Summary generated");
     } else {
       toast.error("Summary failed", { description: result.error });
