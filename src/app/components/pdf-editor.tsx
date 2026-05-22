@@ -408,10 +408,10 @@ export function PdfEditor() {
         {/* Main area: Preview + Settings */}
         <div className="flex-1 min-w-0">
           <ResizablePanelGroup direction="horizontal" className="h-full">
-            {/* Center: PDF Preview — dominant */}
-            <ResizablePanel defaultSize={68} minSize={50}>
-              <div className="h-full flex flex-col bg-muted/20">
-                <div className="h-7 px-2 border-b flex items-center gap-1.5 shrink-0">
+            {/* Center: PDF Preview — dominant canvas */}
+            <ResizablePanel defaultSize={72} minSize={55}>
+              <div className="h-full flex flex-col bg-neutral-100 dark:bg-neutral-900/50">
+                <div className="h-7 px-2 border-b bg-muted/30 flex items-center gap-1.5 shrink-0">
                   <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium flex-1">Preview</span>
                   {previewLoading && <Badge variant="outline" className="text-[9px] h-4 gap-0.5"><RefreshCw className="size-2.5 animate-spin" />Updating</Badge>}
                   <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setZoom((z) => Math.max(50, z - 10))} title="Zoom out">
@@ -425,15 +425,28 @@ export function PdfEditor() {
                     <Maximize2 className="size-3" />
                   </Button>
                 </div>
-                <ScrollArea className="flex-1 p-4">
+                <ScrollArea className="flex-1">
+                  <div className="p-6 flex justify-center min-h-full">
                   {!active ? (
-                    <div className="flex flex-col items-center justify-center h-64 text-muted-foreground text-sm gap-2">
-                      <FileText className="size-8 opacity-40" />
-                      <span>Select a transcript to preview</span>
-                      <span className="text-xs">Double-click a transcript card for fullscreen</span>
+                    <div className="flex flex-col items-center justify-center text-muted-foreground py-16 max-w-[280px] text-center">
+                      <FileText className="size-8 opacity-20 mb-3" />
+                      <div className="text-[11px] font-medium mb-1">No document selected</div>
+                      <div className="text-[10px] mb-3">Select a transcript from the sidebar to generate a PDF report.</div>
+                      <div className="text-[9px] space-y-0.5 text-left w-full">
+                        <div className="text-muted-foreground/70">Report types:</div>
+                        <div>• Business Report</div>
+                        <div>• Meeting Minutes</div>
+                        <div>• Legal Transcript</div>
+                        <div>• Speaker Timeline</div>
+                      </div>
+                      <div className="text-[9px] mt-3 space-y-0.5 text-left w-full">
+                        <div className="text-muted-foreground/70">Shortcuts:</div>
+                        <div>• Double-click transcript → fullscreen</div>
+                        <div>• Click header/text → edit inline</div>
+                      </div>
                     </div>
                   ) : previewLoading ? (
-                    <div className="mx-auto max-w-[700px] space-y-4 p-8">
+                    <div className="w-full max-w-[700px] space-y-4 p-8 bg-white dark:bg-white rounded shadow-lg">
                       <Skeleton className="h-6 w-48" />
                       <Skeleton className="h-4 w-full" />
                       <Skeleton className="h-4 w-3/4" />
@@ -442,6 +455,7 @@ export function PdfEditor() {
                     </div>
                   ) : (
                     <div style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}>
+                      <div className="shadow-xl rounded-sm">
                       <PdfPreview
                         key={previewKey}
                         transcript={active}
@@ -452,16 +466,18 @@ export function PdfEditor() {
                         onEditHeader={(text) => updateDraft({ headerText: text })}
                         onEditUtterance={setUtteranceText}
                       />
+                      </div>
                     </div>
                   )}
+                  </div>
                 </ScrollArea>
               </div>
             </ResizablePanel>
 
             <ResizableHandle withHandle />
 
-            {/* Right: Settings — compact inspector */}
-            <ResizablePanel defaultSize={32} minSize={22} maxSize={42}>
+            {/* Right: Inspector — compact */}
+            <ResizablePanel defaultSize={28} minSize={20} maxSize={38}>
               <div className="h-full border-l flex flex-col">
                 <div className="h-7 px-2.5 border-b flex items-center shrink-0">
                   <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">Inspector</span>
@@ -486,28 +502,36 @@ export function PdfEditor() {
         </div>
       </div>
 
-      {/* Bottom action bar — compact status bar */}
-      <div className="h-8 border-t bg-card flex items-center px-3 gap-2 shrink-0">
-        <div className="flex-1 text-[10px] text-muted-foreground font-mono flex items-center gap-3">
-          {active ? (
-            <>
-              <span>{active.utterances.length} segments</span>
-              <span>{new Set(active.utterances.map((u) => u.speaker)).size} speakers</span>
-              <span>{active.languageCode.toUpperCase()}</span>
-              <span>{settings.template}</span>
-            </>
-          ) : "No transcript selected"}
-        </div>
-        <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setShowSaveTemplate(true)}>
-          <Save className="size-3 mr-1" />Save Template
+      {/* Bottom status bar */}
+      <div className="h-7 border-t bg-muted/20 flex items-center px-3 gap-3 text-[9px] text-muted-foreground font-mono shrink-0">
+        {active ? (
+          <>
+            <span>{active.utterances.length} segments</span>
+            <span className="text-border">│</span>
+            <span>{new Set(active.utterances.map((u) => u.speaker)).size} speakers</span>
+            <span className="text-border">│</span>
+            <span>{active.languageCode.toUpperCase()}</span>
+            <span className="text-border">│</span>
+            <span>{settings.template}</span>
+            <span className="text-border">│</span>
+            <span>{settings.pageSize} {settings.orientation}</span>
+          </>
+        ) : (
+          <span>No document</span>
+        )}
+        <div className="flex-1" />
+        <span>Zoom: {zoom}%</span>
+        <span className="text-border">│</span>
+        <Button size="sm" variant="ghost" className="h-5 text-[9px] px-1.5" onClick={() => setShowSaveTemplate(true)}>
+          <Save className="size-2.5 mr-0.5" />Template
         </Button>
-        <Button size="sm" variant="outline" className="h-6 text-[10px]" disabled={!active || printing} onClick={printPdf}>
-          {printing ? <Loader2 className="size-3 mr-1 animate-spin" /> : <Printer className="size-3 mr-1" />}
+        <Button size="sm" variant="outline" className="h-5 text-[9px] px-1.5" disabled={!active || printing} onClick={printPdf}>
+          {printing ? <Loader2 className="size-2.5 mr-0.5 animate-spin" /> : <Printer className="size-2.5 mr-0.5" />}
           Print
         </Button>
-        <Button size="sm" className="h-6 text-[10px]" disabled={!active || exporting} onClick={exportPdf}>
-          {exporting ? <Loader2 className="size-3 mr-1 animate-spin" /> : <Download className="size-3 mr-1" />}
-          Export PDF
+        <Button size="sm" className="h-5 text-[9px] px-1.5" disabled={!active || exporting} onClick={exportPdf}>
+          {exporting ? <Loader2 className="size-2.5 mr-0.5 animate-spin" /> : <Download className="size-2.5 mr-0.5" />}
+          Export
         </Button>
       </div>
     </div>
