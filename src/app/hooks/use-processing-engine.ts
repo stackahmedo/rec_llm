@@ -95,9 +95,24 @@ export function useProcessingEngine() {
       });
       notifySessionCompleted(file.fileName);
     } else {
-      updateJob(file.id, { stage: "failed", progress: 0, error: result.error });
-      toast.error(`Failed: ${file.fileName}`, { description: result.error });
-      notifySessionFailed(file.fileName, result.error);
+      const errorMsg = result.error || "Unknown error";
+      const isApiKeyError = errorMsg.startsWith("API_KEY_MISSING:") || errorMsg.startsWith("API_KEY_INVALID:");
+      const displayError = isApiKeyError
+        ? errorMsg.split(": ").slice(1).join(": ")
+        : errorMsg;
+
+      if (isApiKeyError) {
+        // Don't mark as permanently failed — mark as paused so user can retry after fixing key
+        updateJob(file.id, { stage: "paused", progress: 0, error: displayError });
+        toast.error("API Key Error", {
+          description: "AssemblyAI API key is invalid or missing. Please update your key in Settings.",
+          duration: 8000,
+        });
+      } else {
+        updateJob(file.id, { stage: "failed", progress: 0, error: displayError });
+        toast.error(`Failed: ${file.fileName}`, { description: displayError });
+        notifySessionFailed(file.fileName, displayError);
+      }
     }
 
     processingRef.current = false;

@@ -103,7 +103,12 @@ function uploadFileOnce(filePath: string, apiKey: string): Promise<string> {
             reject(new Error('Failed to parse upload response'));
           }
         } else {
-          reject(new Error(`Upload failed (${res.statusCode}): ${body.slice(0, 200)}`));
+          const statusCode = res.statusCode || 0;
+          if (statusCode === 401 || statusCode === 403) {
+            reject(new Error(`Unauthorized (${statusCode}): Invalid API key`));
+          } else {
+            reject(new Error(`Upload failed (${statusCode}): ${body.slice(0, 200)}`));
+          }
         }
       });
     });
@@ -254,7 +259,7 @@ export function registerAssemblyAIHandlers(): void {
   ipcMain.handle('assemblyai:transcribeFile', async (_event, filePath: string, jobId: string): Promise<TranscribeResult> => {
     const apiKey = await getApiKey();
     if (!apiKey || apiKey.length < 10) {
-      return { ok: false, error: 'No API key saved.' };
+      return { ok: false, error: 'API_KEY_MISSING: No AssemblyAI API key configured. Please add your key in Settings.' };
     }
 
     if (!fs.existsSync(filePath)) {
@@ -273,7 +278,15 @@ export function registerAssemblyAIHandlers(): void {
       return result;
     } catch (err: any) {
       sendProgress(jobId, 'failed');
-      return { ok: false, error: err.message || 'Transcription failed.' };
+      const msg = err.message || 'Transcription failed.';
+      // Detect auth errors and return specific code
+      if (msg.includes('401') || msg.includes('Invalid API key') || msg.includes('Unauthorized')) {
+        return { ok: false, error: 'API_KEY_INVALID: AssemblyAI API key is invalid or expired. Please update your API key in Settings.' };
+      }
+      if (msg.includes('403') || msg.includes('Forbidden')) {
+        return { ok: false, error: 'API_KEY_INVALID: AssemblyAI API key does not have permission. Please check your key in Settings.' };
+      }
+      return { ok: false, error: msg };
     }
   });
 }
