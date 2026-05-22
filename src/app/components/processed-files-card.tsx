@@ -61,21 +61,21 @@ export function ProcessedFilesCard({ onOpenDocument, onOpenPdf }: ProcessedFiles
           <Badge variant="outline" className="text-[9px] h-4 ml-1">{recentDone.length}</Badge>
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="overflow-hidden">
         <ScrollArea className="max-h-[240px]">
           <div className="space-y-1">
             {recentDone.map((job) => (
-              <div key={job.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 group text-xs">
+              <div key={job.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 group text-xs min-w-0 overflow-hidden">
                 <FileAudio className="size-3.5 text-muted-foreground shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="truncate font-medium">{job.fileName}</div>
+                <div className="flex-1 min-w-0 overflow-hidden">
+                  <div className="truncate font-medium" title={job.fileName}>{job.fileName}</div>
                   <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <span className="flex items-center gap-0.5"><Clock className="size-2.5" />{job.completedAt?.slice(0, 10)}</span>
-                    <span>{job.languageCode.toUpperCase()}</span>
-                    {job.speakerCount > 0 && <span>{job.speakerCount} spk</span>}
+                    <span className="flex items-center gap-0.5 shrink-0"><Clock className="size-2.5" />{job.completedAt?.slice(0, 10)}</span>
+                    <span className="shrink-0">{job.languageCode.toUpperCase()}</span>
+                    {job.speakerCount > 0 && <span className="shrink-0">{job.speakerCount} spk</span>}
                   </div>
                 </div>
-                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button
                     type="button"
                     variant="ghost"
