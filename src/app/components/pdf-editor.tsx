@@ -528,14 +528,18 @@ export function PdfEditor() {
                 <div className="h-7 px-2 border-b bg-muted/30 flex items-center gap-1.5 shrink-0">
                   <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium flex-1">Preview</span>
                   {previewLoading && <Badge variant="outline" className="text-[9px] h-4 gap-0.5"><RefreshCw className="size-2.5 animate-spin" />Updating</Badge>}
-                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setZoom((z) => Math.max(50, z - 10))} title="Zoom out">
+                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setZoom((z) => Math.max(50, z - 10))} title="Zoom out (⌘-)">
                     <ZoomOut className="size-3" />
                   </Button>
                   <span className="text-[9px] font-mono w-7 text-center">{zoom}%</span>
-                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setZoom((z) => Math.min(200, z + 10))} title="Zoom in">
+                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setZoom((z) => Math.min(200, z + 10))} title="Zoom in (⌘+)">
                     <ZoomIn className="size-3" />
                   </Button>
-                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setZoom(100)} title="Fit width">
+                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setZoom(100)} title="Fit width (⌘0)">
+                    <Maximize2 className="size-3" />
+                  </Button>
+                  <Separator orientation="vertical" className="h-3 mx-0.5" />
+                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setShowModal(true)} disabled={!active} title="Fullscreen (⌘F)">
                     <Maximize2 className="size-3" />
                   </Button>
                 </div>
