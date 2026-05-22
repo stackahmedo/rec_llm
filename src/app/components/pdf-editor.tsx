@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -8,12 +8,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Switch } from "./ui/switch";
 import { Separator } from "./ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Skeleton } from "./ui/skeleton";
 import { toast } from "sonner";
 import {
   Download, Printer, FileText, Search, CheckCircle2, AlertTriangle,
   Loader2, Palette, PanelLeftClose, PanelLeftOpen, FileAudio, LayoutTemplate,
+  ZoomIn, ZoomOut, Maximize2, RefreshCw,
 } from "lucide-react";
 import { useTranscripts } from "../transcript-store";
+import { usePdfDraft } from "../pdf-draft-store";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./ui/resizable";
 
 // --- Types ---
@@ -90,13 +94,32 @@ export function PdfEditor() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try { return localStorage.getItem("recllm-pdf-sidebar") === "collapsed"; } catch { return false; }
   });
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewKey, setPreviewKey] = useState(0);
+  const [zoom, setZoom] = useState(100);
+  const [showModal, setShowModal] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const active = transcripts.find((t) => t.fileId === selectedId) || null;
+  const summary = selectedId ? getActiveSummary() : null;
+  const { draft, updateDraft, resetDraft, setSpeakerName, setUtteranceText } = usePdfDraft(selectedId, settings.headerText);
 
   useEffect(() => {
     try { localStorage.setItem("recllm-pdf-sidebar", sidebarCollapsed ? "collapsed" : "expanded"); } catch {}
   }, [sidebarCollapsed]);
 
-  const active = transcripts.find((t) => t.fileId === selectedId) || null;
-  const summary = selectedId ? getActiveSummary() : null;
+  // Debounced preview refresh
+  const triggerPreviewRefresh = useCallback(() => {
+    setPreviewLoading(true);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setPreviewKey((k) => k + 1);
+      setPreviewLoading(false);
+    }, 350);
+  }, []);
+
+  // Trigger refresh when settings change
+  useEffect(() => { triggerPreviewRefresh(); }, [settings, triggerPreviewRefresh]);
 
   // Filter transcripts
   const filtered = useMemo(() => {
@@ -120,6 +143,7 @@ export function PdfEditor() {
   const selectTranscript = (id: string) => {
     setSelectedId(id);
     setActiveId(id);
+    resetDraft(id);
   };
 
   const updateSettings = (patch: Partial<PdfSettings>) => {
@@ -273,16 +297,21 @@ export function PdfEditor() {
                   {filtered.map((tr) => {
                     const isSelected = tr.fileId === selectedId;
                     const speakers = new Set(tr.utterances.map((u) => u.speaker)).size;
+                    const durationMs = tr.utterances.length > 0 ? tr.utterances[tr.utterances.length - 1].endMs : 0;
+                    const durationStr = formatMsDuration(durationMs);
                     return (
                       <div
                         key={tr.fileId}
-                        className={`p-2 rounded cursor-pointer text-xs transition-colors ${isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted/50"}`}
+                        className={`p-2.5 rounded cursor-pointer text-xs transition-colors ${isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted/50 border border-transparent"}`}
                         onClick={() => selectTranscript(tr.fileId)}
+                        onDoubleClick={() => { selectTranscript(tr.fileId); setShowModal(true); }}
                       >
                         <div className="font-medium truncate">{tr.fileName}</div>
-                        <div className="text-muted-foreground mt-0.5 flex gap-2">
+                        <div className="text-muted-foreground mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5">
                           <span>Speakers: {speakers}</span>
                           <span>Segments: {tr.utterances.length}</span>
+                          <span>Duration: {durationStr}</span>
+                          <span>{tr.languageCode.toUpperCase()}</span>
                         </div>
                       </div>
                     );
@@ -315,21 +344,48 @@ export function PdfEditor() {
             {/* Center: PDF Preview */}
             <ResizablePanel defaultSize={60} minSize={40}>
               <div className="h-full flex flex-col bg-muted/20">
-                <div className="p-3 border-b text-xs text-muted-foreground uppercase tracking-wider font-medium">
-                  Preview
+                <div className="p-2 border-b flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground uppercase tracking-wider font-medium flex-1">Preview</span>
+                  {previewLoading && <Badge variant="outline" className="text-[10px] h-5 gap-1"><RefreshCw className="size-3 animate-spin" />Updating</Badge>}
+                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => setZoom((z) => Math.max(50, z - 10))} title="Zoom out">
+                    <ZoomOut className="size-3.5" />
+                  </Button>
+                  <span className="text-xs font-mono w-8 text-center">{zoom}%</span>
+                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => setZoom((z) => Math.min(200, z + 10))} title="Zoom in">
+                    <ZoomIn className="size-3.5" />
+                  </Button>
+                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowModal(true)} title="Fullscreen preview" disabled={!active}>
+                    <Maximize2 className="size-3.5" />
+                  </Button>
                 </div>
                 <ScrollArea className="flex-1 p-4">
                   {!active ? (
-                    <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-                      Select a transcript to preview
+                    <div className="flex flex-col items-center justify-center h-64 text-muted-foreground text-sm gap-2">
+                      <FileText className="size-8 opacity-40" />
+                      <span>Select a transcript to preview</span>
+                      <span className="text-xs">Double-click a transcript card for fullscreen</span>
+                    </div>
+                  ) : previewLoading ? (
+                    <div className="mx-auto max-w-[700px] space-y-4 p-8">
+                      <Skeleton className="h-6 w-48" />
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-20 w-full" />
+                      <Skeleton className="h-4 w-1/2" />
                     </div>
                   ) : (
-                    <PdfPreview
-                      transcript={active}
-                      summary={summary}
-                      settings={settings}
-                      speakerColorMap={speakerColorMap}
-                    />
+                    <div style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}>
+                      <PdfPreview
+                        key={previewKey}
+                        transcript={active}
+                        summary={summary}
+                        settings={settings}
+                        speakerColorMap={speakerColorMap}
+                        draft={draft}
+                        onEditHeader={(text) => updateDraft({ headerText: text })}
+                        onEditUtterance={setUtteranceText}
+                      />
+                    </div>
                   )}
                 </ScrollArea>
               </div>
@@ -373,18 +429,57 @@ export function PdfEditor() {
         </Button>
       </div>
     </div>
+
+    {/* Fullscreen Preview Modal */}
+    <Dialog open={showModal} onOpenChange={setShowModal}>
+      <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0">
+        <DialogHeader className="p-4 border-b shrink-0">
+          <DialogTitle className="flex items-center gap-3">
+            <span>PDF Preview</span>
+            {active && <Badge variant="outline" className="text-xs">{active.fileName}</Badge>}
+            <div className="flex-1" />
+            <Button size="sm" variant="outline" disabled={!active || printing} onClick={printPdf}>
+              <Printer className="size-4 mr-1" /> Print
+            </Button>
+            <Button size="sm" disabled={!active || exporting} onClick={exportPdf}>
+              <Download className="size-4 mr-1" /> Export
+            </Button>
+          </DialogTitle>
+        </DialogHeader>
+        <ScrollArea className="flex-1 p-6">
+          {active && (
+            <PdfPreview
+              transcript={active}
+              summary={summary}
+              settings={settings}
+              speakerColorMap={speakerColorMap}
+              draft={draft}
+              onEditHeader={(text) => updateDraft({ headerText: text })}
+              onEditUtterance={setUtteranceText}
+            />
+          )}
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
     </TooltipProvider>
   );
 }
 
 // --- PDF Preview Component ---
-function PdfPreview({ transcript, summary, settings, speakerColorMap }: {
+function PdfPreview({ transcript, summary, settings, speakerColorMap, draft, onEditHeader, onEditUtterance }: {
   transcript: any;
   summary: any;
   settings: PdfSettings;
   speakerColorMap: Map<string, string>;
+  draft: any;
+  onEditHeader: (text: string) => void;
+  onEditUtterance: (index: number, text: string) => void;
 }) {
   const fontSizeClass = settings.fontSize === "small" ? "text-[9px]" : settings.fontSize === "large" ? "text-[13px]" : "text-[11px]";
+  const [editingHeader, setEditingHeader] = useState(false);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+
+  const headerText = draft.headerText || settings.headerText;
 
   return (
     <div className={`bg-white text-black rounded shadow-lg mx-auto max-w-[700px] ${fontSizeClass}`}
@@ -393,7 +488,23 @@ function PdfPreview({ transcript, summary, settings, speakerColorMap }: {
       {/* Header */}
       {settings.showHeader && (
         <div className="border-b-2 border-blue-600 pb-2 mb-4">
-          <div className="text-lg font-bold text-blue-600">{settings.headerText}</div>
+          {editingHeader ? (
+            <input
+              className="text-lg font-bold text-blue-600 w-full border-b border-blue-300 outline-none bg-blue-50/50 px-1"
+              defaultValue={headerText}
+              autoFocus
+              onBlur={(e) => { onEditHeader(e.target.value); setEditingHeader(false); }}
+              onKeyDown={(e) => { if (e.key === "Enter") { onEditHeader((e.target as HTMLInputElement).value); setEditingHeader(false); } }}
+            />
+          ) : (
+            <div
+              className="text-lg font-bold text-blue-600 cursor-text hover:bg-blue-50/50 rounded px-1 -mx-1"
+              onClick={() => setEditingHeader(true)}
+              title="Click to edit header"
+            >
+              {headerText}
+            </div>
+          )}
           <div className="text-xs text-gray-500">{transcript.fileName}</div>
         </div>
       )}
@@ -453,20 +564,40 @@ function PdfPreview({ transcript, summary, settings, speakerColorMap }: {
         <div className="mb-3">
           <div className="text-xs font-semibold text-blue-600 border-b border-gray-200 pb-1 mb-1">Transcript</div>
           <div className="space-y-1 max-h-[200px] overflow-hidden">
-            {transcript.utterances.slice(0, 8).map((u: any, i: number) => (
-              <div key={i} className="text-[9px] flex gap-2">
-                <span className="font-mono text-gray-400 shrink-0 w-12">
-                  {msToTs(u.startMs)}
-                </span>
-                <span
-                  className="font-medium shrink-0 w-16"
-                  style={{ color: settings.showSpeakerColors ? speakerColorMap.get(u.speaker) : undefined }}
-                >
-                  {u.speaker}
-                </span>
-                <span className="truncate">{u.text}</span>
-              </div>
-            ))}
+            {transcript.utterances.slice(0, 8).map((u: any, i: number) => {
+              const displayText = draft.editedUtterances[i] || u.text;
+              const displaySpeaker = draft.speakerNames[u.speaker] || u.speaker;
+              return (
+                <div key={i} className="text-[9px] flex gap-2 group">
+                  <span className="font-mono text-gray-400 shrink-0 w-12">
+                    {msToTs(u.startMs)}
+                  </span>
+                  <span
+                    className="font-medium shrink-0 w-16"
+                    style={{ color: settings.showSpeakerColors ? speakerColorMap.get(u.speaker) : undefined }}
+                  >
+                    {displaySpeaker}
+                  </span>
+                  {editingIdx === i ? (
+                    <input
+                      className="flex-1 border-b border-blue-300 outline-none bg-blue-50/50 text-[9px]"
+                      defaultValue={displayText}
+                      autoFocus
+                      onBlur={(e) => { onEditUtterance(i, e.target.value); setEditingIdx(null); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") { onEditUtterance(i, (e.target as HTMLInputElement).value); setEditingIdx(null); } }}
+                    />
+                  ) : (
+                    <span
+                      className="truncate cursor-text hover:bg-blue-50/50 rounded px-0.5 -mx-0.5"
+                      onClick={() => setEditingIdx(i)}
+                      title="Click to edit"
+                    >
+                      {displayText}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
             {transcript.utterances.length > 8 && (
               <div className="text-[9px] text-gray-400 italic">... {transcript.utterances.length - 8} more segments</div>
             )}
@@ -490,6 +621,14 @@ function msToTs(ms: number): string {
   const m = Math.floor(s / 60);
   const sec = s % 60;
   return `${m}:${sec.toString().padStart(2, "0")}`;
+}
+
+function formatMsDuration(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
 // --- Settings Panel ---
