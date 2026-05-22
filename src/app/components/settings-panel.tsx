@@ -9,9 +9,10 @@ import { toast } from "sonner";
 import {
   Eye, EyeOff, CheckCircle2, XCircle, Loader2, Save, RotateCcw,
   Settings2, Mic, Sparkles, Cpu, Download, Wrench, Database, GitBranch,
-  Wifi, HardDrive, Trash2, FolderOpen,
+  Wifi, HardDrive, Trash2, FolderOpen, AlertTriangle,
 } from "lucide-react";
 import { useT, Lang } from "../i18n";
+import { RestoreFactoryDialog } from "./restore-factory-dialog";
 
 type CheckState = "idle" | "checking" | "ok" | "fail";
 type SettingsTab = "general" | "transcription" | "ai-providers" | "pipeline" | "processing" | "storage" | "export" | "advanced";
@@ -593,6 +594,22 @@ function StorageTab({ storageSize, transcriptCount }: { storageSize: number; tra
 function AdvancedTab({ ffmpegOk, storageSize, transcriptCount, resetAll }: {
   ffmpegOk: boolean | null; storageSize: number; transcriptCount: number; resetAll: () => void;
 }) {
+  const [restoreOpen, setRestoreOpen] = useState(false);
+
+  const handleFactoryRestore = async () => {
+    const api = window.electronAPI?.settings;
+    if (api) {
+      await api.delete('apiKeys');
+      await api.delete('models');
+      await api.delete('preferences');
+    }
+    // Clear localStorage
+    try { localStorage.clear(); } catch {}
+    toast.success("App restored to factory settings. All local data has been removed.");
+    // Reload to clean state
+    setTimeout(() => window.location.reload(), 1500);
+  };
+
   return (
     <div className="space-y-4">
       <SectionLabel>System Status</SectionLabel>
@@ -622,7 +639,25 @@ function AdvancedTab({ ffmpegOk, storageSize, transcriptCount, resetAll }: {
         <Button type="button" variant="outline" size="sm" className="h-7 text-[10px] w-full justify-start border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20" disabled>
           <Trash2 className="size-3 mr-1.5" />Delete All Cache
         </Button>
+
+        <Separator />
+
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          className="h-8 text-[11px] w-full justify-start gap-1.5"
+          onClick={() => setRestoreOpen(true)}
+        >
+          <AlertTriangle className="size-3" />Restore Factory Settings
+        </Button>
       </div>
+
+      <RestoreFactoryDialog
+        open={restoreOpen}
+        onOpenChange={setRestoreOpen}
+        onConfirm={handleFactoryRestore}
+      />
     </div>
   );
 }
