@@ -43,6 +43,7 @@ interface PdfSettings {
   showDateTime: boolean;
   showLogo: boolean;
   showSpeakerColors: boolean;
+  sectionOrder: string[];
   sections: {
     summary: boolean;
     keyPoints: boolean;
@@ -67,6 +68,7 @@ const defaultSettings: PdfSettings = {
   showDateTime: true,
   showLogo: true,
   showSpeakerColors: true,
+  sectionOrder: ["summary", "keyPoints", "actionItems", "decisions", "risks", "transcript", "appendix"],
   sections: {
     summary: true,
     keyPoints: true,
@@ -874,7 +876,7 @@ function PdfSettingsPanel({ settings, onUpdate, onUpdateSections, speakerProfile
         </div>
       </InspectorGroup>
 
-      {/* Section Composer */}
+      {/* Section Composer — reorderable */}
       <InspectorGroup title="Sections" open={isOpen("sections")} onToggle={() => toggle("sections")}>
         {!hasSummary && (
           <div className="flex items-center gap-1 p-1 bg-amber-500/10 border border-amber-500/20 rounded text-amber-600 text-[9px] mb-1">
@@ -882,15 +884,7 @@ function PdfSettingsPanel({ settings, onUpdate, onUpdateSections, speakerProfile
             <span>No summary generated</span>
           </div>
         )}
-        <div className="space-y-0.5">
-          <InspectorCheck label="Executive Summary" checked={settings.sections.summary} onChange={(v) => onUpdateSections({ summary: v })} />
-          <InspectorCheck label="Discussion Topics" checked={settings.sections.keyPoints} onChange={(v) => onUpdateSections({ keyPoints: v })} />
-          <InspectorCheck label="Action Items" checked={settings.sections.actionItems} onChange={(v) => onUpdateSections({ actionItems: v })} />
-          <InspectorCheck label="Decisions" checked={settings.sections.decisions} onChange={(v) => onUpdateSections({ decisions: v })} />
-          <InspectorCheck label="Risks & Concerns" checked={settings.sections.risks} onChange={(v) => onUpdateSections({ risks: v })} />
-          <InspectorCheck label="Transcript" checked={settings.sections.transcript} onChange={(v) => onUpdateSections({ transcript: v })} />
-          <InspectorCheck label="Appendix" checked={settings.sections.appendix} onChange={(v) => onUpdateSections({ appendix: v })} />
-        </div>
+        <SectionComposer settings={settings} onUpdate={onUpdate} onUpdateSections={onUpdateSections} />
       </InspectorGroup>
 
       {/* AI Actions */}
@@ -954,25 +948,6 @@ function PdfSettingsPanel({ settings, onUpdate, onUpdateSections, speakerProfile
           </div>
         </InspectorField>
         <InspectorCheck label="Speaker colors" checked={settings.showSpeakerColors} onChange={(v) => onUpdate({ showSpeakerColors: v })} />
-      </InspectorGroup>
-
-      {/* Sections */}
-      <InspectorGroup title="Sections" open={isOpen("sections")} onToggle={() => toggle("sections")}>
-        {!hasSummary && (
-          <div className="flex items-center gap-1 p-1 bg-amber-500/10 border border-amber-500/20 rounded text-amber-600 text-[9px] mb-1">
-            <AlertTriangle className="size-2.5" />
-            <span>No summary generated</span>
-          </div>
-        )}
-        <div className="space-y-0.5">
-          <InspectorCheck label="Summary" checked={settings.sections.summary} onChange={(v) => onUpdateSections({ summary: v })} />
-          <InspectorCheck label="Key Points" checked={settings.sections.keyPoints} onChange={(v) => onUpdateSections({ keyPoints: v })} />
-          <InspectorCheck label="Action Items" checked={settings.sections.actionItems} onChange={(v) => onUpdateSections({ actionItems: v })} />
-          <InspectorCheck label="Decisions" checked={settings.sections.decisions} onChange={(v) => onUpdateSections({ decisions: v })} />
-          <InspectorCheck label="Risks" checked={settings.sections.risks} onChange={(v) => onUpdateSections({ risks: v })} />
-          <InspectorCheck label="Transcript" checked={settings.sections.transcript} onChange={(v) => onUpdateSections({ transcript: v })} />
-          <InspectorCheck label="Appendix" checked={settings.sections.appendix} onChange={(v) => onUpdateSections({ appendix: v })} />
-        </div>
       </InspectorGroup>
 
       {/* Branding */}
@@ -1051,6 +1026,77 @@ function SettingRow({ label, checked, onChange }: { label: string; checked: bool
     <div className="flex items-center justify-between">
       <span>{label}</span>
       <Switch checked={checked} onCheckedChange={onChange} className="scale-75" />
+    </div>
+  );
+}
+
+// --- Section Composer with reordering ---
+const sectionLabels: Record<string, string> = {
+  summary: "Executive Summary",
+  keyPoints: "Discussion Topics",
+  actionItems: "Action Items",
+  decisions: "Decisions",
+  risks: "Risks & Concerns",
+  transcript: "Transcript",
+  appendix: "Appendix",
+};
+
+function SectionComposer({ settings, onUpdate, onUpdateSections }: {
+  settings: PdfSettings;
+  onUpdate: (patch: Partial<PdfSettings>) => void;
+  onUpdateSections: (patch: Partial<PdfSettings["sections"]>) => void;
+}) {
+  const order = settings.sectionOrder;
+
+  const moveUp = (idx: number) => {
+    if (idx <= 0) return;
+    const next = [...order];
+    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+    onUpdate({ sectionOrder: next });
+  };
+
+  const moveDown = (idx: number) => {
+    if (idx >= order.length - 1) return;
+    const next = [...order];
+    [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+    onUpdate({ sectionOrder: next });
+  };
+
+  return (
+    <div className="space-y-0.5">
+      {order.map((key, idx) => {
+        const checked = settings.sections[key as keyof typeof settings.sections];
+        const label = sectionLabels[key] || key;
+        return (
+          <div key={key} className="flex items-center gap-1 py-0.5 group hover:bg-muted/20 rounded px-1 -mx-1">
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={(e) => onUpdateSections({ [key]: e.target.checked })}
+              className="size-3 rounded border-muted-foreground/40 accent-primary shrink-0"
+            />
+            <span className="text-[10px] flex-1">{label}</span>
+            <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                className="size-4 flex items-center justify-center text-muted-foreground hover:text-foreground rounded"
+                onClick={() => moveUp(idx)}
+                disabled={idx === 0}
+                title="Move up"
+              >
+                <span className="text-[8px]">▲</span>
+              </button>
+              <button
+                className="size-4 flex items-center justify-center text-muted-foreground hover:text-foreground rounded"
+                onClick={() => moveDown(idx)}
+                disabled={idx === order.length - 1}
+                title="Move down"
+              >
+                <span className="text-[8px]">▼</span>
+              </button>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
