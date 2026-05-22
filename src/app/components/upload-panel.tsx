@@ -194,6 +194,7 @@ export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }:
     toast.success(`${incoming.length} file${incoming.length > 1 ? "s" : ""} queued`, {
       description: `${formatBytes(incoming.reduce((s, f) => s + f.sizeBytes, 0))} total`,
     });
+    incoming.forEach((f) => notifySessionStarted(f.name));
   };
 
   const openNativePicker = async () => {
@@ -216,6 +217,7 @@ export function UploadPanel({ onFileStateChange, onFileSelect, selectedFileId }:
     toast.success(`${incoming.length} file${incoming.length > 1 ? "s" : ""} queued`, {
       description: `${formatBytes(incoming.reduce((s, f) => s + f.sizeBytes, 0))} total`,
     });
+    incoming.forEach((f) => notifySessionStarted(f.name));
   };
 
   const pauseResume = (id: string) => {

@@ -85,7 +85,7 @@ function Shell() {
             <NotificationButton onClick={() => setNotifOpen(!notifOpen)} />
             <NotificationPanel open={notifOpen} onOpenChange={setNotifOpen} />
           </div>
-          <Button>
+          <Button onClick={() => setView("upload")}>
             <Sparkles className="size-4 mr-2" /> {t("header.newSession")}
           </Button>
         </header>
