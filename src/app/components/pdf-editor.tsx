@@ -128,6 +128,7 @@ export function PdfEditor() {
     try { return Number(localStorage.getItem("recllm-pdf-zoom")) || 100; } catch { return 100; }
   });
   const [showModal, setShowModal] = useState(false);
+  const [splitView, setSplitView] = useState(false);
   const [editorMode, setEditorMode] = useState<"preview" | "edit" | "print">(() => {
     try { return (localStorage.getItem("recllm-pdf-mode") as any) || "preview"; } catch { return "preview"; }
   });
@@ -539,11 +540,33 @@ export function PdfEditor() {
                     <Maximize2 className="size-3" />
                   </Button>
                   <Separator orientation="vertical" className="h-3 mx-0.5" />
+                  <Button type="button" variant={splitView ? "secondary" : "ghost"} size="icon" className="h-5 w-5" onClick={() => setSplitView(!splitView)} title="Split view">
+                    <Columns2 className="size-3" />
+                  </Button>
                   <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setShowModal(true)} disabled={!active} title="Fullscreen (⌘F)">
                     <Maximize2 className="size-3" />
                   </Button>
                 </div>
-                <ScrollArea className="flex-1">
+                <div className="flex-1 min-h-0 flex">
+                  {/* Split view: source transcript */}
+                  {splitView && active && (
+                    <div className="w-1/3 border-r overflow-auto bg-card">
+                      <div className="h-6 px-2 border-b flex items-center shrink-0 sticky top-0 bg-card z-10">
+                        <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">Source Transcript</span>
+                      </div>
+                      <div className="divide-y">
+                        {active.utterances.map((u: any, i: number) => (
+                          <div key={i} className="flex gap-1.5 px-2 py-1 text-[9px] hover:bg-muted/20">
+                            <span className="font-mono text-muted-foreground shrink-0 w-10">{Math.floor(u.startMs / 60000)}:{Math.floor((u.startMs % 60000) / 1000).toString().padStart(2, "0")}</span>
+                            <span className="font-medium shrink-0 w-12 truncate">{u.speaker}</span>
+                            <span className="flex-1 leading-relaxed">{u.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Preview canvas */}
+                  <ScrollArea className="flex-1">
                   <div className="p-6 flex justify-center min-h-full">
                   {!active ? (
                     <div className="flex flex-col items-center justify-center text-muted-foreground py-16 max-w-[280px] text-center">
@@ -589,6 +612,7 @@ export function PdfEditor() {
                   )}
                   </div>
                 </ScrollArea>
+                </div>
               </div>
             </ResizablePanel>
 
