@@ -13,8 +13,7 @@ import { UploadJobProvider } from "./upload-job-store";
 
 // Lazy-loaded heavy pages
 const UploadWorkstation = lazy(() => import("./components/upload-workstation").then((m) => ({ default: m.UploadWorkstation })));
-const TranscriptViewer = lazy(() => import("./components/transcript-viewer").then((m) => ({ default: m.TranscriptViewer })));
-const SummaryCard = lazy(() => import("./components/summary-card").then((m) => ({ default: m.SummaryCard })));
+const TranscriptWorkspace = lazy(() => import("./components/transcript-workspace").then((m) => ({ default: m.TranscriptWorkspace })));
 const PdfEditor = lazy(() => import("./components/pdf-editor").then((m) => ({ default: m.PdfEditor })));
 const FileLibrary = lazy(() => import("./components/file-library").then((m) => ({ default: m.FileLibrary })));
 const SpeakerPanel = lazy(() => import("./components/speaker-panel").then((m) => ({ default: m.SpeakerPanel })));
@@ -105,12 +104,7 @@ function Shell() {
           <Suspense fallback={<PageLoader />}>
             {view === "upload" && <UploadWorkstation />}
 
-            {view === "transcripts" && (
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                <div className="xl:col-span-2"><TranscriptViewer /></div>
-                <SummaryCard />
-              </div>
-            )}
+            {view === "transcripts" && <TranscriptWorkspace />}
 
             {view === "pdf" && <PdfEditor />}
 
