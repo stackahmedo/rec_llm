@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
@@ -9,6 +9,8 @@ import {
   FileText, Globe, Loader2, Mic2, BarChart3,
   Languages, MessageSquare, CheckCircle2, Send,
   ChevronDown, ChevronRight, ListFilter, Wand2,
+  Clock, TrendingUp, Users, AlertTriangle, Hash,
+  Search, ArrowUp,
 } from "lucide-react";
 import { SessionList } from "./session-list";
 import { TranscriptEditor } from "./transcript-editor";
@@ -30,7 +32,19 @@ const aiTabs: { id: AITab; label: string; icon: any }[] = [
   { id: "chat", label: "AI Chat", icon: MessageSquare },
 ];
 
-type TranscriptFilter = "all" | "questions" | "decisions" | "tasks" | "risks";
+type TranscriptFilter = "all" | "questions" | "decisions" | "tasks" | "risks" | "speaker";
+
+// Slash commands
+const slashCommands = [
+  { cmd: "/summary", desc: "Generate executive summary" },
+  { cmd: "/translate", desc: "Translate transcript" },
+  { cmd: "/tasks", desc: "Extract action items" },
+  { cmd: "/minutes", desc: "Create meeting minutes" },
+  { cmd: "/risks", desc: "Identify risks and issues" },
+  { cmd: "/decisions", desc: "Extract decisions made" },
+  { cmd: "/sentiment", desc: "Analyze sentiment" },
+  { cmd: "/topics", desc: "Extract discussion topics" },
+];
 
 export function TranscriptWorkspace() {
   const { transcripts, summaries, addSummary, setActiveId } = useTranscripts();
@@ -40,10 +54,15 @@ export function TranscriptWorkspace() {
   const [activeTab, setActiveTab] = useState<AITab>("summary");
   const [generating, setGenerating] = useState(false);
   const [summaryLang, setSummaryLang] = useState<"en" | "ja">("en");
-  const [chatMessages, setChatMessages] = useState<{ role: "user" | "ai"; text: string }[]>([]);
+  const [chatMessages, setChatMessages] = useState<{ role: "user" | "ai"; text: string; timestamp?: number }[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [filter, setFilter] = useState<TranscriptFilter>("all");
   const [aiCommand, setAiCommand] = useState("");
+  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const [historyIdx, setHistoryIdx] = useState(-1);
+  const [showSlashMenu, setShowSlashMenu] = useState(false);
+  const [speakerFilter, setSpeakerFilter] = useState<string | null>(null);
+  const [transcriptSearch, setTranscriptSearch] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const handleSelect = (id: string) => {
@@ -55,6 +74,16 @@ export function TranscriptWorkspace() {
   const summary = selectedId ? summaries.find((s) => s.fileId === selectedId) || null : null;
   const speakerCount = active ? new Set(active.utterances.map((u) => u.speaker)).size : 0;
   const lastEnd = active ? Math.max(...active.utterances.map((u) => u.endMs), 0) : 0;
+  const speakers = useMemo(() => active ? [...new Set(active.utterances.map((u) => u.speaker))] : [], [active]);
+
+  // Time since last generation
+  const timeSinceGenerated = useMemo(() => {
+    if (!summary?.generatedAt) return null;
+    const diff = Date.now() - new Date(summary.generatedAt).getTime();
+    if (diff < 60000) return "just now";
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    return `${Math.floor(diff / 3600000)}h ago`;
+  }, [summary]);
 
   const generate = useCallback(async () => {
     if (!active) return;
@@ -87,17 +116,56 @@ export function TranscriptWorkspace() {
 
   const sendChatMessage = () => {
     if (!chatInput.trim()) return;
-    setChatMessages((prev) => [...prev, { role: "user", text: chatInput }]);
+    const msg = chatInput.trim();
+    setChatMessages((prev) => [...prev, { role: "user", text: msg, timestamp: Date.now() }]);
+    // Simulate streaming AI response
     setTimeout(() => {
-      setChatMessages((prev) => [...prev, { role: "ai", text: "I'll analyze the transcript for you. This feature connects to your configured AI provider for context-aware responses." }]);
+      setChatMessages((prev) => [...prev, { role: "ai", text: "I'll analyze the transcript for you. This feature connects to your configured AI provider for context-aware responses about this transcript.", timestamp: Date.now() }]);
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 500);
     setChatInput("");
   };
 
   const handleAiCommand = () => {
     if (!aiCommand.trim()) return;
-    toast.info(`AI Command: "${aiCommand}"`, { description: "Processing..." });
+    const cmd = aiCommand.trim();
+    // Add to history
+    setCommandHistory((prev) => [cmd, ...prev.slice(0, 19)]);
+    setHistoryIdx(-1);
+
+    // Handle slash commands
+    if (cmd.startsWith("/")) {
+      const slashCmd = slashCommands.find((s) => cmd.startsWith(s.cmd));
+      if (slashCmd) {
+        toast.info(`Running: ${slashCmd.desc}`, { description: "Processing..." });
+        if (cmd === "/summary" || cmd === "/tasks" || cmd === "/risks" || cmd === "/decisions") {
+          generate();
+        }
+      } else {
+        toast.error(`Unknown command: ${cmd.split(" ")[0]}`);
+      }
+    } else {
+      toast.info(`AI: "${cmd}"`, { description: "Processing..." });
+    }
     setAiCommand("");
+    setShowSlashMenu(false);
+  };
+
+  const handleCommandKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAiCommand(); }
+    if (e.key === "ArrowUp" && !aiCommand && commandHistory.length > 0) {
+      const idx = Math.min(historyIdx + 1, commandHistory.length - 1);
+      setHistoryIdx(idx);
+      setAiCommand(commandHistory[idx]);
+    }
+    if (e.key === "ArrowDown" && historyIdx >= 0) {
+      const idx = historyIdx - 1;
+      setHistoryIdx(idx);
+      setAiCommand(idx >= 0 ? commandHistory[idx] : "");
+    }
+    // Show slash menu
+    if (aiCommand === "" && e.key === "/") setShowSlashMenu(true);
+    if (e.key === "Escape") setShowSlashMenu(false);
   };
 
   return (
@@ -115,6 +183,27 @@ export function TranscriptWorkspace() {
           </>
         )}
         <div className="flex-1" />
+        {/* Transcript search */}
+        <div className="relative">
+          <Search className="size-2.5 absolute left-1.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input value={transcriptSearch} onChange={(e) => setTranscriptSearch(e.target.value)} placeholder="Search..." className="h-5 text-[9px] pl-6 w-28" />
+        </div>
+        {/* Speaker filter */}
+        {speakers.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant={speakerFilter ? "secondary" : "ghost"} size="sm" className="h-5 text-[9px] gap-0.5 px-1.5">
+                <Users className="size-2.5" />{speakerFilter || "Speaker"}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem className="text-[10px]" onClick={() => setSpeakerFilter(null)}>All Speakers</DropdownMenuItem>
+              {speakers.map((s) => (
+                <DropdownMenuItem key={s} className="text-[10px]" onClick={() => setSpeakerFilter(s)}>{s}</DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         {/* Filter dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -191,6 +280,7 @@ export function TranscriptWorkspace() {
               <div className="p-2 space-y-2">
                 <div className="flex items-center gap-1">
                   <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium flex-1">Executive Summary</span>
+                  {timeSinceGenerated && <span className="text-[7px] text-muted-foreground">{timeSinceGenerated}</span>}
                   <Tooltip><TooltipTrigger asChild>
                     <button className="size-4 rounded hover:bg-muted flex items-center justify-center" onClick={generate} disabled={generating}>
                       {generating ? <Loader2 className="size-2.5 animate-spin" /> : <RefreshCw className="size-2.5 text-muted-foreground" />}
@@ -358,24 +448,51 @@ export function TranscriptWorkspace() {
 
           {/* Sticky AI Command Box (all tabs except chat) */}
           {activeTab !== "chat" && (
-            <div className="shrink-0 border-t bg-background/95 backdrop-blur p-1.5 shadow-[0_-2px_8px_rgba(0,0,0,0.04)]">
+            <div className="shrink-0 border-t bg-background/95 backdrop-blur p-1.5 shadow-[0_-2px_8px_rgba(0,0,0,0.04)] relative">
+              {/* Slash command menu */}
+              {showSlashMenu && (
+                <div className="absolute bottom-full left-1.5 right-1.5 mb-1 bg-background border rounded-md shadow-lg max-h-40 overflow-auto z-20">
+                  {slashCommands.map((cmd) => (
+                    <button
+                      key={cmd.cmd}
+                      className="w-full text-left px-2 py-1 text-[9px] hover:bg-muted/40 flex items-center gap-2"
+                      onClick={() => { setAiCommand(cmd.cmd + " "); setShowSlashMenu(false); }}
+                    >
+                      <span className="font-mono text-primary">{cmd.cmd}</span>
+                      <span className="text-muted-foreground">{cmd.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="flex gap-1">
                 <Input
                   value={aiCommand}
-                  onChange={(e) => setAiCommand(e.target.value)}
-                  placeholder="Ask AI about this transcript…"
+                  onChange={(e) => { setAiCommand(e.target.value); setShowSlashMenu(e.target.value === "/"); }}
+                  placeholder="Ask AI about this transcript… (/ for commands)"
                   className="h-6 text-[9px] flex-1"
-                  onKeyDown={(e) => e.key === "Enter" && handleAiCommand()}
+                  onKeyDown={handleCommandKeyDown}
                 />
                 <Button size="sm" className="h-6 w-6 p-0" onClick={handleAiCommand} disabled={!aiCommand.trim()}>
                   <Wand2 className="size-3" />
                 </Button>
               </div>
-              {/* Pinned AI actions */}
-              <div className="flex gap-0.5 mt-1">
-                <button className="h-4 px-1.5 rounded text-[7px] border hover:bg-primary/5 transition-colors" onClick={generate} disabled={generating}>↻ Summary</button>
-                <button className="h-4 px-1.5 rounded text-[7px] border hover:bg-primary/5 transition-colors" onClick={generate} disabled={generating}>↻ Key Points</button>
-                <button className="h-4 px-1.5 rounded text-[7px] border hover:bg-primary/5 transition-colors" onClick={generate} disabled={generating}>↻ Actions</button>
+              {/* Quick command chips */}
+              <div className="flex gap-0.5 mt-1 flex-wrap">
+                <button className="h-4 px-1.5 rounded text-[7px] border hover:bg-primary/5 transition-colors font-mono" onClick={() => { setAiCommand("/summary"); handleAiCommand(); }}>
+                  /summary
+                </button>
+                <button className="h-4 px-1.5 rounded text-[7px] border hover:bg-primary/5 transition-colors font-mono" onClick={() => { setAiCommand("/translate"); handleAiCommand(); }}>
+                  /translate
+                </button>
+                <button className="h-4 px-1.5 rounded text-[7px] border hover:bg-primary/5 transition-colors font-mono" onClick={() => { setAiCommand("/tasks"); handleAiCommand(); }}>
+                  /tasks
+                </button>
+                <button className="h-4 px-1.5 rounded text-[7px] border hover:bg-primary/5 transition-colors font-mono" onClick={() => { setAiCommand("/minutes"); handleAiCommand(); }}>
+                  /minutes
+                </button>
+                <button className="h-4 px-1.5 rounded text-[7px] border hover:bg-primary/5 transition-colors" onClick={generate} disabled={generating}>
+                  ↻ Regenerate
+                </button>
               </div>
             </div>
           )}
