@@ -25,12 +25,12 @@ import { notifyProviderError } from "../notify";
 
 type AITab = "summary" | "keypoints" | "actions" | "translation" | "chat";
 
-const aiTabs: { id: AITab; label: string; icon: any }[] = [
-  { id: "summary", label: "Summary", icon: FileText },
-  { id: "keypoints", label: "Key Points", icon: BarChart3 },
-  { id: "actions", label: "Actions", icon: CheckCircle2 },
-  { id: "translation", label: "Translate", icon: Globe },
-  { id: "chat", label: "AI Chat", icon: MessageSquare },
+const aiTabs: { id: AITab; labelKey: string; icon: any }[] = [
+  { id: "summary", labelKey: "ai.summary", icon: FileText },
+  { id: "keypoints", labelKey: "ai.keyPoints", icon: BarChart3 },
+  { id: "actions", labelKey: "ai.actions", icon: CheckCircle2 },
+  { id: "translation", labelKey: "ai.translation", icon: Globe },
+  { id: "chat", labelKey: "ai.chat", icon: MessageSquare },
 ];
 
 type TranscriptFilter = "all" | "questions" | "decisions" | "tasks" | "risks" | "speaker";
@@ -266,10 +266,10 @@ export function TranscriptWorkspace() {
                       className={`h-5 px-1.5 rounded text-[8px] flex items-center gap-0.5 transition-colors shrink-0 ${isActive ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/40"}`}
                       onClick={() => setActiveTab(tab.id)}
                     >
-                      <Icon className="size-2.5" />{tab.label}
+                      <Icon className="size-2.5" />{t(tab.labelKey)}
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom" className="text-[9px]">{tab.label}</TooltipContent>
+                  <TooltipContent side="bottom" className="text-[9px]">{t(tab.labelKey)}</TooltipContent>
                 </Tooltip>
               );
             })}
