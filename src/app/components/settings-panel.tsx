@@ -582,34 +582,202 @@ function AIProvidersTab({ summaryProvider, setSummaryProvider, summaryLang, setS
   );
 }
 
-// --- Tab: Pipeline Roles ---
+// --- Tab: Pipeline Orchestration ---
+interface PipelineStage {
+  id: string;
+  label: string;
+  provider: string;
+  model: string;
+  fallback?: string;
+  retries: number;
+  timeout: number;
+  enabled: boolean;
+  tags: string[];
+}
+
+const defaultPipeline: PipelineStage[] = [
+  { id: "transcription", label: "Transcription", provider: "AssemblyAI", model: "universal-3-pro", fallback: "", retries: 2, timeout: 300, enabled: true, tags: ["Fast", "Accurate"] },
+  { id: "diarization", label: "Speaker Detection", provider: "AssemblyAI", model: "diarization", fallback: "", retries: 1, timeout: 120, enabled: true, tags: ["Built-in"] },
+  { id: "summary", label: "Summary & Analysis", provider: "Gemini", model: "gemini-2.5-flash", fallback: "OpenAI", retries: 2, timeout: 60, enabled: true, tags: ["JSON", "Fast"] },
+  { id: "translation", label: "Translation", provider: "Gemini", model: "gemini-2.5-flash", fallback: "", retries: 1, timeout: 60, enabled: false, tags: ["Multi-lang"] },
+  { id: "export", label: "PDF Export", provider: "Local", model: "built-in", fallback: "", retries: 0, timeout: 30, enabled: true, tags: ["Offline"] },
+];
+
+const pipelinePresets: Record<string, Partial<PipelineStage>[]> = {
+  cheapest: [
+    { id: "summary", provider: "Gemini", model: "gemini-2.5-flash-lite" },
+  ],
+  balanced: [
+    { id: "summary", provider: "Gemini", model: "gemini-2.5-flash" },
+  ],
+  fastest: [
+    { id: "summary", provider: "Gemini", model: "gemini-2.5-flash-lite", retries: 0, timeout: 30 },
+  ],
+  quality: [
+    { id: "summary", provider: "Gemini", model: "gemini-2.5-pro", timeout: 120 },
+  ],
+};
+
+const workflowPresets = [
+  { id: "meeting", label: "Meeting Intelligence", desc: "Full analysis with actions & decisions" },
+  { id: "legal", label: "Legal Review", desc: "Verbatim transcript, speaker attribution" },
+  { id: "podcast", label: "Podcast Workflow", desc: "Summary + key moments" },
+  { id: "medical", label: "Medical Notes", desc: "Structured clinical notes" },
+];
+
 function PipelineTab({ summaryProvider }: { summaryProvider: string }) {
-  const roles = [
-    { role: "Transcription", provider: "AssemblyAI", model: "Universal-3 Pro" },
-    { role: "Summarization", provider: summaryProvider === "gemini" ? "Gemini" : "OpenAI", model: summaryProvider === "gemini" ? "1.5 Pro" : "GPT-4o" },
-    { role: "Translation", provider: "Gemini", model: "1.5 Pro" },
-    { role: "Speaker ID", provider: "AssemblyAI", model: "Diarization" },
-  ];
+  const [stages, setStages] = useState<PipelineStage[]>(defaultPipeline);
+  const [expandedStage, setExpandedStage] = useState<string | null>(null);
+  const [activePreset, setActivePreset] = useState<string>("balanced");
+  const [concurrency, setConcurrency] = useState(2);
+  const [chunkStrategy, setChunkStrategy] = useState<"auto" | "fixed" | "speaker">("auto");
+
+  const applyPreset = (presetId: string) => {
+    setActivePreset(presetId);
+    const patches = pipelinePresets[presetId];
+    if (!patches) return;
+    setStages((prev) => prev.map((s) => {
+      const patch = patches.find((p) => p.id === s.id);
+      return patch ? { ...s, ...patch } : s;
+    }));
+  };
+
+  const updateStage = (id: string, patch: Partial<PipelineStage>) => {
+    setStages((prev) => prev.map((s) => s.id === id ? { ...s, ...patch } : s));
+    setActivePreset("custom");
+  };
 
   return (
-    <div className="space-y-4">
-      <SectionLabel>Role → Provider Mapping</SectionLabel>
-      <div className="border rounded overflow-hidden">
-        <div className="grid grid-cols-3 gap-0 text-[10px] text-muted-foreground uppercase tracking-wider bg-muted/30 px-2.5 py-1.5 border-b">
-          <span>Role</span>
-          <span>Provider</span>
-          <span>Model</span>
+    <div className="space-y-3">
+      {/* Pipeline Presets */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Preset:</span>
+        {(["cheapest", "balanced", "fastest", "quality", "custom"] as const).map((p) => (
+          <button
+            key={p}
+            className={`h-5 px-2 rounded text-[9px] border transition-colors ${activePreset === p ? "bg-primary/10 border-primary text-primary" : "hover:bg-muted/50"}`}
+            onClick={() => p !== "custom" && applyPreset(p)}
+            disabled={p === "custom"}
+          >
+            {p.charAt(0).toUpperCase() + p.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* Pipeline Flow Visualization */}
+      <div className="border rounded p-2 bg-muted/10">
+        <div className="flex items-center gap-1 flex-wrap">
+          {stages.filter((s) => s.enabled).map((s, i, arr) => (
+            <div key={s.id} className="flex items-center gap-1">
+              <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-background border text-[9px]">
+                <span className="size-1.5 rounded-full bg-emerald-500" />
+                <span className="font-medium">{s.label}</span>
+              </div>
+              {i < arr.length - 1 && <span className="text-muted-foreground text-[9px]">→</span>}
+            </div>
+          ))}
         </div>
-        {roles.map((r) => (
-          <div key={r.role} className="grid grid-cols-3 gap-0 text-[11px] px-2.5 py-1.5 border-b last:border-b-0 hover:bg-muted/20">
-            <span className="font-medium">{r.role}</span>
-            <span className="text-muted-foreground">{r.provider}</span>
-            <span className="font-mono text-[10px]">{r.model}</span>
+      </div>
+
+      {/* Stage Cards */}
+      <div className="space-y-1">
+        {stages.map((stage) => (
+          <div key={stage.id} className={`border rounded transition-colors ${!stage.enabled ? "opacity-50" : ""}`}>
+            {/* Stage header */}
+            <div
+              className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer hover:bg-muted/20"
+              onClick={() => setExpandedStage(expandedStage === stage.id ? null : stage.id)}
+            >
+              <input
+                type="checkbox"
+                checked={stage.enabled}
+                onChange={(e) => { e.stopPropagation(); updateStage(stage.id, { enabled: e.target.checked }); }}
+                className="size-3 rounded accent-primary"
+              />
+              <span className="text-[11px] font-medium flex-1">{stage.label}</span>
+              <span className="text-[9px] text-muted-foreground font-mono">{stage.provider}</span>
+              <span className="text-[9px] text-muted-foreground font-mono">{stage.model}</span>
+              {stage.fallback && (
+                <span className="text-[8px] px-1 py-0.5 rounded bg-amber-500/10 text-amber-600 border border-amber-500/20">fallback: {stage.fallback}</span>
+              )}
+              {stage.tags.map((t) => (
+                <span key={t} className="text-[8px] px-1 py-0.5 rounded bg-primary/5 text-primary/70">{t}</span>
+              ))}
+              <span className="text-[9px] text-muted-foreground">{expandedStage === stage.id ? "−" : "+"}</span>
+            </div>
+
+            {/* Expanded settings */}
+            {expandedStage === stage.id && (
+              <div className="px-2.5 pb-2 pt-1 border-t bg-muted/5 space-y-1.5">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                  <div>
+                    <div className="text-[9px] text-muted-foreground mb-0.5">Provider</div>
+                    <Input value={stage.provider} onChange={(e) => updateStage(stage.id, { provider: e.target.value })} className="h-6 text-[10px] font-mono" />
+                  </div>
+                  <div>
+                    <div className="text-[9px] text-muted-foreground mb-0.5">Model</div>
+                    <Input value={stage.model} onChange={(e) => updateStage(stage.id, { model: e.target.value })} className="h-6 text-[10px] font-mono" />
+                  </div>
+                  <div>
+                    <div className="text-[9px] text-muted-foreground mb-0.5">Fallback Provider</div>
+                    <Input value={stage.fallback || ""} onChange={(e) => updateStage(stage.id, { fallback: e.target.value })} placeholder="None" className="h-6 text-[10px] font-mono" />
+                  </div>
+                  <div>
+                    <div className="text-[9px] text-muted-foreground mb-0.5">Timeout (sec)</div>
+                    <Input type="number" value={stage.timeout} onChange={(e) => updateStage(stage.id, { timeout: Number(e.target.value) })} className="h-6 text-[10px] font-mono" />
+                  </div>
+                  <div>
+                    <div className="text-[9px] text-muted-foreground mb-0.5">Retries</div>
+                    <Input type="number" value={stage.retries} onChange={(e) => updateStage(stage.id, { retries: Number(e.target.value) })} min={0} max={5} className="h-6 text-[10px] font-mono" />
+                  </div>
+                  <div>
+                    <div className="text-[9px] text-muted-foreground mb-0.5">Tags</div>
+                    <Input value={stage.tags.join(", ")} onChange={(e) => updateStage(stage.id, { tags: e.target.value.split(",").map((t) => t.trim()).filter(Boolean) })} className="h-6 text-[10px]" />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
-      <div className="text-[10px] text-muted-foreground">
-        Configure providers in the AI Providers tab. Role assignments update automatically.
+
+      {/* Runtime Controls */}
+      <div className="border rounded p-2 space-y-1.5">
+        <div className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">Runtime</div>
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <div className="text-[9px] text-muted-foreground mb-0.5">Concurrency</div>
+            <Input type="number" value={concurrency} onChange={(e) => setConcurrency(Number(e.target.value))} min={1} max={8} className="h-6 text-[10px] font-mono" />
+          </div>
+          <div>
+            <div className="text-[9px] text-muted-foreground mb-0.5">Chunk Strategy</div>
+            <Select value={chunkStrategy} onValueChange={(v: any) => setChunkStrategy(v)}>
+              <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Auto</SelectItem>
+                <SelectItem value="fixed">Fixed (10k chars)</SelectItem>
+                <SelectItem value="speaker">By Speaker Turn</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <div className="text-[9px] text-muted-foreground mb-0.5">Parallel Stages</div>
+            <Badge variant="outline" className="text-[9px] h-5">Sequential</Badge>
+          </div>
+        </div>
+      </div>
+
+      {/* Workflow Presets */}
+      <div className="border rounded p-2 space-y-1.5">
+        <div className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">Workflow Templates</div>
+        <div className="grid grid-cols-2 gap-1">
+          {workflowPresets.map((w) => (
+            <button key={w.id} className="text-left p-1.5 rounded border hover:bg-muted/20 transition-colors">
+              <div className="text-[10px] font-medium">{w.label}</div>
+              <div className="text-[9px] text-muted-foreground">{w.desc}</div>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
