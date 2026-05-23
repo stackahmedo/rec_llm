@@ -1,0 +1,34 @@
+/* Typography system — desktop-optimized with CJK support */
+
+:root {
+  --font-sans: "Inter", "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", "Noto Sans Mono CJK JP", monospace;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* CJK-specific adjustments */
+:lang(ja) body,
+:lang(zh) body,
+:lang(ko) body {
+  font-feature-settings: normal;
+  word-break: break-all;
+}
+
+/* Ensure Japanese text doesn't get cramped */
+:lang(ja) p,
+:lang(ja) span,
+:lang(ja) div {
+  line-height: 1.75;
+}
+
+/* Monospace for timestamps and code */
+.font-mono {
+  font-family: var(--font-mono);
+}
