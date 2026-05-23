@@ -377,6 +377,16 @@ function KeyInput({ value, onChange, placeholder, onTest, state }: {
 
 // --- Tab: General ---
 function GeneralTab({ lang, setLang, markDirty }: { lang: Lang; setLang: (l: Lang) => void; markDirty: () => void }) {
+  const [uiScale, setUiScale] = useState(() => {
+    try { return localStorage.getItem("recllm-ui-scale") || "default"; } catch { return "default"; }
+  });
+
+  const handleScale = (s: string) => {
+    setUiScale(s);
+    document.documentElement.setAttribute("data-ui-scale", s);
+    try { localStorage.setItem("recllm-ui-scale", s); } catch {}
+  };
+
   return (
     <div className="space-y-4">
       <SectionLabel>Interface Language</SectionLabel>
@@ -391,6 +401,20 @@ function GeneralTab({ lang, setLang, markDirty }: { lang: Lang; setLang: (l: Lan
           </button>
         ))}
       </div>
+
+      <SectionLabel>UI Text Size</SectionLabel>
+      <div className="grid grid-cols-4 gap-1.5">
+        {([["compact", "Compact"], ["default", "Default"], ["large", "Large"], ["extra-large", "Extra Large"]] as const).map(([v, label]) => (
+          <button
+            key={v}
+            className={`border rounded px-2 py-1.5 text-[10px] transition-colors ${uiScale === v ? "border-primary bg-primary/5 font-medium" : "hover:bg-muted/40"}`}
+            onClick={() => handleScale(v)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <p className="text-[9px] text-muted-foreground">Adjusts interface text scaling for readability. Updates live.</p>
     </div>
   );
 }

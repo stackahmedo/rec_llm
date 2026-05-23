@@ -11,6 +11,20 @@ import { I18nProvider, useT } from "./i18n";
 import { TranscriptProvider } from "./transcript-store";
 import { UploadJobProvider } from "./upload-job-store";
 
+// UI Scale hook
+function useUiScale() {
+  const [scale, setScale] = useState<string>(() => {
+    try { return localStorage.getItem("recllm-ui-scale") || "default"; } catch { return "default"; }
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-ui-scale", scale);
+    try { localStorage.setItem("recllm-ui-scale", scale); } catch {}
+  }, [scale]);
+
+  return { scale, setScale };
+}
+
 // Lazy-loaded heavy pages
 const UploadWorkstation = lazy(() => import("./components/upload-workstation").then((m) => ({ default: m.UploadWorkstation })));
 const TranscriptWorkspace = lazy(() => import("./components/transcript-workspace").then((m) => ({ default: m.TranscriptWorkspace })));
@@ -28,7 +42,8 @@ function PageLoader() {
 }
 
 function Shell() {
-  const { t } = useT();
+  const { t, lang } = useT();
+  const { scale } = useUiScale();
   const [view, setView] = useState("dashboard");
   const [searchOpen, setSearchOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
