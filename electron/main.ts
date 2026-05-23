@@ -9,6 +9,7 @@ import { registerHistoryHandlers } from './history';
 import { registerStorageStatsHandlers } from './storage-stats';
 import { registerExportHandlers } from './export';
 import { registerAudioPreprocessHandlers } from './audio-preprocess';
+import { registerLongAudioHandlers } from './long-audio-pipeline';
 
 const isDev = !app.isPackaged && !fs.existsSync(path.join(__dirname, '../dist/index.html'));
 
@@ -20,6 +21,7 @@ registerHistoryHandlers();
 registerStorageStatsHandlers();
 registerExportHandlers();
 registerAudioPreprocessHandlers();
+registerLongAudioHandlers();
 
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'm4a', 'mp4', 'aac', 'flac'];
 
