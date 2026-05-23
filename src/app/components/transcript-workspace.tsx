@@ -195,7 +195,7 @@ export function TranscriptWorkspace() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant={speakerFilter ? "secondary" : "ghost"} size="sm" className="h-5 text-[9px] gap-0.5 px-1.5">
-                <Users className="size-2.5" />{speakerFilter || "Speaker"}
+                <Users className="size-2.5" />{speakerFilter || t("filter.speaker")}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -210,7 +210,7 @@ export function TranscriptWorkspace() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant={filter !== "all" ? "secondary" : "ghost"} size="sm" className="h-5 text-[9px] gap-0.5 px-1.5">
-              <ListFilter className="size-2.5" />{filter !== "all" ? filter : "Filter"}
+              <ListFilter className="size-2.5" />{filter !== "all" ? filter : t("common.filter")}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
