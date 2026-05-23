@@ -397,6 +397,16 @@ export function PdfEditor() {
 
         <div className="flex-1" />
 
+        {/* Undo/Redo */}
+        <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={editor.undo} disabled={!editor.canUndo} title="Undo (⌘Z)">
+          <Undo2 className="size-3" />
+        </Button>
+        <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={editor.redo} disabled={!editor.canRedo} title="Redo (⌘⇧Z)">
+          <Redo2 className="size-3" />
+        </Button>
+
+        <Separator orientation="vertical" className="h-4" />
+
         {/* Zoom controls */}
         <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setZoom((z) => Math.max(50, z - 10))} title="Zoom out (⌘-)">
           <ZoomOut className="size-3" />
@@ -418,6 +428,19 @@ export function PdfEditor() {
         <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setShowModal(true)} disabled={!active} title="Fullscreen (⌘F)">
           <Maximize2 className="size-3" />
         </Button>
+
+        <Separator orientation="vertical" className="h-4" />
+
+        {/* Page navigation */}
+        <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={editor.prevPage} disabled={editor.currentPage <= 1} title="Previous page">
+          <ChevronLeft className="size-3" />
+        </Button>
+        <span className="text-[9px] font-mono w-10 text-center">{editor.currentPage}/{editor.totalPages}</span>
+        <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={editor.nextPage} disabled={editor.currentPage >= editor.totalPages} title="Next page">
+          <ChevronRight className="size-3" />
+        </Button>
+
+        <Separator orientation="vertical" className="h-4" />
         <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={exportPdf} disabled={!active || exporting} title="Export PDF (⌘E)">
           {exporting ? <Loader2 className="size-3 animate-spin" /> : <Download className="size-3" />}
         </Button>
