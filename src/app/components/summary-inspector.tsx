@@ -10,7 +10,7 @@ import {
 import { useTranscripts } from "../transcript-store";
 import { toast } from "sonner";
 import { notifySummaryGenerated, notifySummaryFailed } from "../notification-store";
-import { notifyProviderError } from "../notify";
+import { notifyProviderError, notifyError } from "../notify";
 
 interface SummaryInspectorProps {
   fileId: string | null;
@@ -76,7 +76,7 @@ export function SummaryInspector({ fileId }: SummaryInspectorProps) {
       decisions: summary?.decisions, risks: summary?.risks, utterances: active.utterances,
     });
     if (result.ok) toast.success("PDF exported", { description: result.filePath });
-    else if (result.error !== 'Export cancelled.') toast.error("PDF export failed", { description: result.error });
+    else if (result.error !== 'Export cancelled.') notifyError("PDF export failed", { category: "export", technicalDetail: result.error });
   };
 
   const exportTxt = async () => {
@@ -89,7 +89,7 @@ export function SummaryInspector({ fileId }: SummaryInspectorProps) {
     const content = `# ${active.fileName}\n# Language: ${active.languageCode}\n\n${lines.join("\n")}`;
     const result = await window.electronAPI.export.saveTxt(active.fileName, content);
     if (result?.ok) toast.success("TXT exported");
-    else if (result?.error && result.error !== 'Export cancelled.') toast.error("Export failed");
+    else if (result?.error && result.error !== 'Export cancelled.') notifyError("Export failed", { category: "export", technicalDetail: result.error });
   };
 
   // Empty state

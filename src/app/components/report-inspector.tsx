@@ -10,6 +10,7 @@ import { useUploadJobs, UploadJob, getStageLabel } from "../upload-job-store";
 import { useTranscripts } from "../transcript-store";
 import { toast } from "sonner";
 import { addNotification } from "../notification-store";
+import { notifyError } from "../notify";
 
 function formatDuration(sec: number): string {
   const h = Math.floor(sec / 3600);
@@ -66,7 +67,7 @@ export function ReportInspector({ selectedId }: ReportInspectorProps) {
       toast.success("TXT exported");
       addNotification("success", "TXT exported", `${job.fileName}`, "export");
     } else if (result?.error && result.error !== "Export cancelled.") {
-      toast.error("Export failed", { description: result.error });
+      notifyError("Export failed", { category: "export", technicalDetail: result.error });
     }
   };
 

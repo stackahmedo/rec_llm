@@ -22,6 +22,7 @@ import {
 import { useTranscripts } from "../transcript-store";
 import { usePdfDraft } from "../pdf-draft-store";
 import { notifyPdfExported, notifyPdfFailed } from "../notification-store";
+import { notifyError } from "../notify";
 import { SpeakerProfile, generateProfiles, loadSpeakerProfiles, saveSpeakerProfiles, getColor, getDisplayName } from "../pdf-speaker-store";
 import { PdfTemplateConfig, HeaderConfig, FooterConfig, builtInTemplates, getAllTemplates, loadCustomTemplates, saveCustomTemplates } from "../pdf-template-store";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./ui/resizable";
@@ -330,7 +331,7 @@ export function PdfEditor() {
     const result = await window.electronAPI.pdf.exportReport(data);
     setExporting(false);
     if (result.ok) { toast.success("PDF exported", { description: result.filePath }); notifyPdfExported(active.fileName, result.filePath); }
-    else if (result.error !== "Export cancelled.") { toast.error("Export failed", { description: result.error }); notifyPdfFailed(active.fileName, result.error); }
+    else if (result.error !== "Export cancelled.") { notifyError("Export failed", { category: "export", technicalDetail: result.error }); notifyPdfFailed(active.fileName, result.error); }
   };
 
   const printPdf = async () => {
@@ -344,7 +345,7 @@ export function PdfEditor() {
     if (result.ok) {
       toast.success("PDF ready for print", { description: "Opening system print dialog..." });
     } else if (result.error !== "Export cancelled.") {
-      toast.error("Print failed", { description: result.error });
+      notifyError("Print failed", { category: "export", technicalDetail: result.error });
     }
   };
 
