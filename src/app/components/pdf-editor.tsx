@@ -428,9 +428,19 @@ export function PdfEditor() {
         <Separator orientation="vertical" className="h-4" />
 
         {/* Actions */}
-        <Button type="button" variant={splitView ? "secondary" : "ghost"} size="icon" className="h-5 w-5" onClick={() => setSplitView(!splitView)} title="Split view">
+        <Button type="button" variant={splitView ? "secondary" : "ghost"} size="icon" className="h-5 w-5" onClick={() => { setSplitView(!splitView); setSplitMode(splitView ? "none" : "source"); }} title="Split view">
           <Columns2 className="size-3" />
         </Button>
+        {splitView && (
+          <Select value={splitMode} onValueChange={(v: any) => setSplitMode(v)}>
+            <SelectTrigger className="h-5 w-[70px] text-[8px] border-none bg-muted/30"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="source" className="text-[9px]">Source</SelectItem>
+              <SelectItem value="compare" className="text-[9px]">Compare</SelectItem>
+              <SelectItem value="comments" className="text-[9px]">Comments</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
         <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setShowModal(true)} disabled={!active} title="Fullscreen (⌘F)">
           <Maximize2 className="size-3" />
         </Button>
