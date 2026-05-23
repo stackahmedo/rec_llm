@@ -541,18 +541,19 @@ function AIBlock({ title, items, icon, onCopy, onRegenerate }: {
 // --- AI Analysis Modules ---
 type AnalysisModule = "sentiment" | "topics" | "speakers" | "timeline" | "followups";
 
-const analysisModules: { id: AnalysisModule; label: string; icon: any; desc: string }[] = [
-  { id: "sentiment", label: "Sentiment", icon: TrendingUp, desc: "Emotional tone analysis" },
-  { id: "topics", label: "Topics", icon: Hash, desc: "Discussion themes" },
-  { id: "speakers", label: "Speaker Insights", icon: Users, desc: "Per-speaker analysis" },
-  { id: "timeline", label: "Timeline", icon: Clock, desc: "Key moments" },
-  { id: "followups", label: "Follow-ups", icon: ArrowUp, desc: "Unresolved items" },
+const analysisModules: { id: AnalysisModule; labelKey: string; icon: any; descKey: string }[] = [
+  { id: "sentiment", labelKey: "ai.sentiment", icon: TrendingUp, descKey: "ai.sentimentDesc" },
+  { id: "topics", labelKey: "ai.topics", icon: Hash, descKey: "ai.topicsDesc" },
+  { id: "speakers", labelKey: "ai.speakerInsights", icon: Users, descKey: "ai.speakerInsightsDesc" },
+  { id: "timeline", labelKey: "ai.timeline", icon: Clock, descKey: "ai.timelineDesc" },
+  { id: "followups", labelKey: "ai.followups", icon: ArrowUp, descKey: "ai.followupsDesc" },
 ];
 
 function AnalysisModulesPanel({ onGenerate, generating }: { onGenerate: () => void; generating: boolean }) {
+  const { t } = useT();
   return (
     <div className="p-2 space-y-1.5">
-      <div className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">AI Analysis Modules</div>
+      <div className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">{t("ai.analysisModules")}</div>
       <div className="space-y-0.5">
         {analysisModules.map((mod) => {
           const Icon = mod.icon;
@@ -560,8 +561,8 @@ function AnalysisModulesPanel({ onGenerate, generating }: { onGenerate: () => vo
             <div key={mod.id} className="flex items-center gap-1.5 px-1.5 py-1 rounded border hover:bg-muted/20 transition-colors group">
               <Icon className="size-3 text-muted-foreground" />
               <div className="flex-1 min-w-0">
-                <div className="text-[9px] font-medium">{mod.label}</div>
-                <div className="text-[7px] text-muted-foreground">{mod.desc}</div>
+                <div className="text-[9px] font-medium">{t(mod.labelKey)}</div>
+                <div className="text-[7px] text-muted-foreground">{t(mod.descKey)}</div>
               </div>
               <button className="size-4 rounded hover:bg-muted flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" onClick={onGenerate} disabled={generating}>
                 <Sparkles className="size-2.5 text-primary" />
