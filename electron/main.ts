@@ -10,6 +10,7 @@ import { registerStorageStatsHandlers } from './storage-stats';
 import { registerExportHandlers } from './export';
 import { registerAudioPreprocessHandlers } from './audio-preprocess';
 import { registerLongAudioHandlers } from './long-audio-pipeline';
+import { migrateFromElectronStore } from './credential-store';
 
 const isDev = !app.isPackaged && !fs.existsSync(path.join(__dirname, '../dist/index.html'));
 
@@ -111,7 +112,10 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(async () => {
+  await migrateFromElectronStore();
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

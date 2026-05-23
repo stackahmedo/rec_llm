@@ -2,6 +2,7 @@ import { ipcMain, net, BrowserWindow } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import https from 'https';
+import { getCredential } from './credential-store';
 
 const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -17,19 +18,14 @@ function isPlaceholderKey(key: string): boolean {
 }
 
 async function getApiKey(): Promise<string | null> {
-  let store: any = null;
-  const { default: Store } = await import('electron-store');
-  store = new Store({ name: 'recllm-settings', encryptionKey: 'recllm-local-encryption-key' });
-  const keys = store.get('apiKeys') as Record<string, string> | undefined;
-  const key = keys?.assemblyai?.trim() || null;
+  const key = getCredential('apikey.assemblyai');
   if (key && isPlaceholderKey(key)) return null;
   return key;
 }
 
 async function getSpeechModels(): Promise<string[]> {
-  let store: any = null;
   const { default: Store } = await import('electron-store');
-  store = new Store({ name: 'recllm-settings', encryptionKey: 'recllm-local-encryption-key' });
+  const store: any = new Store({ name: 'recllm-settings' });
   const models = store.get('models') as Record<string, string> | undefined;
   const model = models?.assemblyai || 'universal-3-pro+universal-2';
   // Map stored value to API array

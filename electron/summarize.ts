@@ -1,11 +1,12 @@
 import { ipcMain, net } from 'electron';
 import { getProvider, getProviderConfig, safeParseJson, ProviderError } from './providers';
+import { getAllApiKeys } from './credential-store';
 
 async function getSettings(): Promise<{ apiKeys: Record<string, string>; models: Record<string, string>; preferences: Record<string, unknown>; openaiProvider?: { providerType?: string; baseUrl?: string } }> {
   const { default: Store } = await import('electron-store');
-  const store: any = new Store({ name: 'recllm-settings', encryptionKey: 'recllm-local-encryption-key' });
+  const store: any = new Store({ name: 'recllm-settings' });
   return {
-    apiKeys: (store.get('apiKeys') as Record<string, string>) || {},
+    apiKeys: getAllApiKeys(),
     models: (store.get('models') as Record<string, string>) || {},
     preferences: (store.get('preferences') as Record<string, unknown>) || {},
     openaiProvider: (store.get('openaiProvider') as { providerType?: string; baseUrl?: string }) || undefined,
