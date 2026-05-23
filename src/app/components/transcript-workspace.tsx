@@ -75,7 +75,7 @@ export function TranscriptWorkspace() {
   const active = selectedId ? transcripts.find((t) => t.fileId === selectedId) || null : null;
   const summary = selectedId ? summaries.find((s) => s.fileId === selectedId) || null : null;
   const speakerCount = active ? new Set(active.utterances.map((u) => u.speaker)).size : 0;
-  const lastEnd = active ? Math.max(...active.utterances.map((u) => u.endMs), 0) : 0;
+  const lastEnd = active ? active.utterances.reduce((max, u) => u.endMs > max ? u.endMs : max, 0) : 0;
   const speakers = useMemo(() => active ? [...new Set(active.utterances.map((u) => u.speaker))] : [], [active]);
 
   // Time since last generation

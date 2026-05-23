@@ -134,7 +134,7 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
     );
   }
 
-  const lastEnd = Math.max(...active.utterances.map((u) => u.endMs));
+  const lastEnd = active.utterances.reduce((max, u) => u.endMs > max ? u.endMs : max, 0);
 
   // TanStack Virtual for true virtualized rendering
   const virtualizer = useVirtualizer({
