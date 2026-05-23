@@ -1285,6 +1285,11 @@ function PdfSettingsPanel({ settings, onUpdate, onUpdateSections, speakerProfile
       <InspectorGroup title="Speakers" open={isOpen("speakers")} onToggle={() => toggle("speakers")}>
         <SpeakerEditor profiles={speakerProfiles} onChange={onSpeakerProfilesChange} />
       </InspectorGroup>
+
+      {/* Export Presets */}
+      <InspectorGroup title="Export Presets" open={isOpen("presets")} onToggle={() => toggle("presets")}>
+        <ExportPresetsPanel settings={settings} headerConfig={headerConfig} footerConfig={footerConfig} onUpdate={onUpdate} onUpdateSections={onUpdateSections} />
+      </InspectorGroup>
     </div>
   );
 }
@@ -1405,6 +1410,83 @@ function SectionComposer({ settings, onUpdate, onUpdateSections }: {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// --- Export Presets Panel ---
+function ExportPresetsPanel({ settings, headerConfig, footerConfig, onUpdate, onUpdateSections }: {
+  settings: PdfSettings;
+  headerConfig: HeaderConfig;
+  footerConfig: FooterConfig;
+  onUpdate: (patch: Partial<PdfSettings>) => void;
+  onUpdateSections: (patch: Partial<PdfSettings["sections"]>) => void;
+}) {
+  const [presets, setPresets] = useState<ExportPreset[]>(() => loadExportPresets());
+  const [saving, setSaving] = useState(false);
+  const [presetName, setPresetName] = useState("");
+
+  const saveCurrentAsPreset = () => {
+    if (!presetName.trim()) return;
+    const preset = addExportPreset({
+      name: presetName.trim(),
+      template: settings.template,
+      sections: settings.sectionOrder.filter((k) => settings.sections[k as keyof typeof settings.sections]) as SectionType[],
+      sectionOrder: settings.sectionOrder,
+      language: "en",
+      pageSize: settings.pageSize,
+      orientation: settings.orientation,
+    });
+    setPresets((prev) => [...prev, preset]);
+    setPresetName("");
+    setSaving(false);
+  };
+
+  const applyPreset = (preset: ExportPreset) => {
+    onUpdate({ sectionOrder: preset.sectionOrder, pageSize: preset.pageSize as any, orientation: preset.orientation as any });
+    const flags: any = {};
+    preset.sectionOrder.forEach((k) => { flags[k] = preset.sections.includes(k as SectionType); });
+    onUpdateSections(flags);
+  };
+
+  const deletePreset = (id: string) => {
+    removeExportPreset(id);
+    setPresets((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  return (
+    <div className="space-y-1">
+      {presets.length > 0 ? (
+        <div className="space-y-0.5">
+          {presets.map((p) => (
+            <div key={p.id} className="flex items-center gap-1 group">
+              <button
+                className="flex-1 text-left h-5 px-1.5 rounded border text-[9px] hover:bg-primary/5 hover:border-primary/30 transition-colors truncate"
+                onClick={() => applyPreset(p)}
+              >
+                {p.name}
+              </button>
+              <button
+                className="size-4 rounded text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity text-[9px]"
+                onClick={() => deletePreset(p.id)}
+              >×</button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-[9px] text-muted-foreground py-1">No saved presets</div>
+      )}
+      {saving ? (
+        <div className="flex gap-1">
+          <Input value={presetName} onChange={(e) => setPresetName(e.target.value)} placeholder="Preset name..." className="h-5 text-[9px] flex-1" autoFocus onKeyDown={(e) => e.key === "Enter" && saveCurrentAsPreset()} />
+          <button className="h-5 px-1.5 rounded border text-[9px] hover:bg-primary/5" onClick={saveCurrentAsPreset}>Save</button>
+          <button className="h-5 px-1 rounded text-[9px] text-muted-foreground" onClick={() => setSaving(false)}>×</button>
+        </div>
+      ) : (
+        <button className="w-full h-5 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors" onClick={() => setSaving(true)}>
+          <Save className="size-2.5" />Save Current as Preset
+        </button>
+      )}
     </div>
   );
 }
