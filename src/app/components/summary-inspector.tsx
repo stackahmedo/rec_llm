@@ -10,6 +10,7 @@ import {
 import { useTranscripts } from "../transcript-store";
 import { toast } from "sonner";
 import { notifySummaryGenerated, notifySummaryFailed } from "../notification-store";
+import { notifyProviderError } from "../notify";
 
 interface SummaryInspectorProps {
   fileId: string | null;
@@ -60,7 +61,7 @@ export function SummaryInspector({ fileId }: SummaryInspectorProps) {
       toast.success("Summary generated");
       notifySummaryGenerated(active.fileName);
     } else {
-      toast.error("Summary failed", { description: result.error });
+      notifyProviderError(result.error || "Unknown error", "AI Summary");
       notifySummaryFailed(active.fileName, result.error);
     }
   };
