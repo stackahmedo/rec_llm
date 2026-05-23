@@ -74,7 +74,7 @@ function createWindow(): void {
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    icon: path.join(__dirname, '../media/recllm_logo.png'),
+    icon: path.join(__dirname, '../build/icon.png'),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

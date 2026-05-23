@@ -2,8 +2,8 @@
   "name": "recllm",
   "private": true,
   "version": "0.1.0",
-  "description": "Audio transcription and summarization desktop app powered by AssemblyAI",
-  "author": "RecLLM Team",
+  "description": "AI-powered audio transcription, summarization, and document intelligence desktop app",
+  "author": "RecLLM <hello@recllm.app>",
   "license": "MIT",
   "type": "module",
   "main": "electron-dist/main.js",
@@ -94,8 +94,9 @@
     "wait-on": "^8.0.0"
   },
   "build": {
-    "appId": "com.recllm.app",
+    "appId": "com.recllm.desktop",
     "productName": "RecLLM",
+    "copyright": "Copyright © 2025 RecLLM",
     "directories": {
       "output": "release"
     },
@@ -124,11 +125,11 @@
     "mac": {
       "target": "dir",
       "category": "public.app-category.productivity",
-      "icon": "media/recllm_logo.png"
+      "icon": "build/icon.icns"
     },
     "win": {
       "target": "nsis",
-      "icon": "media/recllm_logo.png",
+      "icon": "build/icon.ico",
       "extraResources": [
         {
           "from": "node_modules/ffmpeg-static/ffmpeg.exe",
@@ -139,6 +140,11 @@
           "to": "ffprobe.exe"
         }
       ]
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "build/icon.png",
+      "category": "AudioVideo"
     },
     "nsis": {
       "oneClick": false,
