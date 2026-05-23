@@ -15,6 +15,7 @@ import {
 import { SessionList } from "./session-list";
 import { TranscriptEditor } from "./transcript-editor";
 import { useTranscripts } from "../transcript-store";
+import { useT } from "../i18n";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
@@ -48,6 +49,7 @@ const slashCommands = [
 
 export function TranscriptWorkspace() {
   const { transcripts, summaries, addSummary, setActiveId } = useTranscripts();
+  const { t } = useT();
   const [selectedId, setSelectedId] = useState<string | null>(
     transcripts.length > 0 ? transcripts[0].fileId : null
   );
@@ -111,7 +113,7 @@ export function TranscriptWorkspace() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    toast.success("Copied to clipboard");
+    toast.success(t("common.copied"));
   };
 
   const sendChatMessage = () => {
@@ -137,7 +139,7 @@ export function TranscriptWorkspace() {
     if (cmd.startsWith("/")) {
       const slashCmd = slashCommands.find((s) => cmd.startsWith(s.cmd));
       if (slashCmd) {
-        toast.info(`Running: ${slashCmd.desc}`, { description: "Processing..." });
+        toast.info(`Running: ${slashCmd.desc}`, { description: t("common.processing") });
         if (cmd === "/summary" || cmd === "/tasks" || cmd === "/risks" || cmd === "/decisions") {
           generate();
         }
@@ -173,7 +175,7 @@ export function TranscriptWorkspace() {
     <div className="flex flex-col h-full -m-6">
       {/* Compact toolbar */}
       <div className="h-8 border-b bg-background flex items-center px-2 gap-1.5 shrink-0">
-        <span className="text-[10px] font-medium">Transcripts</span>
+        <span className="text-[10px] font-medium">{t("transcript.title")}</span>
         {active && (
           <>
             <Badge variant="outline" className="h-4 text-[8px] px-1 font-mono">{active.utterances.length} seg</Badge>
@@ -221,19 +223,19 @@ export function TranscriptWorkspace() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="h-5 text-[9px] gap-0.5 px-1.5" disabled={!active}>
-              <Download className="size-2.5" />Export
+              <Download className="size-2.5" />{t("common.export")}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem className="text-[10px]" onClick={() => {
               if (!active || !window.electronAPI?.pdf) return;
-              window.electronAPI.pdf.exportReport({ fileName: active.fileName, processedAt: active.completedAt, languageCode: active.languageCode, utterances: active.utterances, summary: summary?.summary, pointNotes: summary?.pointNotes, actionItems: summary?.actionItems, decisions: summary?.decisions, risks: summary?.risks }).then((r) => { if (r.ok) toast.success("PDF exported"); });
-            }}>PDF Report</DropdownMenuItem>
+              window.electronAPI.pdf.exportReport({ fileName: active.fileName, processedAt: active.completedAt, languageCode: active.languageCode, utterances: active.utterances, summary: summary?.summary, pointNotes: summary?.pointNotes, actionItems: summary?.actionItems, decisions: summary?.decisions, risks: summary?.risks }).then((r) => { if (r.ok) toast.success(t("export.pdfExported")); });
+            }}>{t("export.pdf")}</DropdownMenuItem>
             <DropdownMenuItem className="text-[10px]" onClick={() => {
               if (!active || !window.electronAPI?.export) return;
               const lines = active.utterances.map((u) => `[${Math.floor(u.startMs/60000)}:${Math.floor((u.startMs%60000)/1000).toString().padStart(2,"0")}] ${u.speaker}: ${u.text}`);
-              window.electronAPI.export.saveTxt(active.fileName, lines.join("\n")).then((r) => { if (r?.ok) toast.success("TXT exported"); });
-            }}>Plain Text</DropdownMenuItem>
+              window.electronAPI.export.saveTxt(active.fileName, lines.join("\n")).then((r) => { if (r?.ok) toast.success(t("export.txtExported")); });
+            }}>{t("export.txt")}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -279,36 +281,36 @@ export function TranscriptWorkspace() {
             {activeTab === "summary" && (
               <div className="p-2 space-y-2">
                 <div className="flex items-center gap-1">
-                  <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium flex-1">Executive Summary</span>
+                  <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium flex-1">{t("ai.executiveSummary")}</span>
                   {timeSinceGenerated && <span className="text-[7px] text-muted-foreground">{timeSinceGenerated}</span>}
                   <Tooltip><TooltipTrigger asChild>
                     <button className="size-4 rounded hover:bg-muted flex items-center justify-center" onClick={generate} disabled={generating}>
                       {generating ? <Loader2 className="size-2.5 animate-spin" /> : <RefreshCw className="size-2.5 text-muted-foreground" />}
                     </button>
-                  </TooltipTrigger><TooltipContent className="text-[9px]">Regenerate</TooltipContent></Tooltip>
+                  </TooltipTrigger><TooltipContent className="text-[9px]">{t("common.regenerate")}</TooltipContent></Tooltip>
                   {summary && <Tooltip><TooltipTrigger asChild>
                     <button className="size-4 rounded hover:bg-muted flex items-center justify-center" onClick={() => copyToClipboard(summary.summary)}>
                       <Copy className="size-2.5 text-muted-foreground" />
                     </button>
-                  </TooltipTrigger><TooltipContent className="text-[9px]">Copy</TooltipContent></Tooltip>}
+                  </TooltipTrigger><TooltipContent className="text-[9px]">{t("common.copy")}</TooltipContent></Tooltip>}
                 </div>
                 {summary ? (
                   <p className="text-[10px] leading-relaxed">{summary.summary}</p>
                 ) : (
                   <div className="text-center py-4">
                     <Sparkles className="size-4 mx-auto opacity-20 mb-1" />
-                    <div className="text-[9px] text-muted-foreground mb-2">No summary yet</div>
+                    <div className="text-[9px] text-muted-foreground mb-2">{t("ai.noSummary")}</div>
                     <Button size="sm" className="h-5 text-[9px] gap-1" onClick={generate} disabled={generating}>
                       {generating ? <Loader2 className="size-2.5 animate-spin" /> : <Sparkles className="size-2.5" />}
-                      Generate Summary
+                      {t("ai.generateSummary")}
                     </Button>
                   </div>
                 )}
                 {summary?.decisions && summary.decisions.length > 0 && (
-                  <AIBlock title="Decisions" items={summary.decisions} icon="⚖️" onCopy={() => copyToClipboard(summary.decisions.join("\n"))} onRegenerate={generate} />
+                  <AIBlock title={t("ai.decisions")} items={summary.decisions} icon="⚖️" onCopy={() => copyToClipboard(summary.decisions.join("\n"))} onRegenerate={generate} />
                 )}
                 {summary?.risks && summary.risks.length > 0 && (
-                  <AIBlock title="Risks" items={summary.risks} icon="⚠️" onCopy={() => copyToClipboard(summary.risks.join("\n"))} onRegenerate={generate} />
+                  <AIBlock title={t("ai.risks")} items={summary.risks} icon="⚠️" onCopy={() => copyToClipboard(summary.risks.join("\n"))} onRegenerate={generate} />
                 )}
                 {/* Analysis Modules */}
                 <Separator />
@@ -320,7 +322,7 @@ export function TranscriptWorkspace() {
             {activeTab === "keypoints" && (
               <div className="p-2 space-y-2">
                 <div className="flex items-center gap-1">
-                  <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium flex-1">Key Points</span>
+                  <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium flex-1">{t("ai.keyPoints")}</span>
                   <button className="size-4 rounded hover:bg-muted flex items-center justify-center" onClick={generate} disabled={generating}>
                     {generating ? <Loader2 className="size-2.5 animate-spin" /> : <RefreshCw className="size-2.5 text-muted-foreground" />}
                   </button>
@@ -337,9 +339,9 @@ export function TranscriptWorkspace() {
                 ) : (
                   <div className="text-center py-4">
                     <BarChart3 className="size-4 mx-auto opacity-20 mb-1" />
-                    <div className="text-[9px] text-muted-foreground mb-2">Generate summary to extract key points</div>
+                    <div className="text-[9px] text-muted-foreground mb-2">{t("ai.generateKeyPoints")}</div>
                     <Button size="sm" className="h-5 text-[9px] gap-1" onClick={generate} disabled={generating}>
-                      <Sparkles className="size-2.5" />Generate
+                      <Sparkles className="size-2.5" />{t("common.generate")}
                     </Button>
                   </div>
                 )}
@@ -350,7 +352,7 @@ export function TranscriptWorkspace() {
             {activeTab === "actions" && (
               <div className="p-2 space-y-2">
                 <div className="flex items-center gap-1">
-                  <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium flex-1">Action Items</span>
+                  <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium flex-1">{t("ai.actionItems")}</span>
                   <button className="size-4 rounded hover:bg-muted flex items-center justify-center" onClick={generate} disabled={generating}>
                     {generating ? <Loader2 className="size-2.5 animate-spin" /> : <RefreshCw className="size-2.5 text-muted-foreground" />}
                   </button>
@@ -370,9 +372,9 @@ export function TranscriptWorkspace() {
                 ) : (
                   <div className="text-center py-4">
                     <CheckCircle2 className="size-4 mx-auto opacity-20 mb-1" />
-                    <div className="text-[9px] text-muted-foreground mb-2">Generate summary to extract actions</div>
+                    <div className="text-[9px] text-muted-foreground mb-2">{t("ai.generateActions")}</div>
                     <Button size="sm" className="h-5 text-[9px] gap-1" onClick={generate} disabled={generating}>
-                      <Sparkles className="size-2.5" />Generate
+                      <Sparkles className="size-2.5" />{t("common.generate")}
                     </Button>
                   </div>
                 )}
@@ -383,7 +385,7 @@ export function TranscriptWorkspace() {
             {activeTab === "translation" && (
               <div className="p-2 space-y-2">
                 <div className="flex items-center gap-1">
-                  <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium flex-1">Translation</span>
+                  <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium flex-1">{t("ai.translation")}</span>
                 </div>
                 <div className="grid grid-cols-3 gap-0.5">
                   {[{ code: "en", label: "English" }, { code: "ja", label: "日本語" }, { code: "zh", label: "中文" }, { code: "ko", label: "한국어" }, { code: "es", label: "Español" }, { code: "fr", label: "Français" }].map((lang) => (
@@ -395,16 +397,16 @@ export function TranscriptWorkspace() {
                 <Separator />
                 <div className="space-y-1">
                   <button className="w-full h-6 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors">
-                    <Globe className="size-2.5" />Translate Full Transcript
+                    <Globe className="size-2.5" />{t("translation.full")}
                   </button>
                   <button className="w-full h-6 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors">
-                    <Languages className="size-2.5" />Bilingual View
+                    <Languages className="size-2.5" />{t("translation.bilingual")}
                   </button>
                   <button className="w-full h-6 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors">
-                    <Mic2 className="size-2.5" />Translate by Speaker
+                    <Mic2 className="size-2.5" />{t("translation.bySpeaker")}
                   </button>
                 </div>
-                <div className="text-[8px] text-muted-foreground">Preserves timestamps and speaker labels.</div>
+                <div className="text-[8px] text-muted-foreground">{t("translation.preserves")}</div>
               </div>
             )}
 
@@ -415,11 +417,11 @@ export function TranscriptWorkspace() {
                   {chatMessages.length === 0 && (
                     <div className="text-center py-6">
                       <MessageSquare className="size-4 mx-auto opacity-20 mb-1" />
-                      <div className="text-[9px] text-muted-foreground">Ask AI about this transcript</div>
+                      <div className="text-[9px] text-muted-foreground">{t("ai.chatEmpty")}</div>
                       <div className="text-[8px] text-muted-foreground mt-1 space-y-0.5">
-                        <div>"Summarize professionally"</div>
-                        <div>"Extract all deadlines"</div>
-                        <div>"What did Speaker A decide?"</div>
+                        <div>{t("ai.chatExamples.1")}</div>
+                        <div>{t("ai.chatExamples.2")}</div>
+                        <div>{t("ai.chatExamples.3")}</div>
                       </div>
                     </div>
                   )}
@@ -436,7 +438,7 @@ export function TranscriptWorkspace() {
                     <Input
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
-                      placeholder="Ask about this transcript..."
+                      placeholder={t("ai.chatPlaceholder")}
                       className="h-6 text-[9px] flex-1"
                       onKeyDown={(e) => e.key === "Enter" && sendChatMessage()}
                     />
@@ -471,7 +473,7 @@ export function TranscriptWorkspace() {
                 <Input
                   value={aiCommand}
                   onChange={(e) => { setAiCommand(e.target.value); setShowSlashMenu(e.target.value === "/"); }}
-                  placeholder="Ask AI about this transcript… (/ for commands)"
+                  placeholder={`${t("ai.commandPlaceholder")} (${t("ai.commandSlash")})`}
                   className="h-6 text-[9px] flex-1"
                   onKeyDown={handleCommandKeyDown}
                 />
