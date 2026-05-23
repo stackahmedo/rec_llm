@@ -268,27 +268,82 @@ async function callGemini(apiKey: string, model: string, prompt: string): Promis
 
 async function callOpenAI(apiKey: string, model: string, prompt: string, baseUrl?: string): Promise<string> {
   const url = (baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '') + '/chat/completions';
-  const response = await net.fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.3,
-      response_format: { type: 'json_object' },
-    }),
-  });
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[OpenAI] POST ${url} model=${model}`);
+  }
+
+  let response: Response;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+    response = await net.fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3,
+        response_format: { type: 'json_object' },
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error('OpenAI request timed out after 60s. The model may be overloaded — try again or use a faster model.');
+    }
+    throw new Error(`Network error reaching OpenAI provider: ${err.message || 'Connection failed'}. Check your base URL and connection.`);
+  }
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[OpenAI] Response: ${response.status} content-type=${response.headers.get('content-type')}`);
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+
+  if (response.status === 401) {
+    throw new Error('Invalid API key. The key was rejected by the provider. Check Settings → AI Providers.');
+  }
+  if (response.status === 404) {
+    throw new Error(`Model "${model}" not found at ${url}. Check your model name and base URL.`);
+  }
+  if (response.status === 429) {
+    throw new Error('Rate limit or quota exceeded on OpenAI provider. Wait and try again.');
+  }
 
   if (response.status !== 200) {
     const text = await response.text();
-    throw new Error(`OpenAI API error (${response.status}): ${text.slice(0, 200)}`);
+    if (contentType.includes('text/html') || text.trimStart().startsWith('<!') || text.trimStart().startsWith('<html')) {
+      throw new Error(`Provider returned an error page (HTTP ${response.status}). The base URL may be incorrect.`);
+    }
+    try {
+      const errJson = JSON.parse(text);
+      const msg = errJson?.error?.message || text.slice(0, 150);
+      throw new Error(`OpenAI provider error (${response.status}): ${msg}`);
+    } catch (parseErr: any) {
+      if (parseErr.message.startsWith('OpenAI') || parseErr.message.startsWith('Provider')) throw parseErr;
+      throw new Error(`OpenAI provider error (${response.status}): ${text.slice(0, 150)}`);
+    }
+  }
+
+  if (!contentType.includes('application/json') && !contentType.includes('text/event-stream')) {
+    const text = await response.text();
+    if (text.trimStart().startsWith('<!') || text.trimStart().startsWith('<html')) {
+      throw new Error('Provider returned HTML instead of JSON. Check your base URL in Settings.');
+    }
+    throw new Error(`Provider returned unexpected content-type: ${contentType}. Expected application/json.`);
   }
 
   const data = await response.json() as any;
-  return data.choices?.[0]?.message?.content || '';
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error('OpenAI provider returned an empty response. The model may not support JSON mode or the prompt was filtered.');
+  }
+  return content;
 }
 
 async function callGemma(apiKey: string, model: string, prompt: string): Promise<string> {
