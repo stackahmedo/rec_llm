@@ -68,6 +68,7 @@ interface ElectronPdf {
 
 interface ElectronHistory {
   load: () => Promise<any[]>;
+  loadTranscript: (id: string) => Promise<any | null>;
   save: (job: any) => Promise<boolean>;
   delete: (id: string) => Promise<boolean>;
   clear: () => Promise<boolean>;

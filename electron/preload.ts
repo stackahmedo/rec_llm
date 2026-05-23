@@ -80,6 +80,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   history: {
     load: (): Promise<any[]> => ipcRenderer.invoke('history:load'),
+    loadTranscript: (id: string): Promise<any | null> => ipcRenderer.invoke('history:loadTranscript', id),
     save: (job: any): Promise<boolean> => ipcRenderer.invoke('history:save', job),
     delete: (id: string): Promise<boolean> => ipcRenderer.invoke('history:delete', id),
     clear: (): Promise<boolean> => ipcRenderer.invoke('history:clear'),

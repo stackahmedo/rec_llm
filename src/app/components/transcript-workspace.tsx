@@ -48,11 +48,9 @@ const slashCommands = [
 ];
 
 export function TranscriptWorkspace() {
-  const { transcripts, summaries, addSummary, setActiveId } = useTranscripts();
+  const { transcripts, summaries, addSummary, setActiveId, loadTranscriptData, isLoadingTranscript, history } = useTranscripts();
   const { t } = useT();
-  const [selectedId, setSelectedId] = useState<string | null>(
-    transcripts.length > 0 ? transcripts[0].fileId : null
-  );
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<AITab>("summary");
   const [generating, setGenerating] = useState(false);
   const [summaryLang, setSummaryLang] = useState<"en" | "ja">("en");
@@ -70,6 +68,8 @@ export function TranscriptWorkspace() {
   const handleSelect = (id: string) => {
     setSelectedId(id);
     setActiveId(id);
+    // Lazy-load transcript data on demand
+    loadTranscriptData(id);
   };
 
   const active = selectedId ? transcripts.find((t) => t.fileId === selectedId) || null : null;

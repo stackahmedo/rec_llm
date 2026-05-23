@@ -122,13 +122,18 @@ function writeSummary(id: string, data: SummaryData): void {
 }
 
 export function registerHistoryHandlers(): void {
+  // Load metadata only — no transcript/summary data (lazy loading)
   ipcMain.handle('history:load', async (): Promise<HistoryJob[]> => {
     const metas = readHistoryMeta();
-    return metas.map((meta) => ({
-      ...meta,
-      transcript: readTranscript(meta.id),
-      summary: readSummary(meta.id),
-    }));
+    return metas.map((meta) => ({ ...meta }));
+  });
+
+  // Load full transcript for a single file (on-demand)
+  ipcMain.handle('history:loadTranscript', async (_event, id: string): Promise<{ transcript?: TranscriptData; summary?: SummaryData } | null> => {
+    const transcript = readTranscript(id);
+    const summary = readSummary(id);
+    if (!transcript && !summary) return null;
+    return { transcript, summary };
   });
 
   ipcMain.handle('history:save', async (_event, job: HistoryJob): Promise<boolean> => {

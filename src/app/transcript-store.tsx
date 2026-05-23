@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useCallback, useEffect } from "react";
+import { createContext, useContext, useState, ReactNode, useCallback, useEffect, useRef } from "react";
 
 export interface Utterance {
   speaker: string;
@@ -52,6 +52,8 @@ interface TranscriptStore {
   getActive: () => TranscriptResult | null;
   getActiveSummary: () => SummaryResult | null;
   loadHistory: () => Promise<void>;
+  loadTranscriptData: (fileId: string) => Promise<void>;
+  isLoadingTranscript: boolean;
 }
 
 const Ctx = createContext<TranscriptStore>({
@@ -66,21 +68,26 @@ const Ctx = createContext<TranscriptStore>({
   getActive: () => null,
   getActiveSummary: () => null,
   loadHistory: async () => {},
+  loadTranscriptData: async () => {},
+  isLoadingTranscript: false,
 });
+
+// Maximum number of transcripts to keep in memory at once
+const MAX_CACHED_TRANSCRIPTS = 3;
 
 export function TranscriptProvider({ children }: { children: ReactNode }) {
   const [transcripts, setTranscripts] = useState<TranscriptResult[]>([]);
   const [summaries, setSummaries] = useState<SummaryResult[]>([]);
   const [history, setHistory] = useState<HistoryJob[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [isLoadingTranscript, setIsLoadingTranscript] = useState(false);
+  const loadedIdsRef = useRef<string[]>([]); // Track load order for eviction
 
   const loadHistory = useCallback(async () => {
     const api = window.electronAPI?.history;
     if (!api) return;
     const jobs = await api.load();
     const historyJobs: HistoryJob[] = [];
-    const loadedTranscripts: TranscriptResult[] = [];
-    const loadedSummaries: SummaryResult[] = [];
 
     for (const job of jobs) {
       historyJobs.push({
@@ -95,34 +102,88 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
         completedAt: job.completedAt,
         pdfPath: job.pdfPath,
       });
-      if (job.transcript) {
-        loadedTranscripts.push({
-          fileId: job.id,
-          fileName: job.fileName,
-          fullText: job.transcript.fullText,
-          languageCode: job.languageCode,
-          utterances: job.transcript.utterances,
-          completedAt: job.completedAt,
-        });
-      }
-      if (job.summary) {
-        loadedSummaries.push({
-          fileId: job.id,
-          language: job.summary.language as 'en' | 'ja',
-          summary: job.summary.summary,
-          pointNotes: job.summary.pointNotes,
-          actionItems: job.summary.actionItems,
-          decisions: job.summary.decisions,
-          risks: job.summary.risks,
-          generatedAt: job.summary.generatedAt,
-        });
-      }
     }
 
     setHistory(historyJobs);
-    setTranscripts(loadedTranscripts);
-    setSummaries(loadedSummaries);
+    // Don't load transcripts/summaries — they'll be loaded on-demand
   }, []);
+
+  // Load transcript data on-demand for a specific file
+  const loadTranscriptData = useCallback(async (fileId: string) => {
+    // Already loaded?
+    const existing = transcripts.find((t) => t.fileId === fileId);
+    if (existing) return;
+
+    const api = window.electronAPI?.history;
+    if (!api?.loadTranscript) return;
+
+    setIsLoadingTranscript(true);
+    try {
+      const data = await api.loadTranscript(fileId);
+      if (!data) return;
+
+      const historyItem = history.find((h) => h.id === fileId);
+      if (!historyItem) return;
+
+      if (data.transcript) {
+        setTranscripts((prev) => {
+          // Evict oldest if at capacity
+          let updated = [...prev];
+          if (updated.length >= MAX_CACHED_TRANSCRIPTS) {
+            // Remove the oldest loaded transcript (not the one we're adding)
+            const oldestId = loadedIdsRef.current.find((id) => id !== fileId);
+            if (oldestId) {
+              updated = updated.filter((t) => t.fileId !== oldestId);
+              loadedIdsRef.current = loadedIdsRef.current.filter((id) => id !== oldestId);
+            }
+          }
+
+          // Add new transcript
+          const existingIdx = updated.findIndex((t) => t.fileId === fileId);
+          const newTranscript: TranscriptResult = {
+            fileId,
+            fileName: historyItem.fileName,
+            fullText: data.transcript.fullText,
+            languageCode: historyItem.languageCode,
+            utterances: data.transcript.utterances,
+            completedAt: historyItem.completedAt,
+          };
+
+          if (existingIdx >= 0) {
+            updated[existingIdx] = newTranscript;
+          } else {
+            updated.push(newTranscript);
+            loadedIdsRef.current.push(fileId);
+          }
+          return updated;
+        });
+      }
+
+      if (data.summary) {
+        setSummaries((prev) => {
+          const existingIdx = prev.findIndex((s) => s.fileId === fileId);
+          const newSummary: SummaryResult = {
+            fileId,
+            language: data.summary.language as 'en' | 'ja',
+            summary: data.summary.summary,
+            pointNotes: data.summary.pointNotes,
+            actionItems: data.summary.actionItems,
+            decisions: data.summary.decisions,
+            risks: data.summary.risks,
+            generatedAt: data.summary.generatedAt,
+          };
+          if (existingIdx >= 0) {
+            const updated = [...prev];
+            updated[existingIdx] = newSummary;
+            return updated;
+          }
+          return [...prev, newSummary];
+        });
+      }
+    } finally {
+      setIsLoadingTranscript(false);
+    }
+  }, [transcripts, history]);
 
   useEffect(() => {
     loadHistory();
@@ -136,6 +197,8 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
         updated[existing] = result;
         return updated;
       }
+      // Track in loaded order
+      loadedIdsRef.current.push(result.fileId);
       return [...prev, result];
     });
     setActiveId(result.fileId);
@@ -176,7 +239,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
   }, [activeId, summaries]);
 
   return (
-    <Ctx.Provider value={{ transcripts, summaries, history, activeId, addTranscript, addSummary, addHistoryJob, setActiveId, getActive, getActiveSummary, loadHistory }}>
+    <Ctx.Provider value={{ transcripts, summaries, history, activeId, addTranscript, addSummary, addHistoryJob, setActiveId, getActive, getActiveSummary, loadHistory, loadTranscriptData, isLoadingTranscript }}>
       {children}
     </Ctx.Provider>
   );
