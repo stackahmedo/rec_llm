@@ -115,4 +115,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ffmpegCheck: (): Promise<{ ok: boolean; ffmpegPath?: string; ffprobePath?: string; error?: string }> =>
       ipcRenderer.invoke('audio:ffmpegCheck'),
   },
+  longAudio: {
+    analyze: (filePath: string): Promise<{ ok: boolean; error?: string; analysis?: any }> =>
+      ipcRenderer.invoke('longaudio:analyze', filePath),
+    start: (filePath: string, opts?: { concurrency?: number }): Promise<{ ok: boolean; error?: string; requiresChunking?: boolean; pipelineId?: string; totalChunks?: number; analysis?: any }> =>
+      ipcRenderer.invoke('longaudio:start', filePath, opts),
+    status: (pipelineId: string): Promise<{ ok: boolean; error?: string; status?: string; progress?: number; currentChunk?: number; totalChunks?: number; estimatedRemaining?: number; chunks?: any[] }> =>
+      ipcRenderer.invoke('longaudio:status', pipelineId),
+    nextChunk: (pipelineId: string): Promise<{ ok: boolean; error?: string; chunk?: any; allProcessed?: boolean }> =>
+      ipcRenderer.invoke('longaudio:nextChunk', pipelineId),
+    chunkDone: (pipelineId: string, chunkIndex: number, utterances: any[]): Promise<{ ok: boolean; error?: string; allDone?: boolean; progress?: number }> =>
+      ipcRenderer.invoke('longaudio:chunkDone', pipelineId, chunkIndex, utterances),
+    chunkFailed: (pipelineId: string, chunkIndex: number, error: string): Promise<{ ok: boolean; error?: string; canRetry?: boolean; retryCount?: number }> =>
+      ipcRenderer.invoke('longaudio:chunkFailed', pipelineId, chunkIndex, error),
+    getMerged: (pipelineId: string): Promise<{ ok: boolean; error?: string; partial?: boolean; transcript?: any }> =>
+      ipcRenderer.invoke('longaudio:getMerged', pipelineId),
+    resume: (pipelineId: string): Promise<{ ok: boolean; error?: string; pipelineId?: string; remainingChunks?: number; totalChunks?: number }> =>
+      ipcRenderer.invoke('longaudio:resume', pipelineId),
+    listRecoverable: (): Promise<{ ok: boolean; pipelines?: any[] }> =>
+      ipcRenderer.invoke('longaudio:listRecoverable'),
+    cleanup: (pipelineId: string): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('longaudio:cleanup', pipelineId),
+    cancel: (pipelineId: string): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('longaudio:cancel', pipelineId),
+    onProgress: (callback: (data: { pipelineId: string; progress: number; currentChunk: number; totalChunks: number; status: string }) => void) => {
+      ipcRenderer.on('longaudio:progress', (_event, data) => callback(data));
+    },
+    offProgress: () => {
+      ipcRenderer.removeAllListeners('longaudio:progress');
+    },
+  },
 });
