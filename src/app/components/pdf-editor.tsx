@@ -588,8 +588,9 @@ export function PdfEditor() {
                       <Skeleton className="h-4 w-1/2" />
                     </div>
                   ) : (
-                    <div style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}>
-                      <div className="shadow-xl rounded-sm">
+                    <div style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }} className="relative">
+                      {/* Document canvas with page shadow */}
+                      <div className="shadow-xl rounded-sm border border-neutral-200 dark:border-neutral-700">
                       <PdfPreview
                         key={previewKey}
                         transcript={active}
@@ -601,6 +602,24 @@ export function PdfEditor() {
                         onEditUtterance={setUtteranceText}
                       />
                       </div>
+                      {/* Floating quick actions */}
+                      {editorMode === "edit" && editor.selection && (
+                        <div className="absolute top-2 right-2 flex gap-0.5 bg-background/95 backdrop-blur border rounded-md shadow-lg p-0.5 z-20">
+                          <Button type="button" variant="ghost" size="icon" className="h-6 w-6" title="Highlight" onClick={() => editor.selectTool("highlight")}>
+                            <Highlighter className="size-3" />
+                          </Button>
+                          <Button type="button" variant="ghost" size="icon" className="h-6 w-6" title="Comment" onClick={() => editor.selectTool("comment")}>
+                            <MessageSquare className="size-3" />
+                          </Button>
+                          <Button type="button" variant="ghost" size="icon" className="h-6 w-6" title="Redact" onClick={() => editor.selectTool("redact")}>
+                            <EyeOff className="size-3" />
+                          </Button>
+                          <Separator orientation="vertical" className="h-4 my-auto" />
+                          <Button type="button" variant="ghost" size="icon" className="h-6 w-6" title="AI Actions" onClick={() => editor.selectTool("ai")}>
+                            <Wand2 className="size-3" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )}
                   </div>
