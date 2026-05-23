@@ -365,19 +365,16 @@ export function PdfEditor() {
   }
 
   return (
-    <Tabs defaultValue="document" className="h-full flex flex-col -m-6">
-      <div className="border-b px-6 pt-2 flex items-center gap-3">
-        <TabsList className="h-8">
-          <TabsTrigger value="document" className="text-xs gap-1.5"><FileEdit className="size-3" />Document</TabsTrigger>
-          <TabsTrigger value="export" className="text-xs gap-1.5"><Download className="size-3" />Export PDF</TabsTrigger>
-        </TabsList>
-        <div className="flex-1" />
-        {/* Editor mode switcher */}
+    <TooltipProvider delayDuration={200}>
+    <div className="h-full flex flex-col -m-6">
+      {/* Top compact editor bar */}
+      <div className="h-9 border-b px-2 flex items-center gap-2 shrink-0 bg-background">
+        {/* Mode switcher: Build / Edit / Preview */}
         <div className="flex items-center border rounded h-6 overflow-hidden">
-          {([["preview", Eye, "Preview"], ["edit", Pencil, "Edit"], ["print", Printer, "Print"]] as const).map(([mode, Icon, label]) => (
+          {([["preview", Eye, "Preview"], ["edit", Pencil, "Edit"], ["print", Printer, "Build"]] as const).map(([mode, Icon, label]) => (
             <button
               key={mode}
-              className={`h-6 px-2 flex items-center gap-1 text-[9px] transition-colors ${editorMode === mode ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/40"}`}
+              className={`h-6 px-2.5 flex items-center gap-1 text-[9px] font-medium transition-colors ${editorMode === mode ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/40"}`}
               onClick={() => setEditorMode(mode)}
               title={`${label} mode`}
             >
@@ -385,8 +382,45 @@ export function PdfEditor() {
             </button>
           ))}
         </div>
-        {/* Keyboard shortcut hint */}
-        <div className="text-[8px] text-muted-foreground font-mono hidden xl:block">⌘P print · ⌘E export · ⌘S save</div>
+
+        <Separator orientation="vertical" className="h-4" />
+
+        {/* Document info */}
+        {active && (
+          <span className="text-[9px] text-muted-foreground truncate max-w-[200px]">{active.fileName}</span>
+        )}
+
+        <div className="flex-1" />
+
+        {/* Zoom controls */}
+        <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setZoom((z) => Math.max(50, z - 10))} title="Zoom out (⌘-)">
+          <ZoomOut className="size-3" />
+        </Button>
+        <span className="text-[9px] font-mono w-7 text-center">{zoom}%</span>
+        <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setZoom((z) => Math.min(200, z + 10))} title="Zoom in (⌘+)">
+          <ZoomIn className="size-3" />
+        </Button>
+        <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setZoom(100)} title="Reset zoom (⌘0)">
+          <Maximize2 className="size-3" />
+        </Button>
+
+        <Separator orientation="vertical" className="h-4" />
+
+        {/* Actions */}
+        <Button type="button" variant={splitView ? "secondary" : "ghost"} size="icon" className="h-5 w-5" onClick={() => setSplitView(!splitView)} title="Split view">
+          <Columns2 className="size-3" />
+        </Button>
+        <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setShowModal(true)} disabled={!active} title="Fullscreen (⌘F)">
+          <Maximize2 className="size-3" />
+        </Button>
+        <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={exportPdf} disabled={!active || exporting} title="Export PDF (⌘E)">
+          {exporting ? <Loader2 className="size-3 animate-spin" /> : <Download className="size-3" />}
+        </Button>
+        <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={printPdf} disabled={!active || printing} title="Print (⌘P)">
+          <Printer className="size-3" />
+        </Button>
+
+        <div className="text-[7px] text-muted-foreground font-mono hidden xl:block ml-1">⌘P ⌘E ⌘S</div>
       </div>
 
       {/* Multi-document tabs */}
@@ -417,158 +451,88 @@ export function PdfEditor() {
         </div>
       )}
 
-      <TabsContent value="document" className="flex-1 overflow-auto p-6 mt-0">
-        <DocumentEditor />
-      </TabsContent>
-
-      <TabsContent value="export" className="flex-1 min-h-0 mt-0">
-    <TooltipProvider delayDuration={200}>
-    <div className="flex flex-col h-full">
-      {/* Main content */}
+      {/* Main workspace */}
       <div className="flex-1 min-h-0 flex">
-        {/* Left vertical editing toolbar */}
+        {/* Left: icon-only toolbar */}
         <EditorToolbar activeTool={activeTool} setActiveTool={setActiveTool} editorMode={editorMode} />
 
-        {/* Collapsible Left Sidebar */}
-        <div className={`h-full border-r flex flex-col shrink-0 transition-all duration-200 ${sidebarCollapsed ? "w-10" : "w-44"}`}>
-          {/* Collapse toggle */}
-          <div className="p-1.5 border-b flex items-center justify-center">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              {sidebarCollapsed ? <PanelLeftOpen className="size-3.5" /> : <PanelLeftClose className="size-3.5" />}
+        {/* Left sidebar: transcript list (icon-only by default) */}
+        <div className={`h-full border-r flex flex-col shrink-0 transition-all duration-200 ${sidebarCollapsed ? "w-9" : "w-36"}`}>
+          <div className="p-1 border-b flex items-center justify-center">
+            <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setSidebarCollapsed(!sidebarCollapsed)} title={sidebarCollapsed ? "Expand" : "Collapse"}>
+              {sidebarCollapsed ? <PanelLeftOpen className="size-3" /> : <PanelLeftClose className="size-3" />}
             </Button>
           </div>
-
-          {/* Transcripts section */}
           {sidebarCollapsed ? (
-            <div className="flex-1 flex flex-col items-center py-1.5 gap-0.5 overflow-hidden">
-              {filtered.slice(0, 10).map((tr) => {
-                const isSelected = tr.fileId === selectedId;
-                return (
-                  <Tooltip key={tr.fileId}>
-                    <TooltipTrigger asChild>
-                      <button
-                        className={`size-7 rounded flex items-center justify-center transition-colors ${isSelected ? "bg-primary/20 text-primary" : "hover:bg-muted text-muted-foreground"}`}
-                        onClick={() => selectTranscript(tr.fileId)}
-                      >
-                        <FileAudio className="size-3" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="text-xs">
-                      <div className="font-medium">{tr.fileName}</div>
-                      <div className="text-muted-foreground">Speakers: {new Set(tr.utterances.map((u) => u.speaker)).size} · Segments: {tr.utterances.length}</div>
-                    </TooltipContent>
-                  </Tooltip>
-                );
-              })}
+            <div className="flex-1 flex flex-col items-center py-1 gap-0.5 overflow-hidden">
+              {filtered.slice(0, 12).map((tr) => (
+                <Tooltip key={tr.fileId}>
+                  <TooltipTrigger asChild>
+                    <button
+                      className={`size-6 rounded flex items-center justify-center transition-colors ${tr.fileId === selectedId ? "bg-primary/20 text-primary" : "hover:bg-muted text-muted-foreground"}`}
+                      onClick={() => selectTranscript(tr.fileId)}
+                    >
+                      <FileAudio className="size-3" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="text-[10px]">{tr.fileName}</TooltipContent>
+                </Tooltip>
+              ))}
             </div>
           ) : (
-            <>
-              <div className="p-2 border-b space-y-1.5">
-                <div className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">Transcripts</div>
+            <div className="flex-1 overflow-auto">
+              <div className="p-1.5 border-b">
                 <div className="relative">
-                  <Search className="size-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Search..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-6 pl-7 text-[10px]"
-                  />
+                  <Search className="size-3 absolute left-1.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search..." className="h-5 text-[9px] pl-5" />
                 </div>
               </div>
-              <ScrollArea className="flex-1">
-                <div className="p-1.5 space-y-0.5">
-                  {filtered.map((tr) => {
-                    const isSelected = tr.fileId === selectedId;
-                    const speakers = new Set(tr.utterances.map((u) => u.speaker)).size;
-                    return (
-                      <div
-                        key={tr.fileId}
-                        className={`px-2 py-1.5 rounded cursor-pointer text-[10px] transition-colors ${isSelected ? "bg-primary/10 border-l-2 border-l-primary" : "hover:bg-muted/50 border-l-2 border-l-transparent"}`}
-                        onClick={() => selectTranscript(tr.fileId)}
-                        onDoubleClick={() => { selectTranscript(tr.fileId); setShowModal(true); }}
-                      >
-                        <div className="font-medium truncate">{tr.fileName}</div>
-                        <div className="text-muted-foreground mt-0.5 flex gap-2">
-                          <span>{speakers} spk</span>
-                          <span>{tr.utterances.length} seg</span>
-                          <span className="uppercase">{tr.languageCode}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </ScrollArea>
-              {/* Template selector — compact dropdown */}
-              <div className="p-2 border-t">
-                <div className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium mb-1">Template</div>
-                <Select value={settings.template} onValueChange={(v) => applyTemplate(v)}>
-                  <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {allTemplates.map((tmpl) => (
-                      <SelectItem key={tmpl.id} value={tmpl.id} className="text-[10px]">{tmpl.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="py-0.5">
+                {filtered.map((tr) => (
+                  <button
+                    key={tr.fileId}
+                    className={`w-full text-left px-2 py-1 text-[9px] truncate transition-colors ${tr.fileId === selectedId ? "bg-primary/10 text-primary" : "hover:bg-muted/40 text-muted-foreground"}`}
+                    onClick={() => selectTranscript(tr.fileId)}
+                  >
+                    {tr.fileName}
+                  </button>
+                ))}
               </div>
-            </>
+            </div>
           )}
         </div>
 
-        {/* Main area: Preview + Settings */}
+        {/* Center: dominant document canvas (70%+) */}
         <div className="flex-1 min-w-0">
           <ResizablePanelGroup direction="horizontal" className="h-full">
-            {/* Center: PDF Preview — dominant canvas */}
-            <ResizablePanel defaultSize={72} minSize={55}>
+            <ResizablePanel defaultSize={75} minSize={60}>
               <div className="h-full flex flex-col bg-neutral-100 dark:bg-neutral-900/50">
-                <div className="h-7 px-2 border-b bg-muted/30 flex items-center gap-1.5 shrink-0">
-                  <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium flex-1">Preview</span>
-                  {previewLoading && <Badge variant="outline" className="text-[9px] h-4 gap-0.5"><RefreshCw className="size-2.5 animate-spin" />Updating</Badge>}
-                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setZoom((z) => Math.max(50, z - 10))} title="Zoom out (⌘-)">
-                    <ZoomOut className="size-3" />
-                  </Button>
-                  <span className="text-[9px] font-mono w-7 text-center">{zoom}%</span>
-                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setZoom((z) => Math.min(200, z + 10))} title="Zoom in (⌘+)">
-                    <ZoomIn className="size-3" />
-                  </Button>
-                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setZoom(100)} title="Fit width (⌘0)">
-                    <Maximize2 className="size-3" />
-                  </Button>
-                  <Separator orientation="vertical" className="h-3 mx-0.5" />
-                  <Button type="button" variant={splitView ? "secondary" : "ghost"} size="icon" className="h-5 w-5" onClick={() => setSplitView(!splitView)} title="Split view">
-                    <Columns2 className="size-3" />
-                  </Button>
-                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setShowModal(true)} disabled={!active} title="Fullscreen (⌘F)">
-                    <Maximize2 className="size-3" />
-                  </Button>
-                </div>
+                {previewLoading && (
+                  <div className="h-0.5 bg-primary/20 overflow-hidden shrink-0">
+                    <div className="h-full w-1/3 bg-primary animate-pulse" />
+                  </div>
+                )}
                 <div className="flex-1 min-h-0 flex">
                   {/* Split view: source transcript */}
                   {splitView && active && (
                     <div className="w-1/3 border-r overflow-auto bg-card">
-                      <div className="h-6 px-2 border-b flex items-center shrink-0 sticky top-0 bg-card z-10">
-                        <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">Source Transcript</span>
+                      <div className="h-5 px-2 border-b flex items-center shrink-0 sticky top-0 bg-card z-10">
+                        <span className="text-[8px] text-muted-foreground uppercase tracking-wider font-medium">Source</span>
                       </div>
                       <div className="divide-y">
                         {active.utterances.map((u: any, i: number) => (
-                          <div key={i} className="flex gap-1.5 px-2 py-1 text-[9px] hover:bg-muted/20">
-                            <span className="font-mono text-muted-foreground shrink-0 w-10">{Math.floor(u.startMs / 60000)}:{Math.floor((u.startMs % 60000) / 1000).toString().padStart(2, "0")}</span>
-                            <span className="font-medium shrink-0 w-12 truncate">{u.speaker}</span>
-                            <span className="flex-1 leading-relaxed">{u.text}</span>
+                          <div key={i} className="flex gap-1 px-1.5 py-0.5 text-[8px] hover:bg-muted/20">
+                            <span className="font-mono text-muted-foreground shrink-0 w-8">{Math.floor(u.startMs / 60000)}:{Math.floor((u.startMs % 60000) / 1000).toString().padStart(2, "0")}</span>
+                            <span className="font-medium shrink-0 w-10 truncate">{u.speaker}</span>
+                            <span className="flex-1 leading-tight">{u.text}</span>
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
-                  {/* Preview canvas */}
+                  {/* Document canvas */}
                   <ScrollArea className="flex-1">
-                  <div className="p-6 flex justify-center min-h-full">
+                    <div className="p-8 flex justify-center min-h-full">
                   {!active ? (
                     <div className="flex flex-col items-center justify-center text-muted-foreground py-16 max-w-[280px] text-center">
                       <FileText className="size-8 opacity-20 mb-3" />
@@ -677,7 +641,6 @@ export function PdfEditor() {
           Export
         </Button>
       </div>
-    </div>
 
     {/* Fullscreen Preview Modal */}
     <Dialog open={showModal} onOpenChange={setShowModal}>
@@ -728,9 +691,8 @@ export function PdfEditor() {
       }}
       onSaved={() => { setAllTemplates(getAllTemplates()); toast.success("Template saved"); }}
     />
+    </div>
     </TooltipProvider>
-      </TabsContent>
-    </Tabs>
   );
 }
 
