@@ -2,6 +2,23 @@
 
 :root {
   --font-size: 16px;
+  /* Typography scale tokens */
+  --text-2xs: 7px;
+  --text-xs: 8px;
+  --text-sm: 9px;
+  --text-base: 10px;
+  --text-md: 11px;
+  --text-lg: 12px;
+  --text-xl: 14px;
+  --text-2xl: 16px;
+  --text-3xl: 18px;
+  /* Line heights */
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+  --leading-cjk: 1.75;
+  /* UI scale multiplier */
+  --ui-scale: 1;
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
@@ -76,6 +93,57 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(0.269 0 0);
   --sidebar-ring: oklch(0.439 0 0);
+}
+
+/* UI Scale variants */
+[data-ui-scale="compact"] {
+  --ui-scale: 0.875;
+  --text-2xs: 6px;
+  --text-xs: 7px;
+  --text-sm: 8px;
+  --text-base: 9px;
+  --text-md: 10px;
+  --text-lg: 11px;
+  --text-xl: 13px;
+  --text-2xl: 15px;
+  --text-3xl: 17px;
+}
+
+[data-ui-scale="default"] {
+  --ui-scale: 1;
+}
+
+[data-ui-scale="large"] {
+  --ui-scale: 1.125;
+  --text-2xs: 8px;
+  --text-xs: 9px;
+  --text-sm: 10px;
+  --text-base: 11px;
+  --text-md: 12px;
+  --text-lg: 13px;
+  --text-xl: 15px;
+  --text-2xl: 17px;
+  --text-3xl: 20px;
+}
+
+[data-ui-scale="extra-large"] {
+  --ui-scale: 1.25;
+  --text-2xs: 9px;
+  --text-xs: 10px;
+  --text-sm: 11px;
+  --text-base: 12px;
+  --text-md: 13px;
+  --text-lg: 14px;
+  --text-xl: 16px;
+  --text-2xl: 18px;
+  --text-3xl: 22px;
+}
+
+/* CJK typography improvements */
+:lang(ja), :lang(zh), :lang(ko) {
+  line-height: var(--leading-cjk);
+  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 @theme inline {
