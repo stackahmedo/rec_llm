@@ -123,8 +123,8 @@ function shouldPreprocessAudio(filePath: string, metadata: AudioMetadata): Prepr
     };
   }
 
-  // Very long audio (> 12 hours): recommend splitting
-  if (durationHours > 12) {
+  // Very long audio (> 2 hours): recommend splitting via long-audio pipeline
+  if (durationHours > 2) {
     return {
       action: 'split',
       reason: `Audio is ${durationHours.toFixed(1)} hours. Consider splitting into chunks for reliable processing.`,

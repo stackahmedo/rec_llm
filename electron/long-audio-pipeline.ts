@@ -79,7 +79,7 @@ export interface MergedUtterance {
 const CHUNK_DURATION_MINUTES = 45;       // Target chunk size
 const MIN_CHUNK_MINUTES = 30;
 const MAX_CHUNK_MINUTES = 90;
-const LONG_AUDIO_THRESHOLD_HOURS = 6;
+const LONG_AUDIO_THRESHOLD_HOURS = 2;    // Activate long-audio mode at 2 hours
 const LONG_AUDIO_THRESHOLD_BYTES = 2 * 1024 * 1024 * 1024; // 2GB
 const MAX_CONCURRENT_CHUNKS = 2;
 const MAX_RETRIES = 3;
