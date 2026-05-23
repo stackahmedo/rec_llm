@@ -646,10 +646,11 @@ export function PdfEditor() {
 
             <ResizableHandle withHandle />
 
-            {/* Right: Inspector — contextual */}
-            <ResizablePanel defaultSize={28} minSize={20} maxSize={38}>
-              <div className="h-full border-l flex flex-col">
-                <div className="h-7 px-2.5 border-b flex items-center gap-2 shrink-0">
+            {/* Right: Inspector — independently scrollable with sticky footer */}
+            <ResizablePanel defaultSize={28} minSize={18} maxSize={40}>
+              <div className="h-full border-l flex flex-col min-h-0 overflow-hidden">
+                {/* Inspector header */}
+                <div className="h-7 px-2.5 border-b flex items-center gap-2 shrink-0 bg-background z-10">
                   <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium flex-1">
                     {editorMode === "edit" ? "Properties" : "Inspector"}
                   </span>
@@ -657,7 +658,9 @@ export function PdfEditor() {
                     <Badge variant="outline" className="text-[8px] h-4">{editor.activeTool}</Badge>
                   )}
                 </div>
-                <ScrollArea className="flex-1">
+                {/* Scrollable content area */}
+                <div className="flex-1 min-h-0 overflow-y-auto relative [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded">
+                  <div className="pb-24">
                   {/* Tool properties panel (edit mode) */}
                   {editorMode === "edit" && (
                     <div className="p-2 space-y-2 border-b">
@@ -741,7 +744,22 @@ export function PdfEditor() {
                     onFooterChange={handleFooterChange}
                     hasSummary={!!summary}
                   />
-                </ScrollArea>
+                  </div>
+                </div>
+                {/* Sticky footer actions */}
+                <div className="shrink-0 border-t bg-background/95 backdrop-blur px-2 py-1.5 flex items-center gap-1 shadow-[0_-2px_8px_rgba(0,0,0,0.04)]">
+                  <Button size="sm" variant="ghost" className="h-5 text-[9px] px-1.5 flex-1" onClick={() => setShowSaveTemplate(true)}>
+                    <Save className="size-2.5 mr-0.5" />Template
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-5 text-[9px] px-1.5 flex-1" disabled={!active || printing} onClick={printPdf}>
+                    {printing ? <Loader2 className="size-2.5 mr-0.5 animate-spin" /> : <Printer className="size-2.5 mr-0.5" />}
+                    Print
+                  </Button>
+                  <Button size="sm" className="h-5 text-[9px] px-1.5 flex-1" disabled={!active || exporting} onClick={exportPdf}>
+                    {exporting ? <Loader2 className="size-2.5 mr-0.5 animate-spin" /> : <Download className="size-2.5 mr-0.5" />}
+                    Export
+                  </Button>
+                </div>
               </div>
             </ResizablePanel>
           </ResizablePanelGroup>
