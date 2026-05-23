@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Textarea } from "./ui/textarea";
-import { Pencil, Check, X, FileAudio, Upload, Mic2, Sparkles, FileText, Globe } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { Pencil, Check, X, FileAudio, Upload, Mic2, Sparkles, FileText, Globe, Copy, Highlighter, MessageSquare, ChevronDown, ChevronRight } from "lucide-react";
 import { useTranscripts, Utterance } from "../transcript-store";
 import { toast } from "sonner";
 
@@ -23,11 +24,16 @@ interface TranscriptEditorProps {
   fileId: string | null;
 }
 
+// Virtualized window size
+const RENDER_BATCH = 100;
+
 export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
   const { transcripts, addTranscript } = useTranscripts();
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
   const [editedIndices, setEditedIndices] = useState<Set<number>>(new Set());
+  const [collapsedSpeakers, setCollapsedSpeakers] = useState<Set<string>>(new Set());
+  const [renderLimit, setRenderLimit] = useState(RENDER_BATCH);
 
   const active = fileId ? transcripts.find((t) => t.fileId === fileId) || null : null;
 
@@ -64,7 +70,38 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
 
   const cancelEdit = () => setEditingIdx(null);
 
-  // Empty state — no transcript selected
+  const copySegment = useCallback((text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Copied");
+  }, []);
+
+  const toggleSpeakerCollapse = (speaker: string) => {
+    setCollapsedSpeakers((prev) => {
+      const next = new Set(prev);
+      if (next.has(speaker)) next.delete(speaker);
+      else next.add(speaker);
+      return next;
+    });
+  };
+
+  // Speaker groups for minimap
+  const speakerGroups = useMemo(() => {
+    if (!active) return [];
+    const groups: { speaker: string; startIdx: number; endIdx: number; startMs: number }[] = [];
+    let current: typeof groups[0] | null = null;
+    active.utterances.forEach((u, i) => {
+      if (!current || current.speaker !== u.speaker) {
+        if (current) groups.push(current);
+        current = { speaker: u.speaker, startIdx: i, endIdx: i, startMs: u.startMs };
+      } else {
+        current.endIdx = i;
+      }
+    });
+    if (current) groups.push(current);
+    return groups;
+  }, [active]);
+
+  // Empty state
   if (!active) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-6">
@@ -85,7 +122,6 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
     );
   }
 
-  // Empty utterances
   if (active.utterances.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-6">
@@ -95,44 +131,88 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
     );
   }
 
-  // Timeline bar
   const lastEnd = Math.max(...active.utterances.map((u) => u.endMs));
+  const visibleUtterances = active.utterances.slice(0, renderLimit);
+  const hasMore = renderLimit < active.utterances.length;
 
   return (
     <div className="h-full flex flex-col">
-      {/* Timeline placeholder */}
+      {/* Timeline bar with minimap */}
       <div className="h-6 border-b bg-muted/10 flex items-center px-3 gap-2 shrink-0">
         <span className="text-[9px] font-mono text-muted-foreground">00:00</span>
-        <div className="flex-1 h-1 bg-muted rounded-full relative">
-          <div className="absolute inset-y-0 left-0 bg-primary/40 rounded-full" style={{ width: "100%" }} />
+        <div className="flex-1 h-1.5 bg-muted rounded-full relative overflow-hidden">
+          {/* Speaker color minimap */}
+          {speakerGroups.map((g, i) => {
+            const speakerIndex = parseInt(g.speaker.replace(/\D/g, '') || '0', 10) % speakerColors.length;
+            const left = (active.utterances[g.startIdx].startMs / lastEnd) * 100;
+            const width = ((active.utterances[g.endIdx].endMs - active.utterances[g.startIdx].startMs) / lastEnd) * 100;
+            return (
+              <div
+                key={i}
+                className={`absolute inset-y-0 ${speakerColors[speakerIndex]} opacity-60`}
+                style={{ left: `${left}%`, width: `${Math.max(width, 0.5)}%` }}
+              />
+            );
+          })}
         </div>
         <span className="text-[9px] font-mono text-muted-foreground">{msToTimestamp(lastEnd)}</span>
+        <Badge variant="outline" className="h-4 text-[7px] px-1 font-mono">{active.utterances.length} seg</Badge>
       </div>
 
-      {/* Transcript content */}
-      <div className="flex-1 overflow-auto">
+      {/* Transcript content — chunked rendering */}
+      <div className="flex-1 overflow-auto" onScroll={(e) => {
+        const el = e.currentTarget;
+        if (el.scrollTop + el.clientHeight >= el.scrollHeight - 200 && hasMore) {
+          setRenderLimit((prev) => Math.min(prev + RENDER_BATCH, active.utterances.length));
+        }
+      }}>
         <div className="divide-y">
-          {active.utterances.map((u, idx) => {
+          {visibleUtterances.map((u, idx) => {
             const speakerIndex = parseInt(u.speaker.replace(/\D/g, '') || '0', 10) % speakerColors.length;
             const isEditing = editingIdx === idx;
             const wasEdited = editedIndices.has(idx);
+            const isSpeakerCollapsed = collapsedSpeakers.has(u.speaker);
+
+            // Skip collapsed speaker segments (show only first)
+            if (isSpeakerCollapsed && idx > 0 && active.utterances[idx - 1]?.speaker === u.speaker) {
+              return null;
+            }
 
             return (
               <div
                 key={idx}
-                className="flex gap-2 px-3 py-1.5 group hover:bg-muted/20 transition-colors"
+                className="flex gap-2 px-3 py-1 group hover:bg-muted/20 transition-colors"
+                id={`seg-${idx}`}
               >
-                {/* Speaker color dot + timestamp */}
+                {/* Timestamp — clickable */}
                 <div className="flex flex-col items-center gap-0.5 pt-0.5 shrink-0 w-14">
-                  <span className={`size-2 rounded-full ${speakerColors[speakerIndex]}`} />
-                  <span className="text-[9px] font-mono text-muted-foreground">{msToTimestamp(u.startMs)}</span>
+                  <button
+                    className="flex items-center gap-0.5"
+                    onClick={() => toggleSpeakerCollapse(u.speaker)}
+                    title={isSpeakerCollapsed ? "Expand speaker" : "Collapse speaker"}
+                  >
+                    <span className={`size-2 rounded-full ${speakerColors[speakerIndex]}`} />
+                    {isSpeakerCollapsed ? <ChevronRight className="size-2 text-muted-foreground" /> : <ChevronDown className="size-2 text-muted-foreground" />}
+                  </button>
+                  <button
+                    className="text-[8px] font-mono text-muted-foreground hover:text-primary hover:underline transition-colors"
+                    onClick={() => {
+                      const el = document.getElementById(`seg-${idx}`);
+                      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                      toast.info(`Jumped to ${msToTimestamp(u.startMs)}`);
+                    }}
+                    title="Click to jump"
+                  >
+                    {msToTimestamp(u.startMs)}
+                  </button>
                 </div>
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-medium">{u.speaker}</span>
-                    {wasEdited && <Badge variant="secondary" className="text-[8px] h-3.5 px-1">edited</Badge>}
+                    {wasEdited && <Badge variant="secondary" className="text-[7px] h-3 px-0.5">edited</Badge>}
+                    <span className="text-[7px] text-muted-foreground font-mono">{Math.round((u.endMs - u.startMs) / 1000)}s</span>
                   </div>
                   {isEditing ? (
                     <div className="mt-1 space-y-1">
@@ -153,30 +233,39 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
                     </div>
                   ) : (
                     <p
-                      className="text-[11px] leading-relaxed mt-0.5 cursor-pointer"
-                      onClick={() => startEdit(idx, u.text)}
-                      title="Click to edit"
+                      className="text-[10px] leading-relaxed mt-0.5 cursor-text"
+                      onDoubleClick={() => startEdit(idx, u.text)}
                     >
                       {u.text}
                     </p>
                   )}
                 </div>
 
-                {/* Edit button */}
+                {/* Hover quick actions */}
                 {!isEditing && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5"
-                    onClick={() => startEdit(idx, u.text)}
-                  >
-                    <Pencil className="size-2.5" />
-                  </Button>
+                  <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 pt-0.5">
+                    <Tooltip><TooltipTrigger asChild>
+                      <button className="size-5 rounded hover:bg-muted flex items-center justify-center" onClick={() => copySegment(u.text)}>
+                        <Copy className="size-2.5 text-muted-foreground" />
+                      </button>
+                    </TooltipTrigger><TooltipContent className="text-[9px]">Copy</TooltipContent></Tooltip>
+                    <Tooltip><TooltipTrigger asChild>
+                      <button className="size-5 rounded hover:bg-muted flex items-center justify-center" onClick={() => startEdit(idx, u.text)}>
+                        <Pencil className="size-2.5 text-muted-foreground" />
+                      </button>
+                    </TooltipTrigger><TooltipContent className="text-[9px]">Edit</TooltipContent></Tooltip>
+                  </div>
                 )}
               </div>
             );
           })}
+          {hasMore && (
+            <div className="py-2 text-center">
+              <button className="text-[9px] text-muted-foreground hover:text-primary" onClick={() => setRenderLimit((prev) => prev + RENDER_BATCH)}>
+                Load more ({active.utterances.length - renderLimit} remaining)
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
