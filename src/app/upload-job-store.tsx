@@ -3,7 +3,7 @@
 
 import { createContext, useContext, useState, ReactNode, useCallback, useRef, useEffect } from "react";
 
-export type JobStage = "queued" | "analyzing" | "uploading" | "transcribing" | "summarizing" | "saving" | "done" | "failed" | "paused";
+export type JobStage = "queued" | "analyzing" | "chunking" | "uploading" | "transcribing" | "summarizing" | "saving" | "done" | "failed" | "paused";
 
 export interface UploadJob {
   id: string;
@@ -23,6 +23,12 @@ export interface UploadJob {
   recommendation?: { action: string; reason: string };
   compressedPath?: string;
   resultFileId?: string;
+  // Long-audio pipeline fields
+  isLongAudio?: boolean;
+  pipelineId?: string;
+  totalChunks?: number;
+  completedChunks?: number;
+  currentChunkLabel?: string;
 }
 
 export interface UploadPreset {
@@ -47,7 +53,8 @@ const defaultPreset: UploadPreset = {
 export function getStageProgress(stage: JobStage): number {
   switch (stage) {
     case "queued": return 0;
-    case "analyzing": return 10;
+    case "analyzing": return 5;
+    case "chunking": return 10;
     case "uploading": return 20;
     case "transcribing": return 50;
     case "summarizing": return 80;
@@ -63,6 +70,7 @@ export function getStageLabel(stage: JobStage): string {
   switch (stage) {
     case "queued": return "Waiting";
     case "analyzing": return "Analyzing";
+    case "chunking": return "Splitting Audio";
     case "uploading": return "Uploading";
     case "transcribing": return "Transcribing";
     case "summarizing": return "Summarizing";

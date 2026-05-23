@@ -8,6 +8,7 @@ import { UploadJob, JobStage, getStageLabel } from "../upload-job-store";
 const stageColors: Record<JobStage, { bar: string; badge: string; progress: string }> = {
   queued:       { bar: "bg-slate-400",   badge: "text-slate-600 border-slate-300",   progress: "[&>div]:bg-slate-400" },
   analyzing:    { bar: "bg-purple-500",  badge: "text-purple-600 border-purple-300", progress: "[&>div]:bg-purple-500" },
+  chunking:     { bar: "bg-violet-500",  badge: "text-violet-600 border-violet-300", progress: "[&>div]:bg-violet-500" },
   uploading:    { bar: "bg-blue-500",    badge: "text-blue-600 border-blue-300",     progress: "[&>div]:bg-blue-500" },
   transcribing: { bar: "bg-indigo-500",  badge: "text-indigo-600 border-indigo-300", progress: "[&>div]:bg-indigo-500" },
   summarizing:  { bar: "bg-orange-500",  badge: "text-orange-600 border-orange-300", progress: "[&>div]:bg-orange-500" },
@@ -127,6 +128,7 @@ function getComputedBarColor(stage: JobStage): string {
   const map: Record<JobStage, string> = {
     queued: "#94a3b8",
     analyzing: "#a855f7",
+    chunking: "#8b5cf6",
     uploading: "#3b82f6",
     transcribing: "#6366f1",
     summarizing: "#f97316",
