@@ -1,4 +1,5 @@
 import { ipcMain, net } from 'electron';
+import { getProvider, getProviderConfig, safeParseJson, ProviderError } from './providers';
 
 async function getSettings(): Promise<{ apiKeys: Record<string, string>; models: Record<string, string>; preferences: Record<string, unknown>; openaiProvider?: { providerType?: string; baseUrl?: string } }> {
   const { default: Store } = await import('electron-store');
@@ -371,7 +372,12 @@ async function callGemma(apiKey: string, model: string, prompt: string): Promise
 
 function parseResponse(raw: string): ParsedChunk {
   const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-  const parsed = JSON.parse(cleaned);
+  let parsed: any;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    throw new ProviderError('Failed to parse AI response as JSON. The model may have returned malformed output.', undefined, undefined, 'parse_error');
+  }
   return {
     summary: parsed.summary || '',
     pointNotes: Array.isArray(parsed.pointNotes) ? parsed.pointNotes : [],
@@ -382,9 +388,10 @@ function parseResponse(raw: string): ParsedChunk {
 }
 
 async function callLLM(provider: string, apiKey: string, model: string, prompt: string, openaiBaseUrl?: string): Promise<string> {
-  if (provider === 'gemini') return callGemini(apiKey, model, prompt);
-  if (provider === 'chatgpt') return callOpenAI(apiKey, model, prompt, openaiBaseUrl);
-  return callGemma(apiKey, model, prompt);
+  const adapter = getProvider(provider);
+  const config = getProviderConfig(provider, apiKey, model, { baseUrl: openaiBaseUrl });
+  const result = await adapter.call(config, prompt);
+  return result.text;
 }
 
 export function registerSummarizeHandlers(): void {
