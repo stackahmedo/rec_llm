@@ -5,10 +5,11 @@
  * Splits, processes, merges, and recovers gracefully.
  */
 
-import { ipcMain } from 'electron';
+import { ipcMain, app } from 'electron';
 import { execFile } from 'child_process';
 import path from 'path';
-import fs from 'fs';
+import fs from 'fs/promises';
+import fsSync from 'fs';
 import os from 'os';
 
 // --- Types ---
@@ -89,36 +90,48 @@ const SILENCE_MIN_DURATION = '0.5';
 // --- State Management ---
 
 const activePipelines = new Map<string, PipelineState>();
-const RECOVERY_DIR = path.join(os.tmpdir(), 'recllm-pipeline-recovery');
 
-function ensureRecoveryDir() {
-  if (!fs.existsSync(RECOVERY_DIR)) {
-    fs.mkdirSync(RECOVERY_DIR, { recursive: true });
-  }
+function getRecoveryDir(): string {
+  const userDataPath = app.getPath('userData');
+  return path.join(userDataPath, 'pipeline-recovery');
 }
 
-function savePipelineState(state: PipelineState) {
-  ensureRecoveryDir();
-  const statePath = path.join(RECOVERY_DIR, `${state.id}.json`);
-  fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
+// Sanitize pipelineId to prevent path traversal
+function sanitizePipelineId(id: string): string {
+  return id.replace(/[^a-zA-Z0-9_\-]/g, '');
+}
+
+async function ensureRecoveryDir() {
+  const dir = getRecoveryDir();
+  await fs.mkdir(dir, { recursive: true });
+}
+
+async function savePipelineState(state: PipelineState) {
+  await ensureRecoveryDir();
+  const safeId = sanitizePipelineId(state.id);
+  const statePath = path.join(getRecoveryDir(), `${safeId}.json`);
+  await fs.writeFile(statePath, JSON.stringify(state, null, 2));
   activePipelines.set(state.id, state);
 }
 
-function loadPipelineState(pipelineId: string): PipelineState | null {
-  const statePath = path.join(RECOVERY_DIR, `${pipelineId}.json`);
-  if (!fs.existsSync(statePath)) return null;
+async function loadPipelineState(pipelineId: string): Promise<PipelineState | null> {
+  const safeId = sanitizePipelineId(pipelineId);
+  const statePath = path.join(getRecoveryDir(), `${safeId}.json`);
   try {
-    return JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+    const data = await fs.readFile(statePath, 'utf-8');
+    return JSON.parse(data);
   } catch { return null; }
 }
 
-function listRecoverablePipelines(): PipelineState[] {
-  ensureRecoveryDir();
-  const files = fs.readdirSync(RECOVERY_DIR).filter((f) => f.endsWith('.json'));
+async function listRecoverablePipelines(): Promise<PipelineState[]> {
+  await ensureRecoveryDir();
+  const dir = getRecoveryDir();
+  const files = (await fs.readdir(dir)).filter((f) => f.endsWith('.json'));
   const states: PipelineState[] = [];
   for (const file of files) {
     try {
-      const state = JSON.parse(fs.readFileSync(path.join(RECOVERY_DIR, file), 'utf-8'));
+      const data = await fs.readFile(path.join(dir, file), 'utf-8');
+      const state = JSON.parse(data);
       if (state.status !== 'done' && state.status !== 'failed') {
         states.push(state);
       }
@@ -127,26 +140,25 @@ function listRecoverablePipelines(): PipelineState[] {
   return states;
 }
 
-function cleanupPipeline(pipelineId: string) {
+async function cleanupPipeline(pipelineId: string) {
   const state = activePipelines.get(pipelineId);
   if (state) {
     // Delete temporary chunk files
     for (const chunk of state.chunks) {
-      if (chunk.filePath && fs.existsSync(chunk.filePath)) {
-        try { fs.unlinkSync(chunk.filePath); } catch {}
+      if (chunk.filePath) {
+        try { await fs.unlink(chunk.filePath); } catch {}
       }
     }
     // Delete chunk directory
     const chunkDir = path.dirname(state.chunks[0]?.filePath || '');
-    if (chunkDir && chunkDir.includes('recllm-chunks') && fs.existsSync(chunkDir)) {
-      try { fs.rmSync(chunkDir, { recursive: true }); } catch {}
+    if (chunkDir && chunkDir.includes('recllm-chunks')) {
+      try { await fs.rm(chunkDir, { recursive: true }); } catch {}
     }
   }
   // Remove recovery file
-  const statePath = path.join(RECOVERY_DIR, `${pipelineId}.json`);
-  if (fs.existsSync(statePath)) {
-    try { fs.unlinkSync(statePath); } catch {}
-  }
+  const safeId = sanitizePipelineId(pipelineId);
+  const statePath = path.join(getRecoveryDir(), `${safeId}.json`);
+  try { await fs.unlink(statePath); } catch {}
   activePipelines.delete(pipelineId);
 }
 
@@ -156,12 +168,12 @@ function getFfmpegPath(): string {
   const devPath = path.join(__dirname, '../node_modules/ffmpeg-static/ffmpeg');
   const unpackedPath = path.join(process.resourcesPath || '', 'ffmpeg');
   const unpackedPathExe = path.join(process.resourcesPath || '', 'ffmpeg.exe');
-  if (fs.existsSync(devPath)) return devPath;
-  if (fs.existsSync(unpackedPath)) return unpackedPath;
-  if (fs.existsSync(unpackedPathExe)) return unpackedPathExe;
+  if (fsSync.existsSync(devPath)) return devPath;
+  if (fsSync.existsSync(unpackedPath)) return unpackedPath;
+  if (fsSync.existsSync(unpackedPathExe)) return unpackedPathExe;
   try {
     const staticPath = require('ffmpeg-static');
-    if (staticPath && fs.existsSync(staticPath)) return staticPath;
+    if (staticPath && fsSync.existsSync(staticPath)) return staticPath;
   } catch {}
   throw new Error('FFmpeg not found.');
 }
@@ -173,13 +185,13 @@ function getFfprobePath(): string {
   const devPathAlt = path.join(__dirname, '../node_modules/ffprobe-static/bin/darwin/arm64/ffprobe');
   const unpackedPath = path.join(process.resourcesPath || '', 'ffprobe');
   const unpackedPathExe = path.join(process.resourcesPath || '', 'ffprobe.exe');
-  if (fs.existsSync(devPath)) return devPath;
-  if (fs.existsSync(devPathAlt)) return devPathAlt;
-  if (fs.existsSync(unpackedPath)) return unpackedPath;
-  if (fs.existsSync(unpackedPathExe)) return unpackedPathExe;
+  if (fsSync.existsSync(devPath)) return devPath;
+  if (fsSync.existsSync(devPathAlt)) return devPathAlt;
+  if (fsSync.existsSync(unpackedPath)) return unpackedPath;
+  if (fsSync.existsSync(unpackedPathExe)) return unpackedPathExe;
   try {
     const staticPath = require('ffprobe-static').path;
-    if (staticPath && fs.existsSync(staticPath)) return staticPath;
+    if (staticPath && fsSync.existsSync(staticPath)) return staticPath;
   } catch {}
   throw new Error('FFprobe not found.');
 }
@@ -203,7 +215,7 @@ async function analyzeAudio(filePath: string): Promise<AudioAnalysis> {
   const data = JSON.parse(output);
   const audioStream = data.streams?.find((s: any) => s.codec_type === 'audio') || {};
   const format = data.format || {};
-  const sizeBytes = fs.statSync(filePath).size;
+  const sizeBytes = (await fs.stat(filePath)).size;
   const duration = parseFloat(format.duration || audioStream.duration || '0');
   const durationHours = duration / 3600;
 
@@ -273,7 +285,7 @@ async function splitIntoChunks(filePath: string, analysis: AudioAnalysis): Promi
   const ffmpeg = getFfmpegPath();
   const baseName = path.basename(filePath, path.extname(filePath));
   const outputDir = path.join(os.tmpdir(), `recllm-chunks-${Date.now()}`);
-  fs.mkdirSync(outputDir, { recursive: true });
+  await fs.mkdir(outputDir, { recursive: true });
 
   const chunkDurationSec = CHUNK_DURATION_MINUTES * 60;
   const totalDuration = analysis.duration;
@@ -314,7 +326,7 @@ async function splitIntoChunks(filePath: string, analysis: AudioAnalysis): Promi
       chunkPath,
     ]);
 
-    if (!fs.existsSync(chunkPath)) {
+    if (!fsSync.existsSync(chunkPath)) {
       throw new Error(`Failed to create chunk ${i + 1}`);
     }
 
@@ -438,7 +450,7 @@ export function registerLongAudioHandlers(): void {
         concurrency: opts?.concurrency || MAX_CONCURRENT_CHUNKS,
       };
 
-      savePipelineState(state);
+      await savePipelineState(state);
 
       // Split in background
       const chunks = await splitIntoChunks(filePath, analysis);
@@ -446,7 +458,7 @@ export function registerLongAudioHandlers(): void {
       state.totalChunks = chunks.length;
       state.status = 'processing';
       state.progress = 15;
-      savePipelineState(state);
+      await savePipelineState(state);
 
       return { ok: true, requiresChunking: true, pipelineId, totalChunks: chunks.length, analysis };
     } catch (err: any) {
@@ -456,7 +468,7 @@ export function registerLongAudioHandlers(): void {
 
   // Get pipeline status
   ipcMain.handle('longaudio:status', async (_event, pipelineId: string) => {
-    const state = activePipelines.get(pipelineId) || loadPipelineState(pipelineId);
+    const state = activePipelines.get(pipelineId) || await loadPipelineState(pipelineId);
     if (!state) return { ok: false, error: 'Pipeline not found.' };
 
     return {
@@ -491,7 +503,7 @@ export function registerLongAudioHandlers(): void {
       state.status = 'done';
       state.completedAt = Date.now();
       state.progress = 100;
-      savePipelineState(state);
+      await savePipelineState(state);
     }
 
     return { ok: true, allDone, progress: state.progress };
@@ -544,7 +556,7 @@ export function registerLongAudioHandlers(): void {
 
   // Get merged transcript
   ipcMain.handle('longaudio:getMerged', async (_event, pipelineId: string) => {
-    const state = activePipelines.get(pipelineId) || loadPipelineState(pipelineId);
+    const state = activePipelines.get(pipelineId) || await loadPipelineState(pipelineId);
     if (!state) return { ok: false, error: 'Pipeline not found.' };
 
     if (state.status !== 'done') {
@@ -558,7 +570,7 @@ export function registerLongAudioHandlers(): void {
 
   // Resume interrupted pipeline
   ipcMain.handle('longaudio:resume', async (_event, pipelineId: string) => {
-    const state = loadPipelineState(pipelineId);
+    const state = await loadPipelineState(pipelineId);
     if (!state) return { ok: false, error: 'Pipeline not found.' };
 
     // Reset failed/retrying chunks to pending
@@ -569,23 +581,23 @@ export function registerLongAudioHandlers(): void {
     }
     state.status = 'processing';
     activePipelines.set(state.id, state);
-    savePipelineState(state);
+    await savePipelineState(state);
 
-    const remaining = state.chunks.filter((c) => c.status === 'pending' || c.status === 'retrying').length;
+    const remaining = state.chunks.filter((c: any) => c.status === 'pending' || c.status === 'retrying').length;
     return { ok: true, pipelineId: state.id, remainingChunks: remaining, totalChunks: state.totalChunks };
   });
 
   // List recoverable pipelines
   ipcMain.handle('longaudio:listRecoverable', async () => {
-    const pipelines = listRecoverablePipelines();
+    const pipelines = await listRecoverablePipelines();
     return {
       ok: true,
-      pipelines: pipelines.map((p) => ({
+      pipelines: pipelines.map((p: any) => ({
         id: p.id,
         fileName: p.fileName,
         status: p.status,
         progress: calculateProgress(p),
-        completedChunks: p.chunks.filter((c) => c.status === 'done').length,
+        completedChunks: p.chunks.filter((c: any) => c.status === 'done').length,
         totalChunks: p.totalChunks,
         startedAt: p.startedAt,
       })),
@@ -595,7 +607,7 @@ export function registerLongAudioHandlers(): void {
   // Cleanup pipeline (delete temp files)
   ipcMain.handle('longaudio:cleanup', async (_event, pipelineId: string) => {
     try {
-      cleanupPipeline(pipelineId);
+      await cleanupPipeline(pipelineId);
       return { ok: true };
     } catch (err: any) {
       return { ok: false, error: err.message };
@@ -608,7 +620,7 @@ export function registerLongAudioHandlers(): void {
     if (state) {
       state.status = 'failed';
       state.error = 'Cancelled by user.';
-      savePipelineState(state);
+      await savePipelineState(state);
     }
     cleanupPipeline(pipelineId);
     return { ok: true };
