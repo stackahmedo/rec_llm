@@ -10,22 +10,23 @@ import { Separator } from "./ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Skeleton } from "./ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "./ui/resizable";
 import { toast } from "sonner";
 import {
   Download, Printer, FileText, Search, CheckCircle2, AlertTriangle,
   Loader2, Palette, PanelLeftClose, PanelLeftOpen, FileAudio, LayoutTemplate,
   ZoomIn, ZoomOut, Maximize2, RefreshCw, Save, FileEdit, Sparkles,
   MousePointer2, Type, Image, MessageSquare, Highlighter, EyeOff, StickyNote,
-  Eye, Pencil, Columns2, Keyboard,
+  Eye, Pencil, Columns2, Keyboard, Undo2, Redo2, ChevronLeft, ChevronRight,
+  Wand2, PenTool,
 } from "lucide-react";
 import { useTranscripts } from "../transcript-store";
 import { usePdfDraft } from "../pdf-draft-store";
 import { notifyPdfExported, notifyPdfFailed } from "../notification-store";
 import { notifyError } from "../notify";
+import { useEditorState, EditorTool } from "../editor-state";
 import { SpeakerProfile, generateProfiles, loadSpeakerProfiles, saveSpeakerProfiles, getColor, getDisplayName } from "../pdf-speaker-store";
 import { PdfTemplateConfig, HeaderConfig, FooterConfig, builtInTemplates, getAllTemplates, loadCustomTemplates, saveCustomTemplates } from "../pdf-template-store";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./ui/resizable";
 import { SpeakerEditor } from "./pdf-speaker-editor";
 import { HeaderFooterEditor } from "./pdf-header-footer-editor";
 import { SaveTemplateDialog } from "./pdf-save-template-dialog";
@@ -120,6 +121,7 @@ export function PdfEditor() {
   const [searchQuery, setSearchQuery] = useState("");
   const [exporting, setExporting] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const editor = useEditorState();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try { return localStorage.getItem("recllm-pdf-sidebar") === "collapsed"; } catch { return false; }
   });
@@ -133,7 +135,6 @@ export function PdfEditor() {
   const [editorMode, setEditorMode] = useState<"preview" | "edit" | "print">(() => {
     try { return (localStorage.getItem("recllm-pdf-mode") as any) || "preview"; } catch { return "preview"; }
   });
-  const [activeTool, setActiveTool] = useState<string>("select");
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [exportQueue, setExportQueue] = useState<ExportQueueItem[]>([]);
   const [openTabs, setOpenTabs] = useState<string[]>([]);
@@ -157,10 +158,14 @@ export function PdfEditor() {
       if (meta && e.key === "e") { e.preventDefault(); if (active) exportPdf(); }
       if (meta && e.key === "s") { e.preventDefault(); setShowSaveTemplate(true); }
       if (meta && e.key === "f") { e.preventDefault(); if (active) setShowModal(true); }
+      // Undo/Redo
+      if (meta && e.key === "z" && !e.shiftKey) { e.preventDefault(); editor.undo(); }
+      if (meta && e.key === "z" && e.shiftKey) { e.preventDefault(); editor.redo(); }
+      if (meta && e.key === "y") { e.preventDefault(); editor.redo(); }
       // Tool shortcuts (only in edit mode)
       if (editorMode === "edit" && !meta && !e.altKey) {
-        const toolMap: Record<string, string> = { v: "select", t: "text", i: "image", a: "annotate", h: "highlight", r: "redact", c: "comment" };
-        if (toolMap[e.key]) { setActiveTool(toolMap[e.key]); }
+        const toolMap: Record<string, string> = { v: "select", t: "text", h: "highlight", c: "comment", d: "draw", r: "redact", a: "ai" };
+        if (toolMap[e.key]) { editor.selectTool(toolMap[e.key] as EditorTool); }
       }
       // Zoom shortcuts
       if (meta && (e.key === "=" || e.key === "+")) { e.preventDefault(); setZoom((z) => Math.min(200, z + 10)); }
@@ -454,7 +459,7 @@ export function PdfEditor() {
       {/* Main workspace */}
       <div className="flex-1 min-h-0 flex">
         {/* Left: icon-only toolbar */}
-        <EditorToolbar activeTool={activeTool} setActiveTool={setActiveTool} editorMode={editorMode} />
+        <EditorToolbar activeTool={editor.activeTool} setActiveTool={(t) => editor.selectTool(t as EditorTool)} editorMode={editorMode} />
 
         {/* Left sidebar: transcript list (icon-only by default) */}
         <div className={`h-full border-r flex flex-col shrink-0 transition-all duration-200 ${sidebarCollapsed ? "w-9" : "w-36"}`}>
@@ -1258,11 +1263,11 @@ function SectionComposer({ settings, onUpdate, onUpdateSections }: {
 const editorTools = [
   { id: "select", icon: MousePointer2, label: "Select", shortcut: "V" },
   { id: "text", icon: Type, label: "Text", shortcut: "T" },
-  { id: "image", icon: Image, label: "Image", shortcut: "I" },
-  { id: "annotate", icon: StickyNote, label: "Annotate", shortcut: "A" },
   { id: "highlight", icon: Highlighter, label: "Highlight", shortcut: "H" },
-  { id: "redact", icon: EyeOff, label: "Redact", shortcut: "R" },
   { id: "comment", icon: MessageSquare, label: "Comment", shortcut: "C" },
+  { id: "draw", icon: PenTool, label: "Draw", shortcut: "D" },
+  { id: "redact", icon: EyeOff, label: "Redact", shortcut: "R" },
+  { id: "ai", icon: Wand2, label: "AI Actions", shortcut: "A" },
 ];
 
 function EditorToolbar({ activeTool, setActiveTool, editorMode }: {
