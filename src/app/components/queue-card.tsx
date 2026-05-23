@@ -110,6 +110,11 @@ export const QueueCard = memo(function QueueCard({ job, selected, onSelect, onRe
         )}
         {isDone && <Progress value={100} className="h-1 flex-1 [&>div]:bg-emerald-500" />}
 
+        {/* Long-audio chunk indicator */}
+        {job.isLongAudio && job.currentChunkLabel && isActive && (
+          <span className="text-[8px] font-mono text-muted-foreground shrink-0">{job.currentChunkLabel}</span>
+        )}
+
         <Badge variant="outline" className={`h-4 text-[9px] px-1.5 shrink-0 ${colors.badge}`}>
           {isActive && <span className="size-1.5 rounded-full bg-current animate-pulse mr-1" />}
           {getStageLabel(job.stage)}
