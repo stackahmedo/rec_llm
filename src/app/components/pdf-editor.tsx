@@ -26,6 +26,7 @@ import { notifyPdfExported, notifyPdfFailed } from "../notification-store";
 import { notifyError } from "../notify";
 import { useEditorState, EditorTool } from "../editor-state";
 import { smartTemplates, rewriteModes, sectionMeta, translationLanguages, createSectionsFromTemplate, ReportSection, SectionType, loadExportPresets, addExportPreset, removeExportPreset, ExportPreset } from "../report-composer";
+import { defaultWatermark, watermarkPresets, WatermarkConfig, ReviewState, createReviewState, submitForReview, recordDecision, CommentThread, createThread, addReply, SplitMode } from "../pdf-advanced";
 import { SpeakerProfile, generateProfiles, loadSpeakerProfiles, saveSpeakerProfiles, getColor, getDisplayName } from "../pdf-speaker-store";
 import { PdfTemplateConfig, HeaderConfig, FooterConfig, builtInTemplates, getAllTemplates, loadCustomTemplates, saveCustomTemplates } from "../pdf-template-store";
 import { SpeakerEditor } from "./pdf-speaker-editor";
@@ -123,6 +124,10 @@ export function PdfEditor() {
   const [exporting, setExporting] = useState(false);
   const [printing, setPrinting] = useState(false);
   const editor = useEditorState();
+  const [watermark, setWatermark] = useState<WatermarkConfig>(defaultWatermark);
+  const [reviewState, setReviewState] = useState<ReviewState>(() => createReviewState());
+  const [commentThreads, setCommentThreads] = useState<CommentThread[]>([]);
+  const [splitMode, setSplitMode] = useState<SplitMode>("none");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try { return localStorage.getItem("recllm-pdf-sidebar") === "collapsed"; } catch { return false; }
   });
@@ -1286,6 +1291,16 @@ function PdfSettingsPanel({ settings, onUpdate, onUpdateSections, speakerProfile
         <SpeakerEditor profiles={speakerProfiles} onChange={onSpeakerProfilesChange} />
       </InspectorGroup>
 
+      {/* Watermark */}
+      <InspectorGroup title="Watermark" open={isOpen("watermark")} onToggle={() => toggle("watermark")}>
+        <WatermarkPanel />
+      </InspectorGroup>
+
+      {/* Review */}
+      <InspectorGroup title="Review" open={isOpen("review")} onToggle={() => toggle("review")}>
+        <ReviewPanel />
+      </InspectorGroup>
+
       {/* Export Presets */}
       <InspectorGroup title="Export Presets" open={isOpen("presets")} onToggle={() => toggle("presets")}>
         <ExportPresetsPanel settings={settings} headerConfig={headerConfig} footerConfig={footerConfig} onUpdate={onUpdate} onUpdateSections={onUpdateSections} />
@@ -1410,6 +1425,101 @@ function SectionComposer({ settings, onUpdate, onUpdateSections }: {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// --- Watermark Panel ---
+function WatermarkPanel() {
+  const [config, setConfig] = useState<WatermarkConfig>(defaultWatermark);
+  const update = (patch: Partial<WatermarkConfig>) => setConfig((prev) => ({ ...prev, ...patch }));
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-1.5">
+        <input type="checkbox" checked={config.enabled} onChange={(e) => update({ enabled: e.target.checked })} className="size-3 rounded accent-primary" />
+        <span className="text-[9px]">Enable watermark</span>
+      </div>
+      {config.enabled && (
+        <>
+          <div className="text-[8px] text-muted-foreground uppercase tracking-wider">Presets</div>
+          <div className="grid grid-cols-3 gap-0.5">
+            {watermarkPresets.map((p) => (
+              <button key={p.id} className="h-5 rounded border text-[8px] hover:bg-primary/5 hover:border-primary/30 transition-colors" onClick={() => update(p.config)}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-1.5 mt-1">
+            <div>
+              <div className="text-[8px] text-muted-foreground mb-0.5">Text</div>
+              <Input value={config.text || ""} onChange={(e) => update({ text: e.target.value })} className="h-5 text-[9px]" />
+            </div>
+            <div>
+              <div className="text-[8px] text-muted-foreground mb-0.5">Opacity</div>
+              <Input type="number" min={0.01} max={1} step={0.05} value={config.opacity} onChange={(e) => update({ opacity: Number(e.target.value) })} className="h-5 text-[9px] font-mono" />
+            </div>
+            <div>
+              <div className="text-[8px] text-muted-foreground mb-0.5">Color</div>
+              <Input type="color" value={config.color} onChange={(e) => update({ color: e.target.value })} className="h-5 p-0.5 cursor-pointer" />
+            </div>
+            <div>
+              <div className="text-[8px] text-muted-foreground mb-0.5">Rotation</div>
+              <Input type="number" min={-90} max={90} value={config.rotation} onChange={(e) => update({ rotation: Number(e.target.value) })} className="h-5 text-[9px] font-mono" />
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// --- Review Panel ---
+function ReviewPanel() {
+  const [state, setState] = useState<ReviewState>(() => createReviewState());
+
+  const statusColors: Record<string, string> = {
+    draft: "bg-slate-500",
+    "in-review": "bg-blue-500",
+    approved: "bg-emerald-500",
+    rejected: "bg-red-500",
+    "changes-requested": "bg-amber-500",
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-1.5">
+        <span className={`size-2 rounded-full ${statusColors[state.status] || "bg-slate-500"}`} />
+        <span className="text-[9px] font-medium capitalize">{state.status.replace("-", " ")}</span>
+        <span className="text-[8px] text-muted-foreground ml-auto">Round {state.currentRound}</span>
+      </div>
+      {state.reviewers.length > 0 && (
+        <div className="space-y-0.5">
+          {state.reviewers.map((r, i) => (
+            <div key={i} className="flex items-center gap-1 text-[8px]">
+              <span className={`size-1.5 rounded-full ${r.decision === "approved" ? "bg-emerald-500" : r.decision === "rejected" ? "bg-red-500" : "bg-slate-300"}`} />
+              <span className="flex-1 truncate">{r.name}</span>
+              <span className="text-muted-foreground capitalize">{r.role}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {state.status === "draft" && (
+        <button
+          className="w-full h-5 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors"
+          onClick={() => setState(submitForReview(state, [{ name: "Reviewer", role: "reviewer" }]))}
+        >
+          Submit for Review
+        </button>
+      )}
+      {state.history.length > 0 && (
+        <div className="mt-1 space-y-0.5 max-h-20 overflow-auto">
+          <div className="text-[8px] text-muted-foreground uppercase tracking-wider">History</div>
+          {state.history.slice(-5).reverse().map((ev, i) => (
+            <div key={i} className="text-[8px] text-muted-foreground truncate">{ev.actor}: {ev.detail}</div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
