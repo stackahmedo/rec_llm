@@ -89,7 +89,7 @@ export function TranscriptWorkspace() {
 
   const generate = useCallback(async () => {
     if (!active) return;
-    if (!window.electronAPI?.summarize) { toast.error("Not available in browser mode"); return; }
+    if (!window.electronAPI?.summarize) { toast.error(t("notify.notAvailable")); return; }
     setGenerating(true);
     const utterances = active.utterances.map((u) => ({ speaker: u.speaker, startMs: u.startMs, text: u.text }));
     const result = await window.electronAPI.summarize.generate(active.fullText, summaryLang, utterances);
@@ -103,7 +103,7 @@ export function TranscriptWorkspace() {
         risks: result.risks || [], generatedAt: new Date().toISOString(),
       };
       addSummary(summaryData);
-      toast.success("Summary generated");
+      toast.success(t("notify.summaryGenerated"));
       notifySummaryGenerated(active.fileName);
     } else {
       notifyProviderError(result.error || "Unknown error", "AI Summary");
