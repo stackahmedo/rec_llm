@@ -119,6 +119,22 @@ interface ElectronDocument {
   exists: (fileId: string) => Promise<boolean>;
 }
 
+interface ElectronLongAudio {
+  analyze: (filePath: string) => Promise<{ ok: boolean; error?: string; analysis?: any }>;
+  start: (filePath: string, opts?: { concurrency?: number }) => Promise<{ ok: boolean; error?: string; requiresChunking?: boolean; pipelineId?: string; totalChunks?: number; analysis?: any }>;
+  status: (pipelineId: string) => Promise<{ ok: boolean; error?: string; status?: string; progress?: number; currentChunk?: number; totalChunks?: number; estimatedRemaining?: number; chunks?: any[] }>;
+  nextChunk: (pipelineId: string) => Promise<{ ok: boolean; error?: string; chunk?: any; allProcessed?: boolean }>;
+  chunkDone: (pipelineId: string, chunkIndex: number, utterances: any[]) => Promise<{ ok: boolean; error?: string; allDone?: boolean; progress?: number }>;
+  chunkFailed: (pipelineId: string, chunkIndex: number, error: string) => Promise<{ ok: boolean; error?: string; canRetry?: boolean; retryCount?: number }>;
+  getMerged: (pipelineId: string) => Promise<{ ok: boolean; error?: string; partial?: boolean; transcript?: any }>;
+  resume: (pipelineId: string) => Promise<{ ok: boolean; error?: string; pipelineId?: string; remainingChunks?: number; totalChunks?: number }>;
+  listRecoverable: () => Promise<{ ok: boolean; pipelines?: any[] }>;
+  cleanup: (pipelineId: string) => Promise<{ ok: boolean; error?: string }>;
+  cancel: (pipelineId: string) => Promise<{ ok: boolean; error?: string }>;
+  onProgress: (callback: (data: { pipelineId: string; progress: number; currentChunk: number; totalChunks: number; status: string }) => void) => void;
+  offProgress: () => void;
+}
+
 interface ElectronAPI {
   platform: string;
   openAudioFiles: () => Promise<AudioFileMeta[]>;
@@ -131,6 +147,7 @@ interface ElectronAPI {
   storage: ElectronStorage;
   export: ElectronExport;
   audio: ElectronAudio;
+  longAudio: ElectronLongAudio;
 }
 
 declare global {

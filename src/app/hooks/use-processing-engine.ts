@@ -1,5 +1,6 @@
 // Processing engine hook — extracted from upload-panel.tsx
 // Runs the sequential queue processor independent of UI components
+// Supports both direct transcription and long-audio chunked pipeline
 
 import { useCallback, useEffect, useRef } from "react";
 import { useUploadJobs, UploadJob, JobStage, getStageProgress } from "../upload-job-store";
@@ -12,6 +13,125 @@ export function useProcessingEngine() {
   const { addTranscript, addHistoryJob } = useTranscripts();
   const processingRef = useRef(false);
 
+  // --- Long-audio chunk processing loop ---
+  const processLongAudio = useCallback(async (file: UploadJob, pipelineId: string, totalChunks: number) => {
+    const api = window.electronAPI;
+    if (!api?.longAudio || !api?.assemblyai) return;
+
+    updateJob(file.id, {
+      stage: "transcribing",
+      progress: 15,
+      isLongAudio: true,
+      pipelineId,
+      totalChunks,
+      completedChunks: 0,
+      currentChunkLabel: `Chunk 1/${totalChunks}`,
+    });
+
+    let completedCount = 0;
+
+    // Process chunks sequentially
+    while (true) {
+      const nextResult = await api.longAudio.nextChunk(pipelineId);
+      if (!nextResult.ok || !nextResult.chunk) {
+        if (nextResult.allProcessed) break;
+        break; // Error
+      }
+
+      const chunk = nextResult.chunk;
+      updateJob(file.id, {
+        currentChunkLabel: `Chunk ${chunk.index + 1}/${totalChunks}`,
+        progress: Math.round(15 + (completedCount / totalChunks) * 70),
+      });
+
+      // Transcribe this chunk via AssemblyAI
+      const transcribeResult = await api.assemblyai.transcribeFile(chunk.filePath, `${file.id}_chunk_${chunk.index}`);
+
+      if (transcribeResult.ok && transcribeResult.utterances) {
+        await api.longAudio.chunkDone(pipelineId, chunk.index, transcribeResult.utterances);
+        completedCount++;
+        updateJob(file.id, {
+          completedChunks: completedCount,
+          progress: Math.round(15 + (completedCount / totalChunks) * 70),
+        });
+      } else {
+        const chunkError = transcribeResult.error || "Chunk transcription failed";
+        const failResult = await api.longAudio.chunkFailed(pipelineId, chunk.index, chunkError);
+        if (failResult.ok && failResult.canRetry) {
+          // Will be retried on next loop iteration
+          continue;
+        }
+        // Chunk permanently failed — continue with remaining chunks
+        completedCount++;
+      }
+    }
+
+    // Merge results
+    updateJob(file.id, { stage: "saving", progress: 90, currentChunkLabel: "Merging..." });
+    const mergedResult = await api.longAudio.getMerged(pipelineId);
+
+    if (mergedResult.ok && mergedResult.transcript) {
+      const transcript = mergedResult.transcript;
+      const now = new Date().toISOString();
+      const speakerCount = transcript.speakerCount || 0;
+
+      addTranscript({
+        fileId: file.id,
+        fileName: file.fileName,
+        fullText: transcript.fullText || '',
+        languageCode: 'auto',
+        utterances: transcript.utterances?.map((u: any) => ({
+          speaker: u.speaker,
+          startMs: u.startMs,
+          endMs: u.endMs,
+          text: u.text,
+        })) || [],
+        completedAt: now,
+      });
+
+      const historyJob = {
+        id: file.id,
+        fileName: file.fileName,
+        filePath: file.filePath!,
+        sizeBytes: file.sizeBytes,
+        status: 'done' as const,
+        languageCode: 'auto',
+        speakerCount,
+        createdAt: new Date(file.createdAt).toISOString(),
+        completedAt: now,
+        transcript: {
+          fullText: transcript.fullText || '',
+          utterances: transcript.utterances || [],
+        },
+      };
+      addHistoryJob(historyJob);
+      window.electronAPI?.history?.save(historyJob);
+
+      updateJob(file.id, {
+        stage: "done",
+        progress: 100,
+        speakers: speakerCount,
+        language: "auto",
+        completedAt: now,
+        resultFileId: file.id,
+        currentChunkLabel: undefined,
+      });
+
+      toast.success(`Done: ${file.fileName}`, {
+        description: `${totalChunks} chunks merged · ${transcript.utterances?.length || 0} segments`,
+      });
+      notifySessionCompleted(file.fileName);
+
+      // Cleanup temp chunks
+      await api.longAudio.cleanup(pipelineId);
+    } else {
+      updateJob(file.id, { stage: "failed", progress: 0, error: "Failed to merge transcript chunks" });
+      toast.error(`Failed: ${file.fileName}`, { description: "Merge failed" });
+      notifySessionFailed(file.fileName, "Merge failed");
+    }
+  }, [addTranscript, addHistoryJob, updateJob]);
+
+  // --- Main processing loop ---
   const processNext = useCallback(async () => {
     if (processingRef.current) return;
     if (!window.electronAPI?.assemblyai) return;
@@ -25,10 +145,24 @@ export function useProcessingEngine() {
     // Step 1: Analyze audio metadata
     let uploadPath = file.filePath!;
     if (window.electronAPI?.audio) {
-      updateJob(file.id, { stage: "analyzing", progress: 10 });
+      updateJob(file.id, { stage: "analyzing", progress: 5 });
       const metaResult = await window.electronAPI.audio.metadata(file.filePath!);
       if (metaResult.ok && metaResult.metadata && metaResult.recommendation) {
-        updateJob(file.id, { audioMeta: metaResult.metadata, recommendation: metaResult.recommendation, progress: 15 });
+        updateJob(file.id, { audioMeta: metaResult.metadata, recommendation: metaResult.recommendation, progress: 8 });
+
+        // Check if long-audio pipeline is needed
+        if (metaResult.recommendation.action === 'split' && window.electronAPI.longAudio) {
+          updateJob(file.id, { stage: "chunking", progress: 10 });
+          toast.info("Long audio detected", { description: metaResult.recommendation.reason });
+
+          const startResult = await window.electronAPI.longAudio.start(file.filePath!);
+          if (startResult.ok && startResult.requiresChunking && startResult.pipelineId) {
+            await processLongAudio(file, startResult.pipelineId, startResult.totalChunks || 1);
+            processingRef.current = false;
+            return;
+          }
+          // If chunking not needed after all, fall through to direct
+        }
 
         if (metaResult.recommendation.action === 'compress') {
           toast.info("Compressing audio", { description: metaResult.recommendation.reason });
@@ -41,7 +175,7 @@ export function useProcessingEngine() {
       }
     }
 
-    // Step 2: Upload and transcribe
+    // Step 2: Upload and transcribe (direct mode)
     updateJob(file.id, { stage: "uploading", progress: 25, startedAt: Date.now() });
 
     const result = await window.electronAPI.assemblyai.transcribeFile(uploadPath, file.id);
@@ -102,7 +236,6 @@ export function useProcessingEngine() {
         : errorMsg;
 
       if (isApiKeyError) {
-        // Don't mark as permanently failed — mark as paused so user can retry after fixing key
         updateJob(file.id, { stage: "paused", progress: 0, error: displayError });
         toast.error("API Key Error", {
           description: "AssemblyAI API key is invalid or missing. Please update your key in Settings.",
@@ -116,7 +249,7 @@ export function useProcessingEngine() {
     }
 
     processingRef.current = false;
-  }, [jobs, addTranscript, addHistoryJob, updateJob]);
+  }, [jobs, addTranscript, addHistoryJob, updateJob, processLongAudio]);
 
   // Auto-advance queue
   useEffect(() => {
