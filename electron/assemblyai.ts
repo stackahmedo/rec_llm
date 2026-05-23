@@ -189,8 +189,16 @@ async function createTranscript(uploadUrl: string, apiKey: string): Promise<stri
 
 async function pollTranscript(transcriptId: string, apiKey: string, jobId: string): Promise<TranscribeResult> {
   const url = `https://api.assemblyai.com/v2/transcript/${transcriptId}`;
+  const MAX_POLL_DURATION_MS = 30 * 60 * 1000; // 30 minutes max
+  const POLL_INTERVAL_MS = 3000;
+  const startTime = Date.now();
 
   while (true) {
+    // Check deadline
+    if (Date.now() - startTime > MAX_POLL_DURATION_MS) {
+      return { ok: false, error: 'Transcription timed out after 30 minutes. The file may be too large or the service is unresponsive.' };
+    }
+
     const response = await net.fetch(url, {
       method: 'GET',
       headers: { 'Authorization': apiKey },
@@ -228,8 +236,9 @@ async function pollTranscript(transcriptId: string, apiKey: string, jobId: strin
       return { ok: false, error: data.error || 'Transcription failed.' };
     }
 
-    sendProgress(jobId, 'transcribing', `Status: ${data.status}`);
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    const elapsed = Math.round((Date.now() - startTime) / 1000);
+    sendProgress(jobId, 'transcribing', `Status: ${data.status} (${elapsed}s)`);
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
 }
 
@@ -240,7 +249,7 @@ export function registerAssemblyAIHandlers(): void {
       return { ok: false, error: 'Please paste your real AssemblyAI API key from the AssemblyAI dashboard.' };
     }
 
-    console.log(`[assemblyai:validateKey] key length=${apiKey.length}, prefix=${apiKey.slice(0, 4)}...`);
+    console.log(`[assemblyai:validateKey] key length=${apiKey.length}`);
 
     try {
       const response = await net.fetch('https://api.assemblyai.com/v2/transcript?limit=1', {
