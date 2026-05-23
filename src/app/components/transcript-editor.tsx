@@ -5,6 +5,7 @@ import { Textarea } from "./ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { Pencil, Check, X, FileAudio, Upload, Mic2, Sparkles, FileText, Globe, Copy, Highlighter, MessageSquare, ChevronDown, ChevronRight } from "lucide-react";
 import { useTranscripts, Utterance } from "../transcript-store";
+import { useT } from "../i18n";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { toast } from "sonner";
 
@@ -30,6 +31,7 @@ const RENDER_BATCH = 100;
 
 export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
   const { transcripts, addTranscript } = useTranscripts();
+  const { t } = useT();
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
   const [editedIndices, setEditedIndices] = useState<Set<number>>(new Set());
@@ -50,7 +52,7 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
     addTranscript(updated);
     setEditedIndices((prev) => new Set(prev).add(editingIdx));
     setEditingIdx(null);
-    toast.success("Segment updated");
+    toast.success(t("transcript.segmentUpdated"));
 
     const api = window.electronAPI?.history;
     if (api) {
@@ -73,7 +75,7 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
 
   const copySegment = useCallback((text: string) => {
     navigator.clipboard.writeText(text);
-    toast.success("Copied");
+    toast.success(t("common.copied"));
   }, []);
 
   const toggleSpeakerCollapse = (speaker: string) => {
@@ -107,9 +109,9 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-6">
         <FileAudio className="size-10 opacity-20 mb-3" />
-        <div className="text-sm font-medium mb-1">No transcript selected</div>
+        <div className="text-sm font-medium mb-1">{t("transcript.noSelected")}</div>
         <div className="text-[11px] text-center max-w-[240px] mb-4">
-          Upload and process audio files to begin, or select a session from the list.
+          {t("transcript.noSelectedDesc")}
         </div>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[10px]">
           <div className="flex items-center gap-1.5"><Upload className="size-3" />MP3, WAV, FLAC, M4A</div>
@@ -126,8 +128,8 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
   if (active.utterances.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-6">
-        <div className="text-sm">Transcript is empty</div>
-        <div className="text-[11px] mt-1">This file produced no segments.</div>
+        <div className="text-sm">{t("transcript.empty")}</div>
+        <div className="text-[11px] mt-1">{t("transcript.emptyDesc")}</div>
       </div>
     );
   }
