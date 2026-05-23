@@ -630,13 +630,89 @@ export function PdfEditor() {
 
             <ResizableHandle withHandle />
 
-            {/* Right: Inspector — compact */}
+            {/* Right: Inspector — contextual */}
             <ResizablePanel defaultSize={28} minSize={20} maxSize={38}>
               <div className="h-full border-l flex flex-col">
-                <div className="h-7 px-2.5 border-b flex items-center shrink-0">
-                  <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">Inspector</span>
+                <div className="h-7 px-2.5 border-b flex items-center gap-2 shrink-0">
+                  <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium flex-1">
+                    {editorMode === "edit" ? "Properties" : "Inspector"}
+                  </span>
+                  {editorMode === "edit" && (
+                    <Badge variant="outline" className="text-[8px] h-4">{editor.activeTool}</Badge>
+                  )}
                 </div>
                 <ScrollArea className="flex-1">
+                  {/* Tool properties panel (edit mode) */}
+                  {editorMode === "edit" && (
+                    <div className="p-2 space-y-2 border-b">
+                      <div className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">Tool Settings</div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <div>
+                          <div className="text-[8px] text-muted-foreground mb-0.5">Color</div>
+                          <Input
+                            type="color"
+                            value={editor.getActiveProps().color}
+                            onChange={(e) => editor.updateToolProps(editor.activeTool, { color: e.target.value })}
+                            className="h-6 w-full p-0.5 cursor-pointer"
+                          />
+                        </div>
+                        <div>
+                          <div className="text-[8px] text-muted-foreground mb-0.5">Opacity</div>
+                          <Input
+                            type="number"
+                            min={0.1}
+                            max={1}
+                            step={0.1}
+                            value={editor.getActiveProps().opacity}
+                            onChange={(e) => editor.updateToolProps(editor.activeTool, { opacity: Number(e.target.value) })}
+                            className="h-6 text-[9px] font-mono"
+                          />
+                        </div>
+                        {(editor.activeTool === "text" || editor.activeTool === "comment") && (
+                          <div>
+                            <div className="text-[8px] text-muted-foreground mb-0.5">Font Size</div>
+                            <Input
+                              type="number"
+                              min={8}
+                              max={24}
+                              value={editor.getActiveProps().fontSize}
+                              onChange={(e) => editor.updateToolProps(editor.activeTool, { fontSize: Number(e.target.value) })}
+                              className="h-6 text-[9px] font-mono"
+                            />
+                          </div>
+                        )}
+                        {(editor.activeTool === "draw" || editor.activeTool === "highlight" || editor.activeTool === "redact") && (
+                          <div>
+                            <div className="text-[8px] text-muted-foreground mb-0.5">Stroke</div>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={20}
+                              value={editor.getActiveProps().strokeWidth}
+                              onChange={(e) => editor.updateToolProps(editor.activeTool, { strokeWidth: Number(e.target.value) })}
+                              className="h-6 text-[9px] font-mono"
+                            />
+                          </div>
+                        )}
+                      </div>
+                      {/* Annotations list */}
+                      {editor.annotations.length > 0 && (
+                        <div className="mt-2">
+                          <div className="text-[8px] text-muted-foreground uppercase tracking-wider mb-1">Annotations ({editor.annotations.length})</div>
+                          <div className="space-y-0.5 max-h-32 overflow-auto">
+                            {editor.annotations.slice(-10).reverse().map((ann) => (
+                              <div key={ann.id} className="flex items-center gap-1 text-[8px] px-1 py-0.5 rounded hover:bg-muted/30 group">
+                                <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: ann.color }} />
+                                <span className="flex-1 truncate">{ann.type} · seg {ann.segmentIndex}</span>
+                                <button className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100" onClick={() => editor.removeAnnotation(ann.id)}>×</button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* Document settings (always shown) */}
                   <PdfSettingsPanel
                     settings={settings}
                     onUpdate={updateSettings}
