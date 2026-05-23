@@ -178,22 +178,92 @@ ${transcript}`;
 
 async function callGemini(apiKey: string, model: string, prompt: string): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const response = await net.fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.3 },
-    }),
-  });
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[Gemini] POST ${url.replace(apiKey, '***')}`);
+  }
+
+  let response: Response;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+    response = await net.fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.3 },
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error('Gemini request timed out after 60s. The model may be overloaded — try again or use a faster model.');
+    }
+    throw new Error(`Network error reaching Gemini: ${err.message || 'Connection failed'}`);
+  }
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[Gemini] Response: ${response.status} content-type=${response.headers.get('content-type')}`);
+  }
+
+  // Check content-type before parsing
+  const contentType = response.headers.get('content-type') || '';
+
+  if (response.status === 401 || response.status === 403) {
+    throw new Error('Invalid Gemini API key. Check your key in Settings → AI Providers.');
+  }
+  if (response.status === 404) {
+    throw new Error(`Model "${model}" is unavailable or retired. Update your model in Settings → AI Providers.`);
+  }
+  if (response.status === 429) {
+    throw new Error('Gemini rate limit or quota exceeded. Wait a moment and try again, or upgrade your API plan.');
+  }
 
   if (response.status !== 200) {
     const text = await response.text();
-    throw new Error(`Gemini API error (${response.status}): ${text.slice(0, 200)}`);
+    // If HTML was returned, don't show raw HTML
+    if (contentType.includes('text/html') || text.trimStart().startsWith('<!') || text.trimStart().startsWith('<html')) {
+      throw new Error(`Gemini returned an error page (HTTP ${response.status}). The endpoint may be incorrect or temporarily unavailable.`);
+    }
+    // Try to extract a message from JSON error
+    try {
+      const errJson = JSON.parse(text);
+      const msg = errJson?.error?.message || errJson?.error?.status || text.slice(0, 150);
+      throw new Error(`Gemini API error (${response.status}): ${msg}`);
+    } catch (parseErr: any) {
+      if (parseErr.message.startsWith('Gemini')) throw parseErr;
+      throw new Error(`Gemini API error (${response.status}): ${text.slice(0, 150)}`);
+    }
+  }
+
+  // Verify we got JSON back
+  if (!contentType.includes('application/json')) {
+    const text = await response.text();
+    if (text.trimStart().startsWith('<!') || text.trimStart().startsWith('<html')) {
+      throw new Error('Gemini returned HTML instead of JSON. The API endpoint may have changed or the model is unavailable.');
+    }
+    throw new Error(`Gemini returned unexpected content-type: ${contentType}. Expected application/json.`);
   }
 
   const data = await response.json() as any;
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+  // Check for blocked or empty responses
+  if (data.error) {
+    throw new Error(`Gemini error: ${data.error.message || JSON.stringify(data.error).slice(0, 150)}`);
+  }
+
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) {
+    const blockReason = data.candidates?.[0]?.finishReason;
+    if (blockReason && blockReason !== 'STOP') {
+      throw new Error(`Gemini blocked the response (reason: ${blockReason}). Try rephrasing or using a different model.`);
+    }
+    throw new Error('Gemini returned an empty response. The transcript may be too short or the model could not generate a summary.');
+  }
+
+  return text;
 }
 
 async function callOpenAI(apiKey: string, model: string, prompt: string, baseUrl?: string): Promise<string> {
