@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, session } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { registerSettingsHandlers } from './settings';
@@ -82,6 +82,25 @@ function createWindow(): void {
       nodeIntegration: false,
       preload: path.join(__dirname, 'preload.js'),
     },
+  });
+
+  // Block new window creation — redirect to external browser
+  win.webContents.setWindowOpenHandler(() => {
+    return { action: 'deny' };
+  });
+
+  // Set Content-Security-Policy
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const csp = isDev
+      ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://localhost:* http://localhost:*; img-src 'self' data: blob:; font-src 'self' data:;"
+      : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.assemblyai.com https://generativelanguage.googleapis.com https://api.openai.com; img-src 'self' data: blob:; font-src 'self' data:;";
+
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [csp],
+      },
+    });
   });
 
   if (isDev) {
