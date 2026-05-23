@@ -25,6 +25,7 @@ import { usePdfDraft } from "../pdf-draft-store";
 import { notifyPdfExported, notifyPdfFailed } from "../notification-store";
 import { notifyError } from "../notify";
 import { useEditorState, EditorTool } from "../editor-state";
+import { smartTemplates, rewriteModes, sectionMeta, translationLanguages, createSectionsFromTemplate, ReportSection, SectionType, loadExportPresets, addExportPreset, removeExportPreset, ExportPreset } from "../report-composer";
 import { SpeakerProfile, generateProfiles, loadSpeakerProfiles, saveSpeakerProfiles, getColor, getDisplayName } from "../pdf-speaker-store";
 import { PdfTemplateConfig, HeaderConfig, FooterConfig, builtInTemplates, getAllTemplates, loadCustomTemplates, saveCustomTemplates } from "../pdf-template-store";
 import { SpeakerEditor } from "./pdf-speaker-editor";
@@ -1137,16 +1138,24 @@ function PdfSettingsPanel({ settings, onUpdate, onUpdateSections, speakerProfile
         </div>
       </InspectorGroup>
 
-      {/* Report Preset */}
-      <InspectorGroup title="Report Preset" open={isOpen("preset")} onToggle={() => toggle("preset")}>
-        <div className="grid grid-cols-2 gap-1">
-          {reportPresets.map((p) => (
+      {/* Report Preset — Smart Templates */}
+      <InspectorGroup title="Smart Templates" open={isOpen("preset")} onToggle={() => toggle("preset")}>
+        <div className="space-y-1">
+          {smartTemplates.slice(0, 6).map((t) => (
             <button
-              key={p.id}
-              className="h-5 rounded border text-[9px] hover:bg-primary/5 hover:border-primary/30 transition-colors truncate px-1.5"
-              onClick={() => applyPreset(p.id)}
+              key={t.id}
+              className="w-full text-left px-1.5 py-1 rounded border hover:bg-primary/5 hover:border-primary/30 transition-colors"
+              onClick={() => {
+                const secs = createSectionsFromTemplate(t);
+                const sectionFlags: any = {};
+                const order: string[] = [];
+                secs.forEach((s) => { sectionFlags[s.type] = s.enabled; order.push(s.type); });
+                onUpdateSections(sectionFlags);
+                onUpdate({ sectionOrder: order });
+              }}
             >
-              {p.label}
+              <div className="text-[9px] font-medium">{t.label}</div>
+              <div className="text-[8px] text-muted-foreground">{t.desc}</div>
             </button>
           ))}
         </div>
@@ -1165,19 +1174,42 @@ function PdfSettingsPanel({ settings, onUpdate, onUpdateSections, speakerProfile
 
       {/* AI Actions */}
       <InspectorGroup title="AI Actions" open={isOpen("ai")} onToggle={() => toggle("ai")}>
-        <div className="space-y-1">
-          <button className="w-full h-5 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors" disabled={hasSummary}>
-            <Sparkles className="size-2.5" />Generate Summary
-          </button>
-          <button className="w-full h-5 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors" disabled>
-            <CheckCircle2 className="size-2.5" />Extract Tasks
-          </button>
-          <button className="w-full h-5 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors" disabled>
-            <FileText className="size-2.5" />Create Minutes
-          </button>
-          <button className="w-full h-5 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors" disabled>
-            <Search className="size-2.5" />Redact Sensitive
-          </button>
+        <div className="space-y-1.5">
+          <div className="text-[8px] text-muted-foreground uppercase tracking-wider">Generate</div>
+          <div className="space-y-0.5">
+            <button className="w-full h-5 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors">
+              <Sparkles className="size-2.5" />Generate Summary
+            </button>
+            <button className="w-full h-5 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors">
+              <CheckCircle2 className="size-2.5" />Extract Tasks
+            </button>
+            <button className="w-full h-5 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors">
+              <FileText className="size-2.5" />Create Minutes
+            </button>
+          </div>
+          <div className="text-[8px] text-muted-foreground uppercase tracking-wider mt-2">Rewrite</div>
+          <div className="grid grid-cols-2 gap-0.5">
+            {rewriteModes.map((mode) => (
+              <button
+                key={mode.id}
+                className="h-5 rounded border text-[8px] hover:bg-primary/5 hover:border-primary/30 transition-colors truncate px-1"
+                title={mode.desc}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
+          <div className="text-[8px] text-muted-foreground uppercase tracking-wider mt-2">Translate</div>
+          <div className="grid grid-cols-3 gap-0.5">
+            {translationLanguages.slice(0, 6).map((lang) => (
+              <button
+                key={lang.code}
+                className="h-5 rounded border text-[8px] hover:bg-primary/5 hover:border-primary/30 transition-colors"
+              >
+                {lang.label}
+              </button>
+            ))}
+          </div>
         </div>
       </InspectorGroup>
 
