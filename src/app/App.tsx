@@ -10,6 +10,7 @@ import { Toaster } from "./components/ui/sonner";
 import { I18nProvider, useT } from "./i18n";
 import { TranscriptProvider } from "./transcript-store";
 import { UploadJobProvider } from "./upload-job-store";
+import { PageErrorBoundary } from "./components/error-boundary";
 
 // UI Scale hook
 function useUiScale() {
@@ -113,21 +114,23 @@ function Shell() {
 
         <div className="flex-1 overflow-auto p-6 space-y-6">
           {view === "dashboard" && (
-            <DashboardStatus onNavigate={setView} />
+            <PageErrorBoundary fallbackTitle="Dashboard error">
+              <DashboardStatus onNavigate={setView} />
+            </PageErrorBoundary>
           )}
 
           <Suspense fallback={<PageLoader />}>
-            {view === "upload" && <UploadWorkstation />}
+            {view === "upload" && <PageErrorBoundary fallbackTitle="Upload error"><UploadWorkstation /></PageErrorBoundary>}
 
-            {view === "transcripts" && <TranscriptWorkspace />}
+            {view === "transcripts" && <PageErrorBoundary fallbackTitle="Transcript error"><TranscriptWorkspace /></PageErrorBoundary>}
 
-            {view === "pdf" && <PdfEditor />}
+            {view === "pdf" && <PageErrorBoundary fallbackTitle="PDF Editor error"><PdfEditor /></PageErrorBoundary>}
 
-            {view === "library" && <FileLibrary />}
+            {view === "library" && <PageErrorBoundary fallbackTitle="Library error"><FileLibrary /></PageErrorBoundary>}
 
-            {view === "speakers" && <SpeakerPanel />}
+            {view === "speakers" && <PageErrorBoundary fallbackTitle="Speakers error"><SpeakerPanel /></PageErrorBoundary>}
 
-            {view === "settings" && <SettingsPanel />}
+            {view === "settings" && <PageErrorBoundary fallbackTitle="Settings error"><SettingsPanel /></PageErrorBoundary>}
           </Suspense>
         </div>
       </main>
