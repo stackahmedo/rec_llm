@@ -53,7 +53,7 @@ export function SettingsPanel() {
 
   const [gemKey, setGemKey] = useState("");
   const [gemState, setGemState] = useState<CheckState>("idle");
-  const [gemModel, setGemModel] = useState("gemini-1.5-pro");
+  const [gemModel, setGemModel] = useState("gemini-2.5-flash");
 
   const [gptKey, setGptKey] = useState("");
   const [gptState, setGptState] = useState<CheckState>("idle");
@@ -88,7 +88,16 @@ export function SettingsPanel() {
       const models = await api.get('models') as Record<string, string> | null;
       if (models) {
         if (models.assemblyai) setAsmModel(models.assemblyai);
-        if (models.gemini) setGemModel(models.gemini);
+        if (models.gemini) {
+          // Auto-migrate deprecated models
+          const deprecated = ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-2.0-flash-lite-001"];
+          if (deprecated.includes(models.gemini)) {
+            setGemModel("gemini-2.5-flash");
+            toast.warning("Gemini model updated", { description: `${models.gemini} is deprecated. Migrated to Gemini 2.5 Flash.` });
+          } else {
+            setGemModel(models.gemini);
+          }
+        }
         if (models.chatgpt) setGptModel(models.chatgpt);
       }
       const openaiProv = await api.get('openaiProvider') as { providerType?: string; baseUrl?: string } | null;
@@ -127,13 +136,28 @@ export function SettingsPanel() {
   };
 
   const checkGemini = async () => {
+    if (!gemKey.trim()) { toast.error("Missing API key"); setGemState("fail"); return; }
     setGemState("checking");
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${gemKey.trim()}`);
-      setGemState(response.status === 200 ? "ok" : "fail");
-      if (response.status === 200) toast.success("Gemini connected");
-      else toast.error("Gemini key invalid");
-    } catch { setGemState("fail"); toast.error("Gemini: network error"); }
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${gemModel}?key=${gemKey.trim()}`);
+      if (response.status === 200) {
+        setGemState("ok");
+        toast.success("Gemini connected");
+      } else if (response.status === 400 || response.status === 403) {
+        setGemState("fail");
+        toast.error("Invalid API key", { description: "The key was rejected by Google." });
+      } else if (response.status === 404) {
+        setGemState("fail");
+        toast.error("Model unavailable", { description: `${gemModel} is not available. It may be retired or require different permissions.` });
+      } else if (response.status === 429) {
+        setGemState("fail");
+        toast.error("Quota exceeded", { description: "Rate limit or quota reached. Try again later." });
+      } else {
+        setGemState("fail");
+        const body = await response.text().catch(() => "");
+        toast.error(`Gemini error (${response.status})`, { description: body.slice(0, 120) || "Unexpected response." });
+      }
+    } catch { setGemState("fail"); toast.error("Network error", { description: "Could not reach Google AI. Check your connection." }); }
   };
 
   const checkOpenAI = async () => {
@@ -473,9 +497,24 @@ function AIProvidersTab({ summaryProvider, setSummaryProvider, summaryLang, setS
           <Select value={gemModel} onValueChange={setGemModel}>
             <SelectTrigger className="h-7 text-[11px] flex-1"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro</SelectItem>
-              <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash</SelectItem>
-              <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash</SelectItem>
+              <SelectItem value="gemini-2.5-flash">
+                <div className="flex flex-col">
+                  <span>Gemini 2.5 Flash</span>
+                  <span className="text-[9px] text-muted-foreground">Balanced · Recommended</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="gemini-2.5-flash-lite">
+                <div className="flex flex-col">
+                  <span>Gemini 2.5 Flash Lite</span>
+                  <span className="text-[9px] text-muted-foreground">Cheap · High-volume</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="gemini-2.5-pro">
+                <div className="flex flex-col">
+                  <span>Gemini 2.5 Pro</span>
+                  <span className="text-[9px] text-muted-foreground">Best quality · Slower</span>
+                </div>
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>

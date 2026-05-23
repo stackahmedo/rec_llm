@@ -272,7 +272,7 @@ export function registerSummarizeHandlers(): void {
       return { ok: false, error: `No API key saved for ${provider}. Go to Settings and save your key.` };
     }
 
-    const model = models[provider] || (provider === 'gemini' ? 'gemini-1.5-pro' : provider === 'chatgpt' ? 'gpt-4o' : 'gemma-2-27b-it');
+    const model = models[provider] || (provider === 'gemini' ? 'gemini-2.5-flash' : provider === 'chatgpt' ? 'gpt-4o' : 'gemma-2-27b-it');
     const openaiBaseUrl = openaiProvider?.providerType === 'custom' ? openaiProvider.baseUrl : undefined;
 
     try {
