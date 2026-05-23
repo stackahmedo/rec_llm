@@ -1,10 +1,11 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Textarea } from "./ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { Pencil, Check, X, FileAudio, Upload, Mic2, Sparkles, FileText, Globe, Copy, Highlighter, MessageSquare, ChevronDown, ChevronRight } from "lucide-react";
 import { useTranscripts, Utterance } from "../transcript-store";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { toast } from "sonner";
 
 const speakerColors = [
@@ -33,7 +34,7 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
   const [editText, setEditText] = useState("");
   const [editedIndices, setEditedIndices] = useState<Set<number>>(new Set());
   const [collapsedSpeakers, setCollapsedSpeakers] = useState<Set<string>>(new Set());
-  const [renderLimit, setRenderLimit] = useState(RENDER_BATCH);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const active = fileId ? transcripts.find((t) => t.fileId === fileId) || null : null;
 
@@ -132,8 +133,14 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
   }
 
   const lastEnd = Math.max(...active.utterances.map((u) => u.endMs));
-  const visibleUtterances = active.utterances.slice(0, renderLimit);
-  const hasMore = renderLimit < active.utterances.length;
+
+  // TanStack Virtual for true virtualized rendering
+  const virtualizer = useVirtualizer({
+    count: active.utterances.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => 44, // estimated row height
+    overscan: 20,
+  });
 
   return (
     <div className="h-full flex flex-col">
@@ -159,15 +166,12 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
         <Badge variant="outline" className="h-4 text-[7px] px-1 font-mono">{active.utterances.length} seg</Badge>
       </div>
 
-      {/* Transcript content — chunked rendering */}
-      <div className="flex-1 overflow-auto" onScroll={(e) => {
-        const el = e.currentTarget;
-        if (el.scrollTop + el.clientHeight >= el.scrollHeight - 200 && hasMore) {
-          setRenderLimit((prev) => Math.min(prev + RENDER_BATCH, active.utterances.length));
-        }
-      }}>
-        <div className="divide-y">
-          {visibleUtterances.map((u, idx) => {
+      {/* Virtualized transcript content */}
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto">
+        <div style={{ height: `${virtualizer.getTotalSize()}px`, width: "100%", position: "relative" }}>
+          {virtualizer.getVirtualItems().map((virtualRow) => {
+            const idx = virtualRow.index;
+            const u = active.utterances[idx];
             const speakerIndex = parseInt(u.speaker.replace(/\D/g, '') || '0', 10) % speakerColors.length;
             const isEditing = editingIdx === idx;
             const wasEdited = editedIndices.has(idx);
@@ -175,13 +179,20 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
 
             // Skip collapsed speaker segments (show only first)
             if (isSpeakerCollapsed && idx > 0 && active.utterances[idx - 1]?.speaker === u.speaker) {
-              return null;
+              return (
+                <div key={virtualRow.key} data-index={idx} ref={virtualizer.measureElement}
+                  style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${virtualRow.start}px)` }}>
+                </div>
+              );
             }
 
             return (
               <div
-                key={idx}
-                className="flex gap-2 px-3 py-1 group hover:bg-muted/20 transition-colors"
+                key={virtualRow.key}
+                data-index={idx}
+                ref={virtualizer.measureElement}
+                className="flex gap-2 px-3 py-1 group hover:bg-muted/20 transition-colors border-b"
+                style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${virtualRow.start}px)` }}
                 id={`seg-${idx}`}
               >
                 {/* Timestamp — clickable */}
@@ -196,11 +207,7 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
                   </button>
                   <button
                     className="text-[8px] font-mono text-muted-foreground hover:text-primary hover:underline transition-colors"
-                    onClick={() => {
-                      const el = document.getElementById(`seg-${idx}`);
-                      el?.scrollIntoView({ behavior: "smooth", block: "center" });
-                      toast.info(`Jumped to ${msToTimestamp(u.startMs)}`);
-                    }}
+                    onClick={() => virtualizer.scrollToIndex(idx, { align: "center" })}
                     title="Click to jump"
                   >
                     {msToTimestamp(u.startMs)}
@@ -259,13 +266,6 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
               </div>
             );
           })}
-          {hasMore && (
-            <div className="py-2 text-center">
-              <button className="text-[9px] text-muted-foreground hover:text-primary" onClick={() => setRenderLimit((prev) => prev + RENDER_BATCH)}>
-                Load more ({active.utterances.length - renderLimit} remaining)
-              </button>
-            </div>
-          )}
         </div>
       </div>
     </div>
