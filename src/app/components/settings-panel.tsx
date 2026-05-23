@@ -14,6 +14,30 @@ import {
 import { useT, Lang } from "../i18n";
 import { RestoreFactoryDialog } from "./restore-factory-dialog";
 
+// --- Model Registry (architecture for future dynamic lists) ---
+interface ModelMeta {
+  id: string;
+  label: string;
+  category: string;
+  speed: "fast" | "medium" | "slow";
+  costTier: "free" | "cheap" | "standard" | "premium";
+  quality: "basic" | "good" | "best";
+  useCase: string;
+  deprecated?: boolean;
+}
+
+const GEMINI_MODELS: ModelMeta[] = [
+  { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash", category: "Balanced", speed: "fast", costTier: "standard", quality: "good", useCase: "General summarization, fast turnaround" },
+  { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite", category: "Cheap / Fast", speed: "fast", costTier: "cheap", quality: "basic", useCase: "High-volume batch processing" },
+  { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro", category: "High Quality", speed: "slow", costTier: "premium", quality: "best", useCase: "Complex analysis, detailed reports" },
+];
+
+const DEPRECATED_GEMINI = ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-2.0-flash-lite-001"];
+
+function getActiveGeminiModels(): ModelMeta[] {
+  return GEMINI_MODELS.filter((m) => !m.deprecated);
+}
+
 type CheckState = "idle" | "checking" | "ok" | "fail";
 type SettingsTab = "general" | "transcription" | "ai-providers" | "pipeline" | "processing" | "storage" | "export" | "advanced";
 
@@ -90,8 +114,7 @@ export function SettingsPanel() {
         if (models.assemblyai) setAsmModel(models.assemblyai);
         if (models.gemini) {
           // Auto-migrate deprecated models
-          const deprecated = ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-2.0-flash-lite-001"];
-          if (deprecated.includes(models.gemini)) {
+          if (DEPRECATED_GEMINI.includes(models.gemini)) {
             setGemModel("gemini-2.5-flash");
             toast.warning("Gemini model updated", { description: `${models.gemini} is deprecated. Migrated to Gemini 2.5 Flash.` });
           } else {
@@ -497,24 +520,14 @@ function AIProvidersTab({ summaryProvider, setSummaryProvider, summaryLang, setS
           <Select value={gemModel} onValueChange={setGemModel}>
             <SelectTrigger className="h-7 text-[11px] flex-1"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="gemini-2.5-flash">
-                <div className="flex flex-col">
-                  <span>Gemini 2.5 Flash</span>
-                  <span className="text-[9px] text-muted-foreground">Balanced · Recommended</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="gemini-2.5-flash-lite">
-                <div className="flex flex-col">
-                  <span>Gemini 2.5 Flash Lite</span>
-                  <span className="text-[9px] text-muted-foreground">Cheap · High-volume</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="gemini-2.5-pro">
-                <div className="flex flex-col">
-                  <span>Gemini 2.5 Pro</span>
-                  <span className="text-[9px] text-muted-foreground">Best quality · Slower</span>
-                </div>
-              </SelectItem>
+              {getActiveGeminiModels().map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  <div className="flex flex-col">
+                    <span>{m.label}</span>
+                    <span className="text-[9px] text-muted-foreground">{m.category} · {m.useCase.split(',')[0]}</span>
+                  </div>
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
