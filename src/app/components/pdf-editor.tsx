@@ -1341,9 +1341,9 @@ function PdfSettingsPanel({ settings, onUpdate, onUpdateSections, speakerProfile
 
 function InspectorGroup({ title, open, onToggle, children }: { title: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
   return (
-    <div className="border-b">
+    <div className="border-b last:border-b-0">
       <button
-        className="w-full flex items-center justify-between px-2.5 py-1.5 hover:bg-muted/30 transition-colors"
+        className="w-full flex items-center justify-between px-2.5 py-1 hover:bg-muted/30 transition-colors sticky top-0 bg-background/95 backdrop-blur z-[1]"
         onClick={onToggle}
       >
         <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">{title}</span>
