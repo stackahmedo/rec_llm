@@ -188,7 +188,7 @@ export function TranscriptWorkspace() {
         {/* Transcript search */}
         <div className="relative">
           <Search className="size-2.5 absolute left-1.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input value={transcriptSearch} onChange={(e) => setTranscriptSearch(e.target.value)} placeholder="Search..." className="h-5 text-[9px] pl-6 w-28" />
+          <Input value={transcriptSearch} onChange={(e) => setTranscriptSearch(e.target.value)} placeholder={t("common.search") + "..."} className="h-5 text-[9px] pl-6 w-28" />
         </div>
         {/* Speaker filter */}
         {speakers.length > 0 && (
