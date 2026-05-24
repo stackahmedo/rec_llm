@@ -12,6 +12,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import os from 'os';
+import { validateFilePath } from './ipc-validation';
 
 // --- Types ---
 
@@ -420,6 +421,7 @@ export function registerLongAudioHandlers(): void {
   // Analyze audio file
   ipcMain.handle('longaudio:analyze', async (_event, filePath: string) => {
     try {
+      validateFilePath(filePath);
       const analysis = await analyzeAudio(filePath);
       return { ok: true, analysis };
     } catch (err: any) {
@@ -430,6 +432,7 @@ export function registerLongAudioHandlers(): void {
   // Start pipeline
   ipcMain.handle('longaudio:start', async (_event, filePath: string, opts?: { concurrency?: number }) => {
     try {
+      validateFilePath(filePath);
       const analysis = await analyzeAudio(filePath);
 
       if (!analysis.requiresChunking) {

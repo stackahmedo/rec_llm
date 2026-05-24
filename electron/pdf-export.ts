@@ -2,6 +2,32 @@ import { ipcMain, BrowserWindow, dialog } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { validateString } from './ipc-validation';
+
+async function getExportFolder(): Promise<string | null> {
+  try {
+    const { default: Store } = await import('electron-store');
+    const store = new Store({ name: 'recllm-settings' });
+    const folder = (store as any).get('exportFolder') as string | undefined;
+    if (!folder) return null;
+    try {
+      const stat = fs.statSync(folder);
+      if (!stat.isDirectory()) return null;
+    } catch {
+      return null;
+    }
+    return folder;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sanitize a file name to prevent path traversal.
+ */
+function sanitizeExportName(name: string): string {
+  return name.replace(/[/\\:\0]/g, '_').replace(/\.\./g, '_');
+}
 
 // --- Types ---
 interface SpeakerConfig {
@@ -510,27 +536,43 @@ async function renderPdf(html: string, config: PdfExportConfig): Promise<Buffer>
 // --- IPC Handlers ---
 export function registerPdfHandlers(): void {
   ipcMain.handle('pdf:exportReport', async (_event, data: PdfExportData): Promise<{ ok: boolean; error?: string; filePath?: string }> => {
-    const win = BrowserWindow.getFocusedWindow();
-    if (!win) return { ok: false, error: 'No active window.' };
+    if (!data || typeof data !== 'object' || !data.fileName) {
+      return { ok: false, error: 'Invalid export data.' };
+    }
 
     const config = data.config || getDefaultConfig();
-    const defaultName = data.fileName.replace(/\.[^.]+$/, '') + '_report.pdf';
+    const defaultName = sanitizeExportName(data.fileName.replace(/\.[^.]+$/, '') + '_report.pdf');
 
-    const result = await dialog.showSaveDialog(win, {
-      title: 'Export PDF Report',
-      defaultPath: defaultName,
-      filters: [{ name: 'PDF', extensions: ['pdf'] }],
-    });
+    let filePath: string | null = null;
+    const folder = await getExportFolder();
+    if (folder) {
+      const resolved = path.join(folder, defaultName);
+      // Ensure resolved path stays within export folder
+      if (!resolved.startsWith(folder)) {
+        return { ok: false, error: 'Invalid export path.' };
+      }
+      filePath = resolved;
+    } else {
+      const win = BrowserWindow.getFocusedWindow();
+      if (!win) return { ok: false, error: 'No active window.' };
 
-    if (result.canceled || !result.filePath) {
-      return { ok: false, error: 'Export cancelled.' };
+      const result = await dialog.showSaveDialog(win, {
+        title: 'Export PDF Report',
+        defaultPath: defaultName,
+        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+      });
+
+      if (result.canceled || !result.filePath) {
+        return { ok: false, error: 'Export cancelled.' };
+      }
+      filePath = result.filePath;
     }
 
     try {
       const html = buildHtml(data);
       const pdfBuffer = await renderPdf(html, config);
-      fs.writeFileSync(result.filePath, pdfBuffer);
-      return { ok: true, filePath: result.filePath };
+      fs.writeFileSync(filePath, pdfBuffer);
+      return { ok: true, filePath };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'PDF generation failed.';
       return { ok: false, error: msg };
@@ -539,6 +581,10 @@ export function registerPdfHandlers(): void {
 
   // Print: generate temp PDF and open system print dialog
   ipcMain.handle('pdf:print', async (_event, data: PdfExportData): Promise<{ ok: boolean; error?: string }> => {
+    if (!data || typeof data !== 'object' || !data.fileName) {
+      return { ok: false, error: 'Invalid print data.' };
+    }
+
     const win = BrowserWindow.getFocusedWindow();
     if (!win) return { ok: false, error: 'No active window.' };
 
@@ -547,9 +593,9 @@ export function registerPdfHandlers(): void {
       const config = data.config || getDefaultConfig();
       const pdfBuffer = await renderPdf(html, config);
 
-      // Write temp file
+      // Write temp file with restricted permissions
       const tmpPath = path.join(os.tmpdir(), `recllm-print-${Date.now()}.pdf`);
-      fs.writeFileSync(tmpPath, pdfBuffer);
+      fs.writeFileSync(tmpPath, pdfBuffer, { mode: 0o600 });
 
       // Open with system default (triggers print dialog on most systems)
       const { shell } = require('electron');

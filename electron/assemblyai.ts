@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import https from 'https';
 import { getCredential } from './credential-store';
+import { validateFilePath, validateString } from './ipc-validation';
 
 const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -66,9 +67,6 @@ function sendProgress(jobId: string, stage: string, detail?: string): void {
 function uploadFileOnce(filePath: string, apiKey: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const stat = fs.statSync(filePath);
-    const ext = path.extname(filePath).toLowerCase();
-
-    console.log(`[assemblyai:upload] path exists: true, size: ${stat.size} bytes, ext: ${ext}`);
 
     const options: https.RequestOptions = {
       hostname: 'api.assemblyai.com',
@@ -90,7 +88,6 @@ function uploadFileOnce(filePath: string, apiKey: string): Promise<string> {
       res.on('data', (chunk) => { body += chunk; });
       res.on('end', () => {
         clearTimeout(timer);
-        console.log(`[assemblyai:upload] HTTP status: ${res.statusCode}`);
         if (res.statusCode === 200) {
           try {
             const data = JSON.parse(body) as { upload_url: string };
@@ -130,10 +127,8 @@ async function uploadFile(filePath: string, apiKey: string): Promise<string> {
   } catch (err: any) {
     // One retry on failure
     const msg = err.message || '';
-    console.log(`[assemblyai:upload] first attempt failed: ${msg.slice(0, 100)}`);
     if (msg.includes('timed out') || msg.includes('Upload failed') || msg.includes('ECONNRESET')) {
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      console.log(`[assemblyai:upload] retrying...`);
       return await uploadFileOnce(filePath, apiKey);
     }
     throw err;
@@ -150,12 +145,8 @@ async function createTranscript(uploadUrl: string, apiKey: string): Promise<stri
     speech_models: speechModels,
   };
 
-  console.log(`[assemblyai:createTranscript] uploadUrl exists: ${!!uploadUrl}, starts with https: ${uploadUrl?.startsWith('https')}`);
-  console.log(`[assemblyai:createTranscript] speech_models: ${JSON.stringify(speechModels)}`);
-  console.log(`[assemblyai:createTranscript] request body: ${JSON.stringify(payload)}`);
-
   if (!uploadUrl || !uploadUrl.startsWith('https')) {
-    throw new Error(`Invalid upload URL: expected https URL, got ${uploadUrl ? uploadUrl.slice(0, 30) : 'empty'}`);
+    throw new Error(`Invalid upload URL: expected https URL`);
   }
 
   const response = await net.fetch('https://api.assemblyai.com/v2/transcript', {
@@ -169,7 +160,6 @@ async function createTranscript(uploadUrl: string, apiKey: string): Promise<stri
 
   if (response.status !== 200) {
     const errorText = await response.text();
-    console.log(`[assemblyai:createTranscript] HTTP ${response.status}: ${errorText.slice(0, 300)}`);
     let errorMsg = `Transcript creation failed (${response.status})`;
     try {
       const errorJson = JSON.parse(errorText);
@@ -179,7 +169,6 @@ async function createTranscript(uploadUrl: string, apiKey: string): Promise<stri
   }
 
   const data = await response.json() as { id: string };
-  console.log(`[assemblyai:createTranscript] transcript id: ${data.id}`);
   return data.id;
 }
 
@@ -245,8 +234,6 @@ export function registerAssemblyAIHandlers(): void {
       return { ok: false, error: 'Please paste your real AssemblyAI API key from the AssemblyAI dashboard.' };
     }
 
-    console.log(`[assemblyai:validateKey] key length=${apiKey.length}`);
-
     try {
       const response = await net.fetch('https://api.assemblyai.com/v2/transcript?limit=1', {
         method: 'GET',
@@ -262,6 +249,13 @@ export function registerAssemblyAIHandlers(): void {
   });
 
   ipcMain.handle('assemblyai:transcribeFile', async (_event, filePath: string, jobId: string): Promise<TranscribeResult> => {
+    try {
+      validateFilePath(filePath);
+      validateString(jobId, 'jobId', 200);
+    } catch (err: any) {
+      return { ok: false, error: err.message };
+    }
+
     const apiKey = await getApiKey();
     if (!apiKey || apiKey.length < 10) {
       return { ok: false, error: 'API_KEY_MISSING: No AssemblyAI API key configured. Please add your key in Settings.' };

@@ -35,7 +35,7 @@ function writeCredentialsFile(data: StoredCredentials): void {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), { mode: 0o600 });
 }
 
 /**

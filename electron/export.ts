@@ -1,24 +1,107 @@
 import { ipcMain, BrowserWindow, dialog } from 'electron';
 import fs from 'fs';
+import path from 'path';
+import { validateString } from './ipc-validation';
+
+let _getStore: (() => Promise<any>) | null = null;
+
+function setStoreAccessor(accessor: () => Promise<any>) {
+  _getStore = accessor;
+}
+
+async function getExportFolder(): Promise<string | null> {
+  if (!_getStore) return null;
+  const store = await _getStore();
+  const folder = store.get('exportFolder') as string | undefined;
+  if (!folder) return null;
+  // Validate the folder exists and is a directory
+  try {
+    const stat = fs.statSync(folder);
+    if (!stat.isDirectory()) return null;
+  } catch {
+    return null;
+  }
+  return folder;
+}
+
+/**
+ * Sanitize a file name to prevent path traversal in export names.
+ */
+function sanitizeFileName(name: string): string {
+  // Remove path separators and null bytes
+  return name.replace(/[/\\:\0]/g, '_').replace(/\.\./g, '_');
+}
+
+async function resolveExportPath(defaultName: string): Promise<{ filePath: string | null; cancelled: boolean }> {
+  const safeName = sanitizeFileName(defaultName);
+  const folder = await getExportFolder();
+  if (folder) {
+    const resolved = path.join(folder, safeName);
+    // Ensure resolved path is still within the export folder
+    if (!resolved.startsWith(folder)) {
+      return { filePath: null, cancelled: true };
+    }
+    return { filePath: resolved, cancelled: false };
+  }
+
+  const win = BrowserWindow.getFocusedWindow();
+  if (!win) return { filePath: null, cancelled: true };
+
+  const ext = path.extname(safeName).slice(1);
+  const filterName = ext === 'txt' ? 'Text' : ext === 'docx' ? 'Word Document' : ext.toUpperCase();
+  const result = await dialog.showSaveDialog(win, {
+    title: `Export as ${filterName}`,
+    defaultPath: safeName,
+    filters: [{ name: filterName, extensions: [ext] }],
+  });
+
+  if (result.canceled || !result.filePath) return { filePath: null, cancelled: true };
+  return { filePath: result.filePath, cancelled: false };
+}
 
 export function registerExportHandlers(): void {
-  // TXT export
-  ipcMain.handle('export:saveTxt', async (_event, fileName: string, content: string): Promise<{ ok: boolean; error?: string; filePath?: string }> => {
-    const win = BrowserWindow.getFocusedWindow();
-    if (!win) return { ok: false, error: 'No active window.' };
+  // Lazy store accessor (same pattern as settings.ts)
+  let store: any = null;
+  async function getStore() {
+    if (!store) {
+      const { default: Store } = await import('electron-store');
+      store = new Store({ name: 'recllm-settings' });
+    }
+    return store;
+  }
+  setStoreAccessor(getStore);
 
-    const defaultName = fileName.replace(/\.[^.]+$/, '') + '_transcript.txt';
-    const result = await dialog.showSaveDialog(win, {
-      title: 'Export as Text',
-      defaultPath: defaultName,
-      filters: [{ name: 'Text', extensions: ['txt'] }],
+  // Folder picker for export location
+  ipcMain.handle('export:selectFolder', async (): Promise<{ ok: boolean; path?: string }> => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (!win) return { ok: false };
+
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Select Export Folder',
+      properties: ['openDirectory', 'createDirectory'],
     });
 
-    if (result.canceled || !result.filePath) return { ok: false, error: 'Export cancelled.' };
+    if (result.canceled || result.filePaths.length === 0) return { ok: false };
+    return { ok: true, path: result.filePaths[0] };
+  });
+
+  // TXT export
+  ipcMain.handle('export:saveTxt', async (_event, fileName: string, content: string): Promise<{ ok: boolean; error?: string; filePath?: string }> => {
+    try {
+      validateString(fileName, 'fileName', 500);
+      validateString(content, 'content', 50_000_000); // 50MB max
+    } catch (err: any) {
+      return { ok: false, error: err.message };
+    }
+
+    const defaultName = sanitizeFileName(fileName.replace(/\.[^.]+$/, '') + '_transcript.txt');
+    const { filePath, cancelled } = await resolveExportPath(defaultName);
+
+    if (cancelled || !filePath) return { ok: false, error: 'Export cancelled.' };
 
     try {
-      fs.writeFileSync(result.filePath, content, 'utf-8');
-      return { ok: true, filePath: result.filePath };
+      fs.writeFileSync(filePath, content, 'utf-8');
+      return { ok: true, filePath };
     } catch (err: any) {
       return { ok: false, error: err.message || 'Write failed.' };
     }
@@ -31,22 +114,25 @@ export function registerExportHandlers(): void {
     summary?: string;
     pointNotes?: string[];
   }): Promise<{ ok: boolean; error?: string; filePath?: string }> => {
-    const win = BrowserWindow.getFocusedWindow();
-    if (!win) return { ok: false, error: 'No active window.' };
+    try {
+      validateString(fileName, 'fileName', 500);
+    } catch (err: any) {
+      return { ok: false, error: err.message };
+    }
 
-    const defaultName = fileName.replace(/\.[^.]+$/, '') + '_transcript.docx';
-    const result = await dialog.showSaveDialog(win, {
-      title: 'Export as Document',
-      defaultPath: defaultName,
-      filters: [{ name: 'Word Document', extensions: ['docx'] }],
-    });
+    if (!data || typeof data !== 'object' || !Array.isArray(data.utterances)) {
+      return { ok: false, error: 'Invalid export data.' };
+    }
 
-    if (result.canceled || !result.filePath) return { ok: false, error: 'Export cancelled.' };
+    const defaultName = sanitizeFileName(fileName.replace(/\.[^.]+$/, '') + '_transcript.docx');
+    const { filePath, cancelled } = await resolveExportPath(defaultName);
+
+    if (cancelled || !filePath) return { ok: false, error: 'Export cancelled.' };
 
     try {
       const docx = buildDocx(fileName, data);
-      fs.writeFileSync(result.filePath, docx);
-      return { ok: true, filePath: result.filePath };
+      fs.writeFileSync(filePath, docx);
+      return { ok: true, filePath };
     } catch (err: any) {
       return { ok: false, error: err.message || 'DOCX generation failed.' };
     }

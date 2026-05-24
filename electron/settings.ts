@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron';
 import { getAllApiKeys, setAllApiKeys } from './credential-store';
+import { validateSettingsKey } from './ipc-validation';
 
 let store: any = null;
 
@@ -15,38 +16,43 @@ async function getStore() {
 
 export function registerSettingsHandlers(): void {
   ipcMain.handle('settings:get', async (_event, key: string) => {
+    try {
+      validateSettingsKey(key);
+    } catch {
+      return null;
+    }
     // API keys are stored in secure credential store, not electron-store
     if (key === 'apiKeys') {
-      const keys = getAllApiKeys();
-      const summary = Object.entries(keys).map(([k, v]) => `${k}: ${v ? `${v.length} chars` : 'empty'}`).join(', ');
-      console.log(`[settings:get] apiKeys → ${summary}`);
-      return keys;
+      return getAllApiKeys();
     }
     const s = await getStore();
-    const value = s.get(key) ?? null;
-    console.log(`[settings:get] ${key} → ${value !== null ? 'exists' : 'null'}`);
-    return value;
+    return s.get(key) ?? null;
   });
 
   ipcMain.handle('settings:set', async (_event, key: string, value: unknown) => {
+    try {
+      validateSettingsKey(key);
+    } catch {
+      return false;
+    }
     // API keys go to secure credential store
     if (key === 'apiKeys' && value && typeof value === 'object') {
       setAllApiKeys(value as Record<string, string>);
-      const keys = value as Record<string, string>;
-      const summary = Object.entries(keys).map(([k, v]) => `${k}: ${v ? `${v.length} chars` : 'empty'}`).join(', ');
-      console.log(`[settings:set] apiKeys saved securely → ${summary}`);
       return true;
     }
     const s = await getStore();
     s.set(key, value);
-    console.log(`[settings:set] ${key} saved`);
     return true;
   });
 
   ipcMain.handle('settings:delete', async (_event, key: string) => {
+    try {
+      validateSettingsKey(key);
+    } catch {
+      return false;
+    }
     const s = await getStore();
     s.delete(key);
-    console.log(`[settings:delete] ${key} removed`);
     return true;
   });
 }

@@ -3,6 +3,7 @@ import { execFile } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import { validateFilePath } from './ipc-validation';
 
 // Resolve bundled FFmpeg/FFprobe paths
 // In dev: node_modules paths. In packaged: app.asar.unpacked or extraResources.
@@ -205,6 +206,7 @@ export function registerAudioPreprocessHandlers(): void {
     recommendation?: PreprocessResult;
   }> => {
     try {
+      validateFilePath(filePath);
       const metadata = await getAudioMetadata(filePath);
       const recommendation = shouldPreprocessAudio(filePath, metadata);
       return { ok: true, metadata, recommendation };
@@ -220,6 +222,7 @@ export function registerAudioPreprocessHandlers(): void {
     savedMB?: number;
   }> => {
     try {
+      validateFilePath(filePath);
       const originalSize = fs.statSync(filePath).size;
       const outputPath = await compressToM4A(filePath);
       const newSize = fs.statSync(outputPath).size;
@@ -236,6 +239,7 @@ export function registerAudioPreprocessHandlers(): void {
     chunks?: string[];
   }> => {
     try {
+      validateFilePath(filePath);
       const chunks = await splitAudio(filePath, chunkMinutes || 60);
       return { ok: true, chunks };
     } catch (err: any) {
