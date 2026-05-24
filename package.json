@@ -1,7 +1,8 @@
 {
   "name": "recllm",
+  "productName": "Rec LLM",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.5",
   "description": "AI-powered audio transcription, summarization, and document intelligence desktop app",
   "author": "RecLLM <hello@recllm.app>",
   "license": "MIT",
@@ -17,7 +18,9 @@
     "dist:dir": "npm run build && npm run electron:compile && electron-builder --dir",
     "dist:mac": "npm run build && npm run electron:compile && electron-builder --mac",
     "dist:win": "npm run build && npm run electron:compile && electron-builder --win",
-    "dist:win:x64": "npm run build && npm run electron:compile && electron-builder --win --x64"
+    "dist:win:x64": "npm run build && npm run electron:compile && electron-builder --win --x64",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
@@ -94,12 +97,13 @@
     "tailwindcss": "4.1.12",
     "typescript": "^5.5.0",
     "vite": "6.3.5",
+    "vitest": "^4.1.7",
     "wait-on": "^8.0.0"
   },
   "build": {
     "appId": "com.recllm.desktop",
-    "productName": "RecLLM",
-    "copyright": "Copyright © 2025 RecLLM",
+    "productName": "Rec LLM",
+    "copyright": "Copyright © 2025 Rec LLM",
     "directories": {
       "output": "release"
     },
@@ -133,6 +137,7 @@
     "win": {
       "target": "nsis",
       "icon": "build/icon.ico",
+      "artifactName": "Rec_LLM_Setup_${version}.${ext}",
       "extraResources": [
         {
           "from": "node_modules/ffmpeg-static/ffmpeg.exe",

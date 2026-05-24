@@ -1,5 +1,6 @@
 import { ipcMain, app } from 'electron';
-import fs from 'fs';
+import fs from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
 
 const DATA_DIR = path.join(app.getPath('userData'), 'recllm-data');
@@ -7,6 +8,15 @@ const HISTORY_FILE = path.join(DATA_DIR, 'history.json');
 const TRANSCRIPTS_DIR = path.join(DATA_DIR, 'transcripts');
 const SUMMARIES_DIR = path.join(DATA_DIR, 'summaries');
 const DOCUMENTS_DIR = path.join(DATA_DIR, 'documents');
+
+// Sanitize IDs to prevent path traversal — allow only alphanumeric, dash, underscore, dot
+function sanitizeId(id: string): string {
+  const sanitized = id.replace(/[^a-zA-Z0-9_\-\.]/g, '');
+  if (!sanitized || sanitized.startsWith('.')) {
+    throw new Error(`Invalid ID: "${id}"`);
+  }
+  return sanitized;
+}
 
 interface HistoryMeta {
   id: string;
@@ -41,71 +51,70 @@ interface HistoryJob extends HistoryMeta {
   summary?: SummaryData;
 }
 
-function ensureDir(dir: string): void {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
+async function ensureDir(dir: string): Promise<void> {
+  await fs.mkdir(dir, { recursive: true });
 }
 
-function readHistoryMeta(): HistoryMeta[] {
-  ensureDir(DATA_DIR);
-  if (!fs.existsSync(HISTORY_FILE)) return [];
+async function readHistoryMeta(): Promise<HistoryMeta[]> {
+  await ensureDir(DATA_DIR);
   try {
-    const raw = fs.readFileSync(HISTORY_FILE, 'utf-8');
+    const raw = await fs.readFile(HISTORY_FILE, 'utf-8');
     return JSON.parse(raw) as HistoryMeta[];
   } catch {
     return [];
   }
 }
 
-function writeHistoryMeta(jobs: HistoryMeta[]): void {
-  ensureDir(DATA_DIR);
-  fs.writeFileSync(HISTORY_FILE, JSON.stringify(jobs, null, 2), 'utf-8');
+async function writeHistoryMeta(jobs: HistoryMeta[]): Promise<void> {
+  await ensureDir(DATA_DIR);
+  await fs.writeFile(HISTORY_FILE, JSON.stringify(jobs, null, 2), 'utf-8');
 }
 
 function transcriptPath(id: string): string {
-  return path.join(TRANSCRIPTS_DIR, `${id}.json`);
+  const safeId = sanitizeId(id);
+  return path.join(TRANSCRIPTS_DIR, `${safeId}.json`);
 }
 
 function summaryPath(id: string): string {
-  return path.join(SUMMARIES_DIR, `${id}.json`);
+  const safeId = sanitizeId(id);
+  return path.join(SUMMARIES_DIR, `${safeId}.json`);
 }
 
-function readTranscript(id: string): TranscriptData | undefined {
+async function readTranscript(id: string): Promise<TranscriptData | undefined> {
   const p = transcriptPath(id);
-  if (!fs.existsSync(p)) return undefined;
   try {
-    return JSON.parse(fs.readFileSync(p, 'utf-8')) as TranscriptData;
+    const raw = await fs.readFile(p, 'utf-8');
+    return JSON.parse(raw) as TranscriptData;
   } catch {
     return undefined;
   }
 }
 
-function readSummary(id: string): SummaryData | undefined {
+async function readSummary(id: string): Promise<SummaryData | undefined> {
   const p = summaryPath(id);
-  if (!fs.existsSync(p)) return undefined;
   try {
-    return JSON.parse(fs.readFileSync(p, 'utf-8')) as SummaryData;
+    const raw = await fs.readFile(p, 'utf-8');
+    return JSON.parse(raw) as SummaryData;
   } catch {
     return undefined;
   }
 }
 
-function writeTranscript(id: string, data: TranscriptData): void {
-  ensureDir(TRANSCRIPTS_DIR);
-  fs.writeFileSync(transcriptPath(id), JSON.stringify(data), 'utf-8');
-  // Auto-generate plain text transcript
-  writeTranscriptTxt(id, data);
+async function writeTranscript(id: string, data: TranscriptData): Promise<void> {
+  await ensureDir(TRANSCRIPTS_DIR);
+  await fs.writeFile(transcriptPath(id), JSON.stringify(data), 'utf-8');
+  await writeTranscriptTxt(id, data);
 }
 
-function writeTranscriptTxt(id: string, data: TranscriptData): void {
-  ensureDir(TRANSCRIPTS_DIR);
-  const txtPath = path.join(TRANSCRIPTS_DIR, `${id}.txt`);
+async function writeTranscriptTxt(id: string, data: TranscriptData): Promise<void> {
+  await ensureDir(TRANSCRIPTS_DIR);
+  const safeId = sanitizeId(id);
+  const txtPath = path.join(TRANSCRIPTS_DIR, `${safeId}.txt`);
   const lines = data.utterances.map((u) => {
     const ts = msToTimestamp(u.startMs);
     return `[${ts}] ${u.speaker}: ${u.text}`;
   });
-  fs.writeFileSync(txtPath, lines.join('\n'), 'utf-8');
+  await fs.writeFile(txtPath, lines.join('\n'), 'utf-8');
 }
 
 function msToTimestamp(ms: number): string {
@@ -116,84 +125,99 @@ function msToTimestamp(ms: number): string {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
-function writeSummary(id: string, data: SummaryData): void {
-  ensureDir(SUMMARIES_DIR);
-  fs.writeFileSync(summaryPath(id), JSON.stringify(data), 'utf-8');
+async function writeSummary(id: string, data: SummaryData): Promise<void> {
+  await ensureDir(SUMMARIES_DIR);
+  await fs.writeFile(summaryPath(id), JSON.stringify(data), 'utf-8');
 }
 
 export function registerHistoryHandlers(): void {
-  // Load metadata only — no transcript/summary data (lazy loading)
   ipcMain.handle('history:load', async (): Promise<HistoryJob[]> => {
-    const metas = readHistoryMeta();
+    const metas = await readHistoryMeta();
     return metas.map((meta) => ({ ...meta }));
   });
 
-  // Load full transcript for a single file (on-demand)
   ipcMain.handle('history:loadTranscript', async (_event, id: string): Promise<{ transcript?: TranscriptData; summary?: SummaryData } | null> => {
-    const transcript = readTranscript(id);
-    const summary = readSummary(id);
-    if (!transcript && !summary) return null;
-    return { transcript, summary };
+    try {
+      const safeId = sanitizeId(id);
+      const transcript = await readTranscript(safeId);
+      const summary = await readSummary(safeId);
+      if (!transcript && !summary) return null;
+      return { transcript, summary };
+    } catch {
+      return null;
+    }
   });
 
   ipcMain.handle('history:save', async (_event, job: HistoryJob): Promise<boolean> => {
-    const metas = readHistoryMeta();
-    const { transcript, summary, ...meta } = job;
+    try {
+      const safeId = sanitizeId(job.id);
+      const metas = await readHistoryMeta();
+      const { transcript, summary, ...meta } = job;
+      meta.id = safeId;
 
-    const idx = metas.findIndex((j) => j.id === meta.id);
-    if (idx >= 0) {
-      metas[idx] = meta;
-    } else {
-      metas.unshift(meta);
-    }
-    writeHistoryMeta(metas);
+      const idx = metas.findIndex((j) => j.id === safeId);
+      if (idx >= 0) {
+        metas[idx] = meta;
+      } else {
+        metas.unshift(meta);
+      }
+      await writeHistoryMeta(metas);
 
-    if (transcript) {
-      writeTranscript(meta.id, transcript);
-    }
-    if (summary) {
-      writeSummary(meta.id, summary);
-    }
+      if (transcript) {
+        await writeTranscript(safeId, transcript);
+      }
+      if (summary) {
+        await writeSummary(safeId, summary);
+      }
 
-    return true;
+      return true;
+    } catch {
+      return false;
+    }
   });
 
   ipcMain.handle('history:delete', async (_event, id: string): Promise<boolean> => {
-    const metas = readHistoryMeta();
-    const filtered = metas.filter((j) => j.id !== id);
-    writeHistoryMeta(filtered);
+    try {
+      const safeId = sanitizeId(id);
+      const metas = await readHistoryMeta();
+      const filtered = metas.filter((j) => j.id !== safeId);
+      await writeHistoryMeta(filtered);
 
-    // Clean up per-job files
-    const tp = transcriptPath(id);
-    const sp = summaryPath(id);
-    if (fs.existsSync(tp)) fs.unlinkSync(tp);
-    if (fs.existsSync(sp)) fs.unlinkSync(sp);
+      const tp = transcriptPath(safeId);
+      const sp = summaryPath(safeId);
+      await fs.unlink(tp).catch(() => {});
+      await fs.unlink(sp).catch(() => {});
 
-    return true;
+      return true;
+    } catch {
+      return false;
+    }
   });
 
   ipcMain.handle('history:clear', async (): Promise<boolean> => {
-    writeHistoryMeta([]);
-    // Clean up all transcript/summary files
-    if (fs.existsSync(TRANSCRIPTS_DIR)) {
-      for (const f of fs.readdirSync(TRANSCRIPTS_DIR)) {
-        fs.unlinkSync(path.join(TRANSCRIPTS_DIR, f));
+    await writeHistoryMeta([]);
+    try {
+      const transcriptFiles = await fs.readdir(TRANSCRIPTS_DIR);
+      for (const f of transcriptFiles) {
+        await fs.unlink(path.join(TRANSCRIPTS_DIR, f));
       }
-    }
-    if (fs.existsSync(SUMMARIES_DIR)) {
-      for (const f of fs.readdirSync(SUMMARIES_DIR)) {
-        fs.unlinkSync(path.join(SUMMARIES_DIR, f));
+    } catch {}
+    try {
+      const summaryFiles = await fs.readdir(SUMMARIES_DIR);
+      for (const f of summaryFiles) {
+        await fs.unlink(path.join(SUMMARIES_DIR, f));
       }
-    }
+    } catch {}
     return true;
   });
 
   // --- Document edit persistence ---
   ipcMain.handle('document:save', async (_event, fileId: string, data: unknown): Promise<boolean> => {
-    ensureDir(DOCUMENTS_DIR);
-    const docPath = path.join(DOCUMENTS_DIR, `${fileId}.json`);
     try {
-      fs.writeFileSync(docPath, JSON.stringify(data, null, 2), 'utf-8');
+      const safeId = sanitizeId(fileId);
+      await ensureDir(DOCUMENTS_DIR);
+      const docPath = path.join(DOCUMENTS_DIR, `${safeId}.json`);
+      await fs.writeFile(docPath, JSON.stringify(data, null, 2), 'utf-8');
       return true;
     } catch {
       return false;
@@ -201,17 +225,24 @@ export function registerHistoryHandlers(): void {
   });
 
   ipcMain.handle('document:load', async (_event, fileId: string): Promise<unknown | null> => {
-    const docPath = path.join(DOCUMENTS_DIR, `${fileId}.json`);
-    if (!fs.existsSync(docPath)) return null;
     try {
-      return JSON.parse(fs.readFileSync(docPath, 'utf-8'));
+      const safeId = sanitizeId(fileId);
+      const docPath = path.join(DOCUMENTS_DIR, `${safeId}.json`);
+      const raw = await fs.readFile(docPath, 'utf-8');
+      return JSON.parse(raw);
     } catch {
       return null;
     }
   });
 
   ipcMain.handle('document:exists', async (_event, fileId: string): Promise<boolean> => {
-    const docPath = path.join(DOCUMENTS_DIR, `${fileId}.json`);
-    return fs.existsSync(docPath);
+    try {
+      const safeId = sanitizeId(fileId);
+      const docPath = path.join(DOCUMENTS_DIR, `${safeId}.json`);
+      await fs.access(docPath);
+      return true;
+    } catch {
+      return false;
+    }
   });
 }

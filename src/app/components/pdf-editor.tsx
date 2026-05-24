@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef, memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -854,7 +854,9 @@ export function PdfEditor() {
 }
 
 // --- PDF Preview Component ---
-function PdfPreview({ transcript, summary, settings, speakerColorMap, draft, onEditHeader, onEditUtterance }: {
+const PREVIEW_UTTERANCE_LIMIT = 200;
+
+const PdfPreview = memo(function PdfPreview({ transcript, summary, settings, speakerColorMap, draft, onEditHeader, onEditUtterance }: {
   transcript: any;
   summary: any;
   settings: PdfSettings;
@@ -975,7 +977,7 @@ function PdfPreview({ transcript, summary, settings, speakerColorMap, draft, onE
                   Transcript <span className="font-normal text-gray-400">({transcript.utterances.length} segments)</span>
                 </div>
                 <div className="space-y-0.5">
-                  {transcript.utterances.map((u: any, i: number) => {
+                  {transcript.utterances.slice(0, PREVIEW_UTTERANCE_LIMIT).map((u: any, i: number) => {
                     const displayText = draft.editedUtterances[i] || u.text;
                     const displaySpeaker = draft.speakerNames[u.speaker] || u.speaker;
                     const showPageBreak = i > 0 && i % 40 === 0;
@@ -1004,6 +1006,11 @@ function PdfPreview({ transcript, summary, settings, speakerColorMap, draft, onE
                       </div>
                     );
                   })}
+                  {transcript.utterances.length > PREVIEW_UTTERANCE_LIMIT && (
+                    <div className="text-[9px] text-center text-gray-400 py-2 border-t border-dashed border-gray-200 mt-2">
+                      Preview limited to {PREVIEW_UTTERANCE_LIMIT} of {transcript.utterances.length} segments. Full transcript included in export.
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -1036,7 +1043,7 @@ function PdfPreview({ transcript, summary, settings, speakerColorMap, draft, onE
             Transcript <span className="font-normal text-gray-400">({transcript.utterances.length} segments)</span>
           </div>
           <div className="space-y-0.5">
-            {transcript.utterances.map((u: any, i: number) => {
+            {transcript.utterances.slice(0, PREVIEW_UTTERANCE_LIMIT).map((u: any, i: number) => {
               const displayText = draft.editedUtterances[i] || u.text;
               const displaySpeaker = draft.speakerNames[u.speaker] || u.speaker;
               // Visual page break indicator every 40 rows
@@ -1079,6 +1086,11 @@ function PdfPreview({ transcript, summary, settings, speakerColorMap, draft, onE
                 </div>
               );
             })}
+            {transcript.utterances.length > PREVIEW_UTTERANCE_LIMIT && (
+              <div className="text-[9px] text-center text-gray-400 py-2 border-t border-dashed border-gray-200 mt-2">
+                Preview limited to {PREVIEW_UTTERANCE_LIMIT} of {transcript.utterances.length} segments. Full transcript included in export.
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1092,7 +1104,7 @@ function PdfPreview({ transcript, summary, settings, speakerColorMap, draft, onE
       )}
     </div>
   );
-}
+});
 
 function msToTs(ms: number): string {
   const s = Math.floor(ms / 1000);
