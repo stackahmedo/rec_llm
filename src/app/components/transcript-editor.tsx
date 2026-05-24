@@ -50,31 +50,45 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
     setEditText(text);
   };
 
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const saveEdit = () => {
     if (editingIdx === null || !active) return;
-    const updated = { ...active, utterances: [...active.utterances] };
-    updated.utterances[editingIdx] = { ...updated.utterances[editingIdx], text: editText };
+    const updatedUtterances = [...active.utterances];
+    updatedUtterances[editingIdx] = { ...updatedUtterances[editingIdx], text: editText };
+    const updated = { ...active, utterances: updatedUtterances };
     addTranscript(updated);
     setEditedIndices((prev) => new Set(prev).add(editingIdx));
     setEditingIdx(null);
     toast.success(t("transcript.segmentUpdated"));
 
-    const api = window.electronAPI?.history;
-    if (api) {
-      api.save({
-        id: active.fileId,
-        fileName: active.fileName,
-        filePath: '',
-        sizeBytes: 0,
-        status: 'done',
-        languageCode: active.languageCode,
-        speakerCount: new Set(updated.utterances.map((u) => u.speaker)).size,
-        createdAt: active.completedAt,
-        completedAt: active.completedAt,
-        transcript: { fullText: updated.utterances.map((u) => u.text).join(' '), utterances: updated.utterances },
-      });
-    }
+    // Debounce persistence — avoid rebuilding fullText on every rapid edit
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      const api = window.electronAPI?.history;
+      if (api) {
+        api.save({
+          id: active.fileId,
+          fileName: active.fileName,
+          filePath: '',
+          sizeBytes: 0,
+          status: 'done',
+          languageCode: active.languageCode,
+          speakerCount: new Set(updatedUtterances.map((u) => u.speaker)).size,
+          createdAt: active.completedAt,
+          completedAt: active.completedAt,
+          transcript: { fullText: updatedUtterances.map((u) => u.text).join(' '), utterances: updatedUtterances },
+        });
+      }
+    }, 1000);
   };
+
+  // Flush pending save on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
 
   const cancelEdit = () => setEditingIdx(null);
 

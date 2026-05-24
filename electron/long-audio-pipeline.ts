@@ -525,6 +525,10 @@ export function registerLongAudioHandlers(): void {
         const errMessage = err instanceof Error ? err.message : String(err);
         console.warn('[gender-detection] annotation failed', errMessage);
       }
+      // Release chunk utterances to free memory — merged transcript holds the data now
+      for (const c of state.chunks) {
+        c.utterances = undefined;
+      }
       state.status = 'done';
       state.completedAt = Date.now();
       state.progress = 100;

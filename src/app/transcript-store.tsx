@@ -77,6 +77,7 @@ const Ctx = createContext<TranscriptStore>({
 
 // Maximum number of transcripts to keep in memory at once
 const MAX_CACHED_TRANSCRIPTS = 3;
+const MAX_CACHED_SUMMARIES = 5;
 
 /**
  * Push a fileId to loadedIdsRef, deduplicating and enforcing max size.
@@ -247,9 +248,17 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
         updated[existing] = result;
         return updated;
       }
-      return [...prev, result];
+      // Evict oldest summary if at capacity (keep active)
+      let updated = [...prev];
+      if (updated.length >= MAX_CACHED_SUMMARIES) {
+        const evictIdx = updated.findIndex((s) => s.fileId !== activeId && s.fileId !== result.fileId);
+        if (evictIdx >= 0) {
+          updated.splice(evictIdx, 1);
+        }
+      }
+      return [...updated, result];
     });
-  }, []);
+  }, [activeId]);
 
   const addHistoryJob = useCallback((job: HistoryJob) => {
     setHistory((prev) => {
