@@ -36,6 +36,12 @@ const ERROR_MAP: Record<string, string> = {
   "Unexpected token": "The AI provider returned an invalid response.",
   "is not valid JSON": "The AI provider returned an invalid response.",
   "JSON.parse": "Failed to process the AI response.",
+  // Provider config errors
+  "configuration is invalid": "AI provider configuration is invalid. Check model and base URL in Settings.",
+  "check model and base url": "AI provider configuration is invalid. Check model and base URL in Settings.",
+  "invalid base url": "The AI provider base URL is invalid. Update it in Settings.",
+  "no api key saved": "No API key configured. Add your key in Settings.",
+  "no model configured": "No AI model selected. Choose a model in Settings.",
   // Gemini
   "Gemini API error": "Gemini encountered an issue processing your request.",
   "Model unavailable or retired": "Selected Gemini model is unavailable.",
@@ -43,10 +49,11 @@ const ERROR_MAP: Record<string, string> = {
   "Gemini returned an error page": "Gemini is temporarily unavailable.",
   // OpenAI
   "OpenAI provider error": "The AI provider encountered an issue.",
-  "Provider returned HTML": "The provider endpoint is misconfigured.",
+  "Provider returned HTML": "The provider endpoint is misconfigured. Check base URL in Settings.",
   "Provider returned an error page": "The provider is temporarily unavailable.",
   // Network
   "Network error": "Could not connect to the AI provider.",
+  "cannot reach ai provider": "Could not connect to the AI provider. Check your connection.",
   "timed out": "The request took too long. Try again.",
   "AbortError": "The request was cancelled.",
   "fetch failed": "Network connection failed.",
@@ -171,10 +178,14 @@ export function notifyProviderError(error: string, provider?: string) {
   let action: NotifyOptions["action"] | undefined;
   const lowerErr = error.toLowerCase();
 
-  if (lowerErr.includes("api key") || lowerErr.includes("auth") || lowerErr.includes("401")) {
-    action = { label: "Open Settings", onClick: () => { /* handled by consumer */ } };
+  if (lowerErr.includes("settings") || lowerErr.includes("api key") || lowerErr.includes("auth") || lowerErr.includes("401") || lowerErr.includes("base url") || lowerErr.includes("configuration") || lowerErr.includes("html")) {
+    action = { label: "Open AI Settings", onClick: () => {
+      window.dispatchEvent(new CustomEvent('navigate', { detail: 'settings' }));
+    }};
   } else if (lowerErr.includes("model") || lowerErr.includes("404")) {
-    action = { label: "Change Model", onClick: () => { /* handled by consumer */ } };
+    action = { label: "Open AI Settings", onClick: () => {
+      window.dispatchEvent(new CustomEvent('navigate', { detail: 'settings' }));
+    }};
   }
 
   notify(friendly, {

@@ -66,6 +66,16 @@ function Shell() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  // Listen for programmatic navigation (e.g. from notification actions)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && typeof detail === 'string') setView(detail);
+    };
+    window.addEventListener('navigate', handler);
+    return () => window.removeEventListener('navigate', handler);
+  }, []);
+
   const titles: Record<string, { title: string; sub: string }> = {
     dashboard:   { title: t("nav.dashboard"),   sub: t("page.dashboard.sub")   },
     upload:      { title: t("nav.upload"),      sub: t("page.upload.sub")      },

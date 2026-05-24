@@ -3,6 +3,13 @@ import { getProvider, getProviderConfig, safeParseJson, ProviderError } from './
 import { getAllApiKeys } from './credential-store';
 import { summarizeRequestSchema, validateSchema } from './shared/schemas';
 
+const KNOWN_PROVIDERS = ['gemini', 'chatgpt', 'groq'];
+
+const DEFAULT_OPENAI_BASES: Record<string, string> = {
+  chatgpt: 'https://api.openai.com/v1',
+  groq: 'https://api.groq.com/openai/v1',
+};
+
 async function getSettings(): Promise<{ apiKeys: Record<string, string>; models: Record<string, string>; preferences: Record<string, unknown>; openaiProvider?: { providerType?: string; baseUrl?: string } }> {
   const { default: Store } = await import('electron-store');
   const store: any = new Store({ name: 'recllm-settings' });
@@ -200,8 +207,65 @@ function parseResponse(raw: string): ParsedChunk {
 async function callLLM(provider: string, apiKey: string, model: string, prompt: string, openaiBaseUrl?: string): Promise<string> {
   const adapter = getProvider(provider);
   const config = getProviderConfig(provider, apiKey, model, { baseUrl: openaiBaseUrl });
+
+  if (process.env.NODE_ENV !== 'production') {
+    const safeUrl = provider === 'gemini'
+      ? `generativelanguage.googleapis.com/v1beta/models/${model}`
+      : `${openaiBaseUrl || DEFAULT_OPENAI_BASES[provider] || 'api.openai.com/v1'}/chat/completions`;
+    console.log(`[Summarize] provider=${provider} model=${model} endpoint=${safeUrl}`);
+  }
+
   const result = await adapter.call(config, prompt);
   return result.text;
+}
+
+function validateProviderConfig(provider: string, apiKey: string, model: string, openaiBaseUrl?: string): string | null {
+  if (!KNOWN_PROVIDERS.includes(provider)) {
+    return `Unknown AI provider "${provider}". Select a valid provider in Settings.`;
+  }
+  if (!apiKey || apiKey.length < 10) {
+    return `No API key saved for ${provider}. Go to Settings and save your key.`;
+  }
+  if (!model || model.length === 0) {
+    return `No model configured for ${provider}. Select a model in Settings.`;
+  }
+  // Validate base URL for OpenAI-compatible providers
+  if (provider !== 'gemini' && openaiBaseUrl) {
+    try {
+      const parsed = new URL(openaiBaseUrl);
+      if (!parsed.protocol.startsWith('http')) {
+        return `Invalid base URL for ${provider}: must start with http:// or https://`;
+      }
+    } catch {
+      return `Invalid base URL for ${provider}: "${openaiBaseUrl}" is not a valid URL. Check Settings.`;
+    }
+  }
+  return null;
+}
+
+function formatProviderError(err: unknown): string {
+  if (err instanceof ProviderError) {
+    if (err.diagnostic === 'html_response') {
+      return 'AI provider configuration is invalid. Check model and base URL in Settings.';
+    }
+    if (err.diagnostic === 'auth') {
+      return `API key is invalid or expired for ${err.provider || 'provider'}. Update your key in Settings.`;
+    }
+    if (err.diagnostic === 'model_not_found') {
+      return err.message;
+    }
+    if (err.diagnostic === 'network') {
+      return `Cannot reach AI provider. Check your internet connection and base URL in Settings.`;
+    }
+    return err.message;
+  }
+  if (err instanceof Error) {
+    if (err.message.includes('parse') || err.message.includes('JSON')) {
+      return 'AI response was malformed. Try again or switch to a different model in Settings.';
+    }
+    return err.message;
+  }
+  return 'Summary generation failed. Check AI provider settings.';
 }
 
 export function registerSummarizeHandlers(): void {
@@ -214,12 +278,16 @@ export function registerSummarizeHandlers(): void {
     const provider = (preferences.summaryProvider as string) || 'gemini';
 
     const apiKey = apiKeys[provider];
-    if (!apiKey || apiKey.length < 10) {
-      return { ok: false, error: `No API key saved for ${provider}. Go to Settings and save your key.` };
-    }
-
     const model = models[provider] || (provider === 'gemini' ? 'gemini-2.5-flash' : provider === 'chatgpt' ? 'gpt-4o' : 'gemma-2-27b-it');
-    const openaiBaseUrl = openaiProvider?.providerType === 'custom' ? openaiProvider.baseUrl : undefined;
+    const openaiBaseUrl = provider !== 'gemini'
+      ? (openaiProvider?.providerType === 'custom' ? openaiProvider.baseUrl : DEFAULT_OPENAI_BASES[provider])
+      : undefined;
+
+    // Pre-flight validation
+    const configError = validateProviderConfig(provider, apiKey, model, openaiBaseUrl);
+    if (configError) {
+      return { ok: false, error: configError };
+    }
 
     try {
       // Determine chunks
@@ -252,7 +320,7 @@ export function registerSummarizeHandlers(): void {
       const merged = parseResponse(mergeRaw);
       return { ok: true, ...merged };
     } catch (err: any) {
-      return { ok: false, error: err.message || 'Summary generation failed.' };
+      return { ok: false, error: formatProviderError(err) };
     }
   });
 }
