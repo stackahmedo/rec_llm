@@ -72,3 +72,29 @@ export function validateSchema<T>(schema: z.ZodSchema<T>, data: unknown): { ok: 
   const path = firstIssue.path.length > 0 ? `${firstIssue.path.join('.')}: ` : '';
   return { ok: false, error: `Validation failed — ${path}${firstIssue.message}` };
 }
+
+// --- Audio / Long-Audio schemas ---
+
+export const filePathSchema = z.string().min(1).max(4096);
+
+export const pipelineIdSchema = z.string().min(1).max(200).regex(/^[a-zA-Z0-9_\-]+$/);
+
+export const chunkIndexSchema = z.number().int().min(0).max(100_000);
+
+export const chunkMinutesSchema = z.number().int().min(1).max(1440).optional();
+
+export const longAudioStartOptsSchema = z.object({
+  concurrency: z.number().int().min(1).max(10).optional(),
+}).optional();
+
+export const chunkDoneUtterancesSchema = z.array(z.object({
+  speaker: z.string().max(500).optional(),
+  text: z.string().max(100_000).optional(),
+  start: z.number().min(0).optional(),
+  end: z.number().min(0).optional(),
+  startMs: z.number().min(0).optional(),
+  endMs: z.number().min(0).optional(),
+  confidence: z.number().min(0).max(1).optional(),
+}).passthrough()).max(100_000);
+
+export const chunkFailedErrorSchema = z.string().min(1).max(10_000);

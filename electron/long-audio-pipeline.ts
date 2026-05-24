@@ -12,7 +12,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import os from 'os';
-import { validateFilePath } from './ipc-validation';
+import { filePathSchema, pipelineIdSchema, chunkIndexSchema, chunkDoneUtterancesSchema, chunkFailedErrorSchema, longAudioStartOptsSchema, validateSchema } from './shared/schemas';
 
 // --- Types ---
 
@@ -419,10 +419,11 @@ function estimateRemainingTime(state: PipelineState): number {
 
 export function registerLongAudioHandlers(): void {
   // Analyze audio file
-  ipcMain.handle('longaudio:analyze', async (_event, filePath: string) => {
+  ipcMain.handle('longaudio:analyze', async (_event, filePath: unknown) => {
+    const v = validateSchema(filePathSchema, filePath);
+    if (!v.ok) return { ok: false, error: v.error };
     try {
-      validateFilePath(filePath);
-      const analysis = await analyzeAudio(filePath);
+      const analysis = await analyzeAudio(v.data);
       return { ok: true, analysis };
     } catch (err: any) {
       return { ok: false, error: err.message };
@@ -430,10 +431,13 @@ export function registerLongAudioHandlers(): void {
   });
 
   // Start pipeline
-  ipcMain.handle('longaudio:start', async (_event, filePath: string, opts?: { concurrency?: number }) => {
+  ipcMain.handle('longaudio:start', async (_event, filePath: unknown, opts?: unknown) => {
+    const v = validateSchema(filePathSchema, filePath);
+    if (!v.ok) return { ok: false, error: v.error };
+    const ov = validateSchema(longAudioStartOptsSchema, opts ?? undefined);
+    if (!ov.ok) return { ok: false, error: ov.error };
     try {
-      validateFilePath(filePath);
-      const analysis = await analyzeAudio(filePath);
+      const analysis = await analyzeAudio(v.data);
 
       if (!analysis.requiresChunking) {
         return { ok: true, requiresChunking: false, analysis };
@@ -442,8 +446,8 @@ export function registerLongAudioHandlers(): void {
       const pipelineId = `pipeline_${Date.now()}`;
       const state: PipelineState = {
         id: pipelineId,
-        sourceFile: filePath,
-        fileName: path.basename(filePath),
+        sourceFile: v.data,
+        fileName: path.basename(v.data),
         analysis,
         chunks: [],
         status: 'splitting',
@@ -451,13 +455,13 @@ export function registerLongAudioHandlers(): void {
         progress: 10,
         currentChunk: 0,
         totalChunks: analysis.estimatedChunks || 1,
-        concurrency: opts?.concurrency || MAX_CONCURRENT_CHUNKS,
+        concurrency: ov.data?.concurrency || MAX_CONCURRENT_CHUNKS,
       };
 
       await savePipelineState(state);
 
       // Split in background
-      const chunks = await splitIntoChunks(filePath, analysis);
+      const chunks = await splitIntoChunks(v.data, analysis);
       state.chunks = chunks;
       state.totalChunks = chunks.length;
       state.status = 'processing';
@@ -471,8 +475,10 @@ export function registerLongAudioHandlers(): void {
   });
 
   // Get pipeline status
-  ipcMain.handle('longaudio:status', async (_event, pipelineId: string) => {
-    const state = activePipelines.get(pipelineId) || await loadPipelineState(pipelineId);
+  ipcMain.handle('longaudio:status', async (_event, pipelineId: unknown) => {
+    const v = validateSchema(pipelineIdSchema, pipelineId);
+    if (!v.ok) return { ok: false, error: v.error };
+    const state = activePipelines.get(v.data) || await loadPipelineState(v.data);
     if (!state) return { ok: false, error: 'Pipeline not found.' };
 
     return {
@@ -487,15 +493,22 @@ export function registerLongAudioHandlers(): void {
   });
 
   // Mark chunk as completed (called by transcription handler)
-  ipcMain.handle('longaudio:chunkDone', async (_event, pipelineId: string, chunkIndex: number, utterances: any[]) => {
-    const state = activePipelines.get(pipelineId);
+  ipcMain.handle('longaudio:chunkDone', async (_event, pipelineId: unknown, chunkIndex: unknown, utterances: unknown) => {
+    const pv = validateSchema(pipelineIdSchema, pipelineId);
+    if (!pv.ok) return { ok: false, error: pv.error };
+    const cv = validateSchema(chunkIndexSchema, chunkIndex);
+    if (!cv.ok) return { ok: false, error: cv.error };
+    const uv = validateSchema(chunkDoneUtterancesSchema, utterances);
+    if (!uv.ok) return { ok: false, error: uv.error };
+
+    const state = activePipelines.get(pv.data);
     if (!state) return { ok: false, error: 'Pipeline not found.' };
 
-    const chunk = state.chunks[chunkIndex];
+    const chunk = state.chunks[cv.data];
     if (!chunk) return { ok: false, error: 'Chunk not found.' };
 
     chunk.status = 'done';
-    chunk.utterances = utterances;
+    chunk.utterances = uv.data;
     state.progress = calculateProgress(state);
     savePipelineState(state);
 
@@ -522,21 +535,27 @@ export function registerLongAudioHandlers(): void {
   });
 
   // Mark chunk as failed
-  ipcMain.handle('longaudio:chunkFailed', async (_event, pipelineId: string, chunkIndex: number, error: string) => {
-    const state = activePipelines.get(pipelineId);
+  ipcMain.handle('longaudio:chunkFailed', async (_event, pipelineId: unknown, chunkIndex: unknown, error: unknown) => {
+    const pv = validateSchema(pipelineIdSchema, pipelineId);
+    if (!pv.ok) return { ok: false, error: pv.error };
+    const cv = validateSchema(chunkIndexSchema, chunkIndex);
+    if (!cv.ok) return { ok: false, error: cv.error };
+    const ev = validateSchema(chunkFailedErrorSchema, error);
+    if (!ev.ok) return { ok: false, error: ev.error };
+
+    const state = activePipelines.get(pv.data);
     if (!state) return { ok: false, error: 'Pipeline not found.' };
 
-    const chunk = state.chunks[chunkIndex];
+    const chunk = state.chunks[cv.data];
     if (!chunk) return { ok: false, error: 'Chunk not found.' };
 
     chunk.retryCount++;
     if (chunk.retryCount < MAX_RETRIES) {
       chunk.status = 'retrying';
-      chunk.error = error;
+      chunk.error = ev.data;
     } else {
       chunk.status = 'failed';
-      chunk.error = `Failed after ${MAX_RETRIES} attempts: ${error}`;
-      // Don't fail entire pipeline — allow partial results
+      chunk.error = `Failed after ${MAX_RETRIES} attempts: ${ev.data}`;
     }
     savePipelineState(state);
 
@@ -544,8 +563,10 @@ export function registerLongAudioHandlers(): void {
   });
 
   // Get next pending chunk for processing
-  ipcMain.handle('longaudio:nextChunk', async (_event, pipelineId: string) => {
-    const state = activePipelines.get(pipelineId);
+  ipcMain.handle('longaudio:nextChunk', async (_event, pipelineId: unknown) => {
+    const v = validateSchema(pipelineIdSchema, pipelineId);
+    if (!v.ok) return { ok: false, error: v.error };
+    const state = activePipelines.get(v.data);
     if (!state) return { ok: false, error: 'Pipeline not found.' };
 
     const pending = state.chunks.find((c) => c.status === 'pending' || c.status === 'retrying');
@@ -567,12 +588,13 @@ export function registerLongAudioHandlers(): void {
   });
 
   // Get merged transcript
-  ipcMain.handle('longaudio:getMerged', async (_event, pipelineId: string) => {
-    const state = activePipelines.get(pipelineId) || await loadPipelineState(pipelineId);
+  ipcMain.handle('longaudio:getMerged', async (_event, pipelineId: unknown) => {
+    const v = validateSchema(pipelineIdSchema, pipelineId);
+    if (!v.ok) return { ok: false, error: v.error };
+    const state = activePipelines.get(v.data) || await loadPipelineState(v.data);
     if (!state) return { ok: false, error: 'Pipeline not found.' };
 
     if (state.status !== 'done') {
-      // Partial merge of completed chunks
       const partial = mergeTranscripts(state.chunks);
       return { ok: true, partial: true, transcript: partial };
     }
@@ -581,14 +603,16 @@ export function registerLongAudioHandlers(): void {
   });
 
   // Resume interrupted pipeline
-  ipcMain.handle('longaudio:resume', async (_event, pipelineId: string) => {
-    const state = await loadPipelineState(pipelineId);
+  ipcMain.handle('longaudio:resume', async (_event, pipelineId: unknown) => {
+    const v = validateSchema(pipelineIdSchema, pipelineId);
+    if (!v.ok) return { ok: false, error: v.error };
+    const state = await loadPipelineState(v.data);
     if (!state) return { ok: false, error: 'Pipeline not found.' };
 
     // Reset failed/retrying chunks to pending
     for (const chunk of state.chunks) {
       if (chunk.status === 'uploading' || chunk.status === 'processing') {
-        chunk.status = 'pending'; // Was interrupted
+        chunk.status = 'pending';
       }
     }
     state.status = 'processing';
@@ -617,9 +641,11 @@ export function registerLongAudioHandlers(): void {
   });
 
   // Cleanup pipeline (delete temp files)
-  ipcMain.handle('longaudio:cleanup', async (_event, pipelineId: string) => {
+  ipcMain.handle('longaudio:cleanup', async (_event, pipelineId: unknown) => {
+    const v = validateSchema(pipelineIdSchema, pipelineId);
+    if (!v.ok) return { ok: false, error: v.error };
     try {
-      await cleanupPipeline(pipelineId);
+      await cleanupPipeline(v.data);
       return { ok: true };
     } catch (err: any) {
       return { ok: false, error: err.message };
@@ -627,14 +653,16 @@ export function registerLongAudioHandlers(): void {
   });
 
   // Cancel pipeline
-  ipcMain.handle('longaudio:cancel', async (_event, pipelineId: string) => {
-    const state = activePipelines.get(pipelineId);
+  ipcMain.handle('longaudio:cancel', async (_event, pipelineId: unknown) => {
+    const v = validateSchema(pipelineIdSchema, pipelineId);
+    if (!v.ok) return { ok: false, error: v.error };
+    const state = activePipelines.get(v.data);
     if (state) {
       state.status = 'failed';
       state.error = 'Cancelled by user.';
       await savePipelineState(state);
     }
-    cleanupPipeline(pipelineId);
+    cleanupPipeline(v.data);
     return { ok: true };
   });
 }

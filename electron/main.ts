@@ -12,6 +12,22 @@ import { registerAudioPreprocessHandlers } from './audio-preprocess';
 import { registerLongAudioHandlers } from './long-audio-pipeline';
 import { migrateFromElectronStore } from './credential-store';
 
+// Global error handlers — prevent silent crashes, log safely (no secrets/file contents)
+process.on('uncaughtException', (error) => {
+  console.error('[FATAL] Uncaught exception:', error.message);
+  if (process.env.NODE_ENV !== 'production') {
+    console.error(error.stack);
+  }
+});
+
+process.on('unhandledRejection', (reason) => {
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  console.error('[WARN] Unhandled promise rejection:', msg);
+  if (process.env.NODE_ENV !== 'production' && reason instanceof Error) {
+    console.error(reason.stack);
+  }
+});
+
 const isDev = !app.isPackaged && !fs.existsSync(path.join(__dirname, '../dist/index.html'));
 
 registerSettingsHandlers();

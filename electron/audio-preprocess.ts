@@ -3,7 +3,7 @@ import { execFile } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { validateFilePath } from './ipc-validation';
+import { filePathSchema, chunkMinutesSchema, validateSchema } from './shared/schemas';
 
 // Resolve bundled FFmpeg/FFprobe paths
 // In dev: node_modules paths. In packaged: app.asar.unpacked or extraResources.
@@ -199,32 +199,34 @@ async function splitAudio(filePath: string, chunkMinutes: number = 60): Promise<
 }
 
 export function registerAudioPreprocessHandlers(): void {
-  ipcMain.handle('audio:metadata', async (_event, filePath: string): Promise<{
+  ipcMain.handle('audio:metadata', async (_event, filePath: unknown): Promise<{
     ok: boolean;
     error?: string;
     metadata?: AudioMetadata;
     recommendation?: PreprocessResult;
   }> => {
+    const v = validateSchema(filePathSchema, filePath);
+    if (!v.ok) return { ok: false, error: v.error };
     try {
-      validateFilePath(filePath);
-      const metadata = await getAudioMetadata(filePath);
-      const recommendation = shouldPreprocessAudio(filePath, metadata);
+      const metadata = await getAudioMetadata(v.data);
+      const recommendation = shouldPreprocessAudio(v.data, metadata);
       return { ok: true, metadata, recommendation };
     } catch (err: any) {
       return { ok: false, error: err.message || 'Failed to analyze audio.' };
     }
   });
 
-  ipcMain.handle('audio:compress', async (_event, filePath: string): Promise<{
+  ipcMain.handle('audio:compress', async (_event, filePath: unknown): Promise<{
     ok: boolean;
     error?: string;
     outputPath?: string;
     savedMB?: number;
   }> => {
+    const v = validateSchema(filePathSchema, filePath);
+    if (!v.ok) return { ok: false, error: v.error };
     try {
-      validateFilePath(filePath);
-      const originalSize = fs.statSync(filePath).size;
-      const outputPath = await compressToM4A(filePath);
+      const originalSize = fs.statSync(v.data).size;
+      const outputPath = await compressToM4A(v.data);
       const newSize = fs.statSync(outputPath).size;
       const savedMB = (originalSize - newSize) / (1024 * 1024);
       return { ok: true, outputPath, savedMB: Math.round(savedMB * 10) / 10 };
@@ -233,14 +235,17 @@ export function registerAudioPreprocessHandlers(): void {
     }
   });
 
-  ipcMain.handle('audio:split', async (_event, filePath: string, chunkMinutes?: number): Promise<{
+  ipcMain.handle('audio:split', async (_event, filePath: unknown, chunkMinutes?: unknown): Promise<{
     ok: boolean;
     error?: string;
     chunks?: string[];
   }> => {
+    const v = validateSchema(filePathSchema, filePath);
+    if (!v.ok) return { ok: false, error: v.error };
+    const cv = validateSchema(chunkMinutesSchema, chunkMinutes ?? undefined);
+    if (!cv.ok) return { ok: false, error: cv.error };
     try {
-      validateFilePath(filePath);
-      const chunks = await splitAudio(filePath, chunkMinutes || 60);
+      const chunks = await splitAudio(v.data, cv.data || 60);
       return { ok: true, chunks };
     } catch (err: any) {
       return { ok: false, error: err.message || 'Splitting failed.' };
