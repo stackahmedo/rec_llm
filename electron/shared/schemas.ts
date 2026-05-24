@@ -98,3 +98,34 @@ export const chunkDoneUtterancesSchema = z.array(z.object({
 }).passthrough()).max(100_000);
 
 export const chunkFailedErrorSchema = z.string().min(1).max(10_000);
+
+// --- PDF export schemas ---
+
+export const pdfExportDataSchema = z.object({
+  fileName: z.string().min(1).max(500),
+  processedAt: z.string().min(1).max(100),
+  languageCode: z.string().min(1).max(20),
+  summary: z.string().max(100_000).optional(),
+  pointNotes: z.array(z.string().max(10_000)).max(500).optional(),
+  actionItems: z.array(z.string().max(10_000)).max(500).optional(),
+  decisions: z.array(z.string().max(10_000)).max(500).optional(),
+  risks: z.array(z.string().max(10_000)).max(500).optional(),
+  utterances: z.array(z.object({
+    speaker: z.string().max(500),
+    startMs: z.number().int().min(0),
+    endMs: z.number().int().min(0),
+    text: z.string().max(100_000),
+  })).max(100_000).optional(),
+  config: z.any().optional(),
+});
+
+// --- AssemblyAI schemas ---
+
+export const transcribeFileSchema = z.object({
+  filePath: filePathSchema,
+  jobId: z.string().min(1).max(200),
+});
+
+// --- Document schemas ---
+
+export const documentIdSchema = z.string().min(1).max(200).regex(/^[a-zA-Z0-9_\-\.]+$/);

@@ -2,7 +2,7 @@ import { ipcMain, BrowserWindow, dialog } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { validateString } from './ipc-validation';
+import { pdfExportDataSchema, validateSchema } from './shared/schemas';
 
 async function getExportFolder(): Promise<string | null> {
   try {
@@ -535,19 +535,17 @@ async function renderPdf(html: string, config: PdfExportConfig): Promise<Buffer>
 
 // --- IPC Handlers ---
 export function registerPdfHandlers(): void {
-  ipcMain.handle('pdf:exportReport', async (_event, data: PdfExportData): Promise<{ ok: boolean; error?: string; filePath?: string }> => {
-    if (!data || typeof data !== 'object' || !data.fileName) {
-      return { ok: false, error: 'Invalid export data.' };
-    }
+  ipcMain.handle('pdf:exportReport', async (_event, data: unknown): Promise<{ ok: boolean; error?: string; filePath?: string }> => {
+    const v = validateSchema(pdfExportDataSchema, data);
+    if (!v.ok) return { ok: false, error: v.error };
 
-    const config = data.config || getDefaultConfig();
-    const defaultName = sanitizeExportName(data.fileName.replace(/\.[^.]+$/, '') + '_report.pdf');
+    const config = v.data.config || getDefaultConfig();
+    const defaultName = sanitizeExportName(v.data.fileName.replace(/\.[^.]+$/, '') + '_report.pdf');
 
     let filePath: string | null = null;
     const folder = await getExportFolder();
     if (folder) {
       const resolved = path.join(folder, defaultName);
-      // Ensure resolved path stays within export folder
       if (!resolved.startsWith(folder)) {
         return { ok: false, error: 'Invalid export path.' };
       }
@@ -569,7 +567,7 @@ export function registerPdfHandlers(): void {
     }
 
     try {
-      const html = buildHtml(data);
+      const html = buildHtml(v.data as PdfExportData);
       const pdfBuffer = await renderPdf(html, config);
       fs.writeFileSync(filePath, pdfBuffer);
       return { ok: true, filePath };
@@ -580,28 +578,24 @@ export function registerPdfHandlers(): void {
   });
 
   // Print: generate temp PDF and open system print dialog
-  ipcMain.handle('pdf:print', async (_event, data: PdfExportData): Promise<{ ok: boolean; error?: string }> => {
-    if (!data || typeof data !== 'object' || !data.fileName) {
-      return { ok: false, error: 'Invalid print data.' };
-    }
+  ipcMain.handle('pdf:print', async (_event, data: unknown): Promise<{ ok: boolean; error?: string }> => {
+    const v = validateSchema(pdfExportDataSchema, data);
+    if (!v.ok) return { ok: false, error: v.error };
 
     const win = BrowserWindow.getFocusedWindow();
     if (!win) return { ok: false, error: 'No active window.' };
 
     try {
-      const html = buildHtml(data);
-      const config = data.config || getDefaultConfig();
+      const html = buildHtml(v.data as PdfExportData);
+      const config = v.data.config || getDefaultConfig();
       const pdfBuffer = await renderPdf(html, config);
 
-      // Write temp file with restricted permissions
       const tmpPath = path.join(os.tmpdir(), `recllm-print-${Date.now()}.pdf`);
       fs.writeFileSync(tmpPath, pdfBuffer, { mode: 0o600 });
 
-      // Open with system default (triggers print dialog on most systems)
       const { shell } = require('electron');
       await shell.openPath(tmpPath);
 
-      // Clean up after delay
       setTimeout(() => {
         try { fs.unlinkSync(tmpPath); } catch {}
       }, 30000);

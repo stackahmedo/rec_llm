@@ -2,7 +2,7 @@ import { ipcMain, app } from 'electron';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
-import { historyJobSchema, idSchema, validateSchema } from './shared/schemas';
+import { historyJobSchema, idSchema, documentIdSchema, validateSchema } from './shared/schemas';
 
 const DATA_DIR = path.join(app.getPath('userData'), 'recllm-data');
 const HISTORY_FILE = path.join(DATA_DIR, 'history.json');
@@ -219,9 +219,11 @@ export function registerHistoryHandlers(): void {
   });
 
   // --- Document edit persistence ---
-  ipcMain.handle('document:save', async (_event, fileId: string, data: unknown): Promise<boolean> => {
+  ipcMain.handle('document:save', async (_event, fileId: unknown, data: unknown): Promise<boolean> => {
+    const v = validateSchema(documentIdSchema, fileId);
+    if (!v.ok) return false;
     try {
-      const safeId = sanitizeId(fileId);
+      const safeId = sanitizeId(v.data);
       await ensureDir(DOCUMENTS_DIR);
       const docPath = path.join(DOCUMENTS_DIR, `${safeId}.json`);
       await fs.writeFile(docPath, JSON.stringify(data, null, 2), 'utf-8');
@@ -231,9 +233,11 @@ export function registerHistoryHandlers(): void {
     }
   });
 
-  ipcMain.handle('document:load', async (_event, fileId: string): Promise<unknown | null> => {
+  ipcMain.handle('document:load', async (_event, fileId: unknown): Promise<unknown | null> => {
+    const v = validateSchema(documentIdSchema, fileId);
+    if (!v.ok) return null;
     try {
-      const safeId = sanitizeId(fileId);
+      const safeId = sanitizeId(v.data);
       const docPath = path.join(DOCUMENTS_DIR, `${safeId}.json`);
       const raw = await fs.readFile(docPath, 'utf-8');
       return JSON.parse(raw);
@@ -242,9 +246,11 @@ export function registerHistoryHandlers(): void {
     }
   });
 
-  ipcMain.handle('document:exists', async (_event, fileId: string): Promise<boolean> => {
+  ipcMain.handle('document:exists', async (_event, fileId: unknown): Promise<boolean> => {
+    const v = validateSchema(documentIdSchema, fileId);
+    if (!v.ok) return false;
     try {
-      const safeId = sanitizeId(fileId);
+      const safeId = sanitizeId(v.data);
       const docPath = path.join(DOCUMENTS_DIR, `${safeId}.json`);
       await fs.access(docPath);
       return true;

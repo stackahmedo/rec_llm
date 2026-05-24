@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import https from 'https';
 import { getCredential } from './credential-store';
-import { validateFilePath, validateString } from './ipc-validation';
+import { transcribeFileSchema, validateSchema } from './shared/schemas';
 
 const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -248,35 +248,31 @@ export function registerAssemblyAIHandlers(): void {
     }
   });
 
-  ipcMain.handle('assemblyai:transcribeFile', async (_event, filePath: string, jobId: string): Promise<TranscribeResult> => {
-    try {
-      validateFilePath(filePath);
-      validateString(jobId, 'jobId', 200);
-    } catch (err: any) {
-      return { ok: false, error: err.message };
-    }
+  ipcMain.handle('assemblyai:transcribeFile', async (_event, filePath: unknown, jobId: unknown): Promise<TranscribeResult> => {
+    const v = validateSchema(transcribeFileSchema, { filePath, jobId });
+    if (!v.ok) return { ok: false, error: v.error };
 
     const apiKey = await getApiKey();
     if (!apiKey || apiKey.length < 10) {
       return { ok: false, error: 'API_KEY_MISSING: No AssemblyAI API key configured. Please add your key in Settings.' };
     }
 
-    if (!fs.existsSync(filePath)) {
+    if (!fs.existsSync(v.data.filePath)) {
       return { ok: false, error: 'File not found.' };
     }
 
     try {
-      sendProgress(jobId, 'uploading');
-      const uploadUrl = await uploadFile(filePath, apiKey);
+      sendProgress(v.data.jobId, 'uploading');
+      const uploadUrl = await uploadFile(v.data.filePath, apiKey);
 
-      sendProgress(jobId, 'transcribing', 'Creating transcript...');
+      sendProgress(v.data.jobId, 'transcribing', 'Creating transcript...');
       const transcriptId = await createTranscript(uploadUrl, apiKey);
 
-      const result = await pollTranscript(transcriptId, apiKey, jobId);
-      sendProgress(jobId, result.ok ? 'done' : 'failed');
+      const result = await pollTranscript(transcriptId, apiKey, v.data.jobId);
+      sendProgress(v.data.jobId, result.ok ? 'done' : 'failed');
       return result;
     } catch (err: any) {
-      sendProgress(jobId, 'failed');
+      sendProgress(v.data.jobId, 'failed');
       const msg = err.message || 'Transcription failed.';
       // Detect auth errors and return specific code
       if (msg.includes('401') || msg.includes('Invalid API key') || msg.includes('Unauthorized')) {
