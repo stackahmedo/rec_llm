@@ -23,7 +23,7 @@ interface HistoryMeta {
 
 interface TranscriptData {
   fullText: string;
-  utterances: Array<{ speaker: string; startMs: number; endMs: number; text: string }>;
+  utterances: Array<{ speaker: string; startMs: number; endMs: number; text: string; gender?: string; ageRange?: string; pitchHz?: number }>;
 }
 
 interface SummaryData {

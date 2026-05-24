@@ -6,6 +6,7 @@
  */
 
 import { ipcMain, app } from 'electron';
+import { annotateUtterancesWithGender } from './gender-detection';
 import { execFile } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
@@ -500,6 +501,14 @@ export function registerLongAudioHandlers(): void {
     if (allDone) {
       state.status = 'merging';
       state.mergedTranscript = mergeTranscripts(state.chunks);
+      try {
+        const ffmpegPath = getFfmpegPath();
+        // Annotate merged utterances with simple gender/age heuristic
+        state.mergedTranscript = await annotateUtterancesWithGender(ffmpegPath, state.mergedTranscript, state.chunks);
+      } catch (err) {
+        const errMessage = err instanceof Error ? err.message : String(err);
+        console.warn('[gender-detection] annotation failed', errMessage);
+      }
       state.status = 'done';
       state.completedAt = Date.now();
       state.progress = 100;

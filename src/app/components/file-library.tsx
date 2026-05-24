@@ -27,7 +27,7 @@ function formatBytes(b: number) {
 }
 
 export function FileLibrary() {
-  const { history, setActiveId } = useTranscripts();
+  const { history, setActiveId, loadHistory } = useTranscripts();
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
@@ -49,8 +49,17 @@ export function FileLibrary() {
   };
 
   const handleDelete = async (id: string) => {
-    await window.electronAPI?.history?.delete(id);
-    toast.success("Removed from history");
+    const ok = window.confirm("Remove this file from history? This cannot be undone.");
+    if (!ok) return;
+    try {
+      await window.electronAPI?.history?.delete(id);
+      // Refresh history from backend
+      await loadHistory();
+      toast.success("Removed from history");
+    } catch (err) {
+      console.error("Failed to remove history item", err);
+      toast.error("Failed to remove file");
+    }
   };
 
   if (history.length === 0) {

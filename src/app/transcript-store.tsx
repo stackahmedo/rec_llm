@@ -5,6 +5,9 @@ export interface Utterance {
   startMs: number;
   endMs: number;
   text: string;
+  gender?: string;
+  ageRange?: string;
+  pitchHz?: number;
 }
 
 export interface SummaryResult {

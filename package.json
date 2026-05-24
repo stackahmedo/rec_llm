@@ -16,7 +16,8 @@
     "electron:preview": "npm run build && npm run electron:compile && electron .",
     "dist:dir": "npm run build && npm run electron:compile && electron-builder --dir",
     "dist:mac": "npm run build && npm run electron:compile && electron-builder --mac",
-    "dist:win": "npm run build && npm run electron:compile && electron-builder --win"
+    "dist:win": "npm run build && npm run electron:compile && electron-builder --win",
+    "dist:win:x64": "npm run build && npm run electron:compile && electron-builder --win --x64"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
@@ -89,6 +90,7 @@
     "concurrently": "^9.1.0",
     "electron": "^35.0.0",
     "electron-builder": "^26.0.0",
+    "png-to-ico": "^3.0.1",
     "tailwindcss": "4.1.12",
     "typescript": "^5.5.0",
     "vite": "6.3.5",
@@ -150,7 +152,8 @@
     "nsis": {
       "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "warningsAsErrors": false
     }
   },
   "pnpm": {

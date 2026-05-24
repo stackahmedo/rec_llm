@@ -1,13 +1,15 @@
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Textarea } from "./ui/textarea";
+import { Input } from "./ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { Pencil, Check, X, FileAudio, Upload, Mic2, Sparkles, FileText, Globe, Copy, Highlighter, MessageSquare, ChevronDown, ChevronRight } from "lucide-react";
 import { useTranscripts, Utterance } from "../transcript-store";
 import { useT } from "../i18n";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { toast } from "sonner";
+import { loadSpeakerProfiles, saveSpeakerProfiles, getDisplayName, generateProfiles } from "../pdf-speaker-store";
 
 const speakerColors = [
   "bg-blue-500", "bg-rose-500", "bg-amber-500", "bg-emerald-500",
@@ -36,6 +38,9 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
   const [editText, setEditText] = useState("");
   const [editedIndices, setEditedIndices] = useState<Set<number>>(new Set());
   const [collapsedSpeakers, setCollapsedSpeakers] = useState<Set<string>>(new Set());
+  const [speakerProfiles, setSpeakerProfiles] = useState<any[]>([]);
+  const [editingSpeaker, setEditingSpeaker] = useState<string | null>(null);
+  const [editingSpeakerName, setEditingSpeakerName] = useState("");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const active = fileId ? transcripts.find((t) => t.fileId === fileId) || null : null;
@@ -104,7 +109,82 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
     return groups;
   }, [active]);
 
-  // Empty state
+  const speakerMetadata = useMemo(() => {
+    const map: Record<string, { gender?: string; ageRange?: string }> = {};
+    if (!active) return map;
+    for (const u of active.utterances) {
+      if (!map[u.speaker]) {
+        if (u.gender || u.ageRange) {
+          map[u.speaker] = { gender: u.gender, ageRange: u.ageRange };
+        }
+      }
+    }
+    return map;
+  }, [active]);
+
+  useEffect(() => {
+    if (!active) {
+      setSpeakerProfiles([]);
+      return;
+    }
+    const loaded = loadSpeakerProfiles(active.fileId);
+    if (loaded && loaded.length) {
+      setSpeakerProfiles(loaded);
+      return;
+    }
+    const speakers = Array.from(new Set(active.utterances.map((u) => u.speaker)));
+    setSpeakerProfiles(generateProfiles(speakers));
+  }, [active]);
+
+  const getDisplaySpeaker = (id: string) => {
+    if (speakerProfiles && speakerProfiles.length) return getDisplayName(speakerProfiles, id);
+    return id;
+  };
+
+  const persistSpeakerProfiles = (profiles: any[]) => {
+    if (!active) return;
+    saveSpeakerProfiles(active.fileId, profiles);
+  };
+
+  const startSpeakerRename = (speakerId: string) => {
+    setEditingSpeaker(speakerId);
+    setEditingSpeakerName(getDisplaySpeaker(speakerId));
+  };
+
+  const saveSpeakerRename = () => {
+    if (!editingSpeaker || !active) return;
+    const next = speakerProfiles.map((p) => p.id === editingSpeaker ? { ...p, displayName: editingSpeakerName } : p);
+    setSpeakerProfiles(next);
+    persistSpeakerProfiles(next);
+    setEditingSpeaker(null);
+    toast.success("Speaker name updated");
+  };
+
+  const cancelSpeakerRename = () => {
+    setEditingSpeaker(null);
+    setEditingSpeakerName("");
+  };
+
+  const formatAgeRange = (ageRange: string) => {
+    switch (ageRange) {
+      case 'child': return 'Child';
+      case 'young': return 'Younger';
+      case 'adult': return 'Adult';
+      case 'senior': return 'Older';
+      default: return ageRange;
+    }
+  };
+
+  const lastEnd = active ? active.utterances.reduce((max, u) => u.endMs > max ? u.endMs : max, 0) : 0;
+
+  // TanStack Virtual for true virtualized rendering
+  const virtualizer = useVirtualizer({
+    count: active ? active.utterances.length : 0,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => 44, // estimated row height
+    overscan: 20,
+  });
+
   if (!active) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-6">
@@ -133,16 +213,6 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
       </div>
     );
   }
-
-  const lastEnd = active.utterances.reduce((max, u) => u.endMs > max ? u.endMs : max, 0);
-
-  // TanStack Virtual for true virtualized rendering
-  const virtualizer = useVirtualizer({
-    count: active.utterances.length,
-    getScrollElement: () => scrollContainerRef.current,
-    estimateSize: () => 44, // estimated row height
-    overscan: 20,
-  });
 
   return (
     <div className="h-full flex flex-col">
@@ -219,7 +289,38 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-medium">{u.speaker}</span>
+                    {editingSpeaker === u.speaker ? (
+                      <div className="flex items-center gap-1">
+                        <Input
+                          value={editingSpeakerName}
+                          onChange={(e) => setEditingSpeakerName(e.target.value)}
+                          className="h-6 text-[10px] w-28"
+                          autoFocus
+                        />
+                        <Button type="button" size="icon" className="h-6 w-6" onClick={saveSpeakerRename}>
+                          <Check className="size-3" />
+                        </Button>
+                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={cancelSpeakerRename}>
+                          <X className="size-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="text-[10px] font-medium hover:text-primary transition-colors"
+                        onClick={() => startSpeakerRename(u.speaker)}
+                      >
+                        {getDisplaySpeaker(u.speaker)}
+                      </button>
+                    )}
+                    {speakerMetadata[u.speaker]?.gender && (
+                      <Badge variant="outline" className="text-[7px] h-3 px-0.5 capitalize">
+                        {speakerMetadata[u.speaker]!.gender}
+                      </Badge>
+                    )}
+                    {speakerMetadata[u.speaker]?.ageRange && (
+                      <Badge variant="outline" className="text-[7px] h-3 px-0.5">{formatAgeRange(speakerMetadata[u.speaker]!.ageRange!)}</Badge>
+                    )}
                     {wasEdited && <Badge variant="secondary" className="text-[7px] h-3 px-0.5">edited</Badge>}
                     <span className="text-[7px] text-muted-foreground font-mono">{Math.round((u.endMs - u.startMs) / 1000)}s</span>
                   </div>
