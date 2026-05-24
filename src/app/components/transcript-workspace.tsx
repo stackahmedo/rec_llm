@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
@@ -48,9 +48,9 @@ const slashCommands = [
 ];
 
 export function TranscriptWorkspace() {
-  const { transcripts, summaries, addSummary, setActiveId, loadTranscriptData, isLoadingTranscript, history } = useTranscripts();
+  const { transcripts, summaries, addSummary, activeId, setActiveId, loadTranscriptData, isLoadingTranscript, history } = useTranscripts();
   const { t } = useT();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedId = activeId;
   const [activeTab, setActiveTab] = useState<AITab>("summary");
   const [generating, setGenerating] = useState(false);
   const [summaryLang, setSummaryLang] = useState<"en" | "ja">("en");
@@ -66,11 +66,17 @@ export function TranscriptWorkspace() {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const handleSelect = (id: string) => {
-    setSelectedId(id);
     setActiveId(id);
     // Lazy-load transcript data on demand
     loadTranscriptData(id);
   };
+
+  // On mount, reload transcript data if activeId is set but not loaded
+  useEffect(() => {
+    if (activeId) {
+      loadTranscriptData(activeId);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const active = selectedId ? transcripts.find((t) => t.fileId === selectedId) || null : null;
   const summary = selectedId ? summaries.find((s) => s.fileId === selectedId) || null : null;
@@ -249,7 +255,14 @@ export function TranscriptWorkspace() {
 
         {/* Center: Transcript editor */}
         <div className="flex-1 min-w-0 overflow-hidden">
-          <TranscriptEditor fileId={selectedId} />
+          {selectedId && !active && isLoadingTranscript ? (
+            <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-6">
+              <Loader2 className="size-5 animate-spin opacity-40 mb-2" />
+              <div className="text-[11px]">{t("transcript.loading")}</div>
+            </div>
+          ) : (
+            <TranscriptEditor fileId={selectedId} />
+          )}
         </div>
 
         {/* Right: AI Workspace Panel */}

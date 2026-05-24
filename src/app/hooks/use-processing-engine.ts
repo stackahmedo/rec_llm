@@ -105,7 +105,15 @@ export function useProcessingEngine() {
         },
       };
       addHistoryJob(historyJob);
-      window.electronAPI?.history?.save(historyJob);
+      let saveOk = await window.electronAPI?.history?.save(historyJob);
+      if (!saveOk) {
+        // One automatic retry after short delay
+        await new Promise((r) => setTimeout(r, 1000));
+        saveOk = await window.electronAPI?.history?.save(historyJob);
+        if (!saveOk) {
+          toast.error("Warning: transcript may not be saved to disk. It will persist in memory until app closes.", { duration: 8000 });
+        }
+      }
 
       updateJob(file.id, {
         stage: "done",
@@ -142,113 +150,127 @@ export function useProcessingEngine() {
     const file = queue[0];
     processingRef.current = true;
 
-    // Step 1: Analyze audio metadata
-    let uploadPath = file.filePath!;
-    if (window.electronAPI?.audio) {
-      updateJob(file.id, { stage: "analyzing", progress: 5 });
-      const metaResult = await window.electronAPI.audio.metadata(file.filePath!);
-      if (metaResult.ok && metaResult.metadata && metaResult.recommendation) {
-        updateJob(file.id, { audioMeta: metaResult.metadata, recommendation: metaResult.recommendation, progress: 8 });
+    try {
+      // Step 1: Analyze audio metadata
+      let uploadPath = file.filePath!;
+      if (window.electronAPI?.audio) {
+        updateJob(file.id, { stage: "analyzing", progress: 5 });
+        const metaResult = await window.electronAPI.audio.metadata(file.filePath!);
+        if (metaResult.ok && metaResult.metadata && metaResult.recommendation) {
+          updateJob(file.id, { audioMeta: metaResult.metadata, recommendation: metaResult.recommendation, progress: 8 });
 
-        // Check if long-audio pipeline is needed
-        if (metaResult.recommendation.action === 'split' && window.electronAPI.longAudio) {
-          updateJob(file.id, { stage: "chunking", progress: 10 });
-          toast.info("Long audio detected", { description: metaResult.recommendation.reason });
+          // Check if long-audio pipeline is needed
+          if (metaResult.recommendation.action === 'split' && window.electronAPI.longAudio) {
+            updateJob(file.id, { stage: "chunking", progress: 10 });
+            toast.info("Long audio detected", { description: metaResult.recommendation.reason });
 
-          const startResult = await window.electronAPI.longAudio.start(file.filePath!);
-          if (startResult.ok && startResult.requiresChunking && startResult.pipelineId) {
-            await processLongAudio(file, startResult.pipelineId, startResult.totalChunks || 1);
-            processingRef.current = false;
-            return;
+            const startResult = await window.electronAPI.longAudio.start(file.filePath!);
+            if (startResult.ok && startResult.requiresChunking && startResult.pipelineId) {
+              await processLongAudio(file, startResult.pipelineId, startResult.totalChunks || 1);
+              return;
+            }
+            // If chunking not needed after all, fall through to direct
           }
-          // If chunking not needed after all, fall through to direct
-        }
 
-        if (metaResult.recommendation.action === 'compress') {
-          toast.info("Compressing audio", { description: metaResult.recommendation.reason });
-          const compressResult = await window.electronAPI.audio.compress(file.filePath!);
-          if (compressResult.ok && compressResult.outputPath) {
-            uploadPath = compressResult.outputPath;
-            updateJob(file.id, { compressedPath: compressResult.outputPath, progress: 20 });
+          if (metaResult.recommendation.action === 'compress') {
+            toast.info("Compressing audio", { description: metaResult.recommendation.reason });
+            const compressResult = await window.electronAPI.audio.compress(file.filePath!);
+            if (compressResult.ok && compressResult.outputPath) {
+              uploadPath = compressResult.outputPath;
+              updateJob(file.id, { compressedPath: compressResult.outputPath, progress: 20 });
+            }
           }
         }
       }
-    }
 
-    // Step 2: Upload and transcribe (direct mode)
-    updateJob(file.id, { stage: "uploading", progress: 25, startedAt: Date.now() });
+      // Step 2: Upload and transcribe (direct mode)
+      updateJob(file.id, { stage: "uploading", progress: 25, startedAt: Date.now() });
 
-    const result = await window.electronAPI.assemblyai.transcribeFile(uploadPath, file.id);
-    const now = new Date().toISOString();
+      const result = await window.electronAPI.assemblyai.transcribeFile(uploadPath, file.id);
+      const now = new Date().toISOString();
 
-    if (result.ok) {
-      // Step 3: Save
-      updateJob(file.id, { stage: "saving", progress: 90 });
+      if (result.ok) {
+        // Step 3: Save
+        updateJob(file.id, { stage: "saving", progress: 90 });
 
-      const speakerCount = result.utterances?.length
-        ? new Set(result.utterances.map((u) => u.speaker)).size
-        : 0;
-      const languageCode = result.languageCode || 'unknown';
+        const speakerCount = result.utterances?.length
+          ? new Set(result.utterances.map((u) => u.speaker)).size
+          : 0;
+        const languageCode = result.languageCode || 'unknown';
 
-      addTranscript({
-        fileId: file.id,
-        fileName: file.fileName,
-        fullText: result.fullText || '',
-        languageCode,
-        utterances: result.utterances || [],
-        completedAt: now,
-      });
-      const historyJob = {
-        id: file.id,
-        fileName: file.fileName,
-        filePath: file.filePath!,
-        sizeBytes: file.sizeBytes,
-        status: 'done' as const,
-        languageCode,
-        speakerCount,
-        createdAt: new Date(file.createdAt).toISOString(),
-        completedAt: now,
-        transcript: {
+        addTranscript({
+          fileId: file.id,
+          fileName: file.fileName,
           fullText: result.fullText || '',
+          languageCode,
           utterances: result.utterances || [],
-        },
-      };
-      addHistoryJob(historyJob);
-      window.electronAPI?.history?.save(historyJob);
-
-      updateJob(file.id, {
-        stage: "done",
-        progress: 100,
-        speakers: speakerCount,
-        language: languageCode,
-        completedAt: now,
-        resultFileId: file.id,
-      });
-      toast.success(`Done: ${file.fileName}`, {
-        description: `${result.utterances?.length || 0} segments · ${languageCode}`,
-      });
-      notifySessionCompleted(file.fileName);
-    } else {
-      const errorMsg = result.error || "Unknown error";
-      const isApiKeyError = errorMsg.startsWith("API_KEY_MISSING:") || errorMsg.startsWith("API_KEY_INVALID:");
-      const displayError = isApiKeyError
-        ? errorMsg.split(": ").slice(1).join(": ")
-        : errorMsg;
-
-      if (isApiKeyError) {
-        updateJob(file.id, { stage: "paused", progress: 0, error: displayError });
-        toast.error("API Key Error", {
-          description: "AssemblyAI API key is invalid or missing. Please update your key in Settings.",
-          duration: 8000,
+          completedAt: now,
         });
-      } else {
-        updateJob(file.id, { stage: "failed", progress: 0, error: displayError });
-        toast.error(`Failed: ${file.fileName}`, { description: displayError });
-        notifySessionFailed(file.fileName, displayError);
-      }
-    }
+        const historyJob = {
+          id: file.id,
+          fileName: file.fileName,
+          filePath: file.filePath!,
+          sizeBytes: file.sizeBytes,
+          status: 'done' as const,
+          languageCode,
+          speakerCount,
+          createdAt: new Date(file.createdAt).toISOString(),
+          completedAt: now,
+          transcript: {
+            fullText: result.fullText || '',
+            utterances: result.utterances || [],
+          },
+        };
+        addHistoryJob(historyJob);
+        let saveOk = await window.electronAPI?.history?.save(historyJob);
+        if (!saveOk) {
+          // One automatic retry after short delay
+          await new Promise((r) => setTimeout(r, 1000));
+          saveOk = await window.electronAPI?.history?.save(historyJob);
+          if (!saveOk) {
+            toast.error("Warning: transcript may not be saved to disk. It will persist in memory until app closes.", { duration: 8000 });
+          }
+        }
 
-    processingRef.current = false;
+        updateJob(file.id, {
+          stage: "done",
+          progress: 100,
+          speakers: speakerCount,
+          language: languageCode,
+          completedAt: now,
+          resultFileId: file.id,
+        });
+        toast.success(`Done: ${file.fileName}`, {
+          description: `${result.utterances?.length || 0} segments · ${languageCode}`,
+        });
+        notifySessionCompleted(file.fileName);
+      } else {
+        const errorMsg = result.error || "Unknown error";
+        const isApiKeyError = errorMsg.startsWith("API_KEY_MISSING:") || errorMsg.startsWith("API_KEY_INVALID:");
+        const displayError = isApiKeyError
+          ? errorMsg.split(": ").slice(1).join(": ")
+          : errorMsg;
+
+        if (isApiKeyError) {
+          updateJob(file.id, { stage: "paused", progress: 0, error: displayError });
+          toast.error("API Key Error", {
+            description: "AssemblyAI API key is invalid or missing. Please update your key in Settings.",
+            duration: 8000,
+          });
+        } else {
+          updateJob(file.id, { stage: "failed", progress: 0, error: displayError });
+          toast.error(`Failed: ${file.fileName}`, { description: displayError });
+          notifySessionFailed(file.fileName, displayError);
+        }
+      }
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : "Unexpected processing error";
+      updateJob(file.id, { stage: "failed", progress: 0, error: errorMsg });
+      toast.error(`Failed: ${file.fileName}`, { description: errorMsg });
+      notifySessionFailed(file.fileName, errorMsg);
+    } finally {
+      processingRef.current = false;
+    }
   }, [jobs, addTranscript, addHistoryJob, updateJob, processLongAudio]);
 
   // Auto-advance queue

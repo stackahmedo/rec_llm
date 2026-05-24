@@ -78,6 +78,22 @@ const Ctx = createContext<TranscriptStore>({
 // Maximum number of transcripts to keep in memory at once
 const MAX_CACHED_TRANSCRIPTS = 3;
 
+/**
+ * Push a fileId to loadedIdsRef, deduplicating and enforcing max size.
+ * Protected IDs (activeId, the new fileId) are never evicted from the ref.
+ */
+function pushLoadedId(ref: React.MutableRefObject<string[]>, fileId: string, protectedIds: (string | null)[]): void {
+  // Deduplicate — don't push if already present
+  if (ref.current.includes(fileId)) return;
+  // Enforce cap: remove oldest non-protected entry if at limit
+  while (ref.current.length >= MAX_CACHED_TRANSCRIPTS) {
+    const evictIdx = ref.current.findIndex((id) => !protectedIds.includes(id) && id !== fileId);
+    if (evictIdx === -1) break; // all protected, can't evict
+    ref.current.splice(evictIdx, 1);
+  }
+  ref.current.push(fileId);
+}
+
 export function TranscriptProvider({ children }: { children: ReactNode }) {
   const [transcripts, setTranscripts] = useState<TranscriptResult[]>([]);
   const [summaries, setSummaries] = useState<SummaryResult[]>([]);
@@ -113,12 +129,16 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
 
   // Load transcript data on-demand for a specific file
   const loadTranscriptData = useCallback(async (fileId: string) => {
-    // Already loaded?
-    const existing = transcripts.find((t) => t.fileId === fileId);
-    if (existing) return;
+    // Already loaded? Use ref to avoid stale closure on transcripts array
+    if (loadedIdsRef.current.includes(fileId)) return;
 
     const api = window.electronAPI?.history;
     if (!api?.loadTranscript) return;
+
+    // If history hasn't loaded yet, trigger it and wait
+    if (history.length === 0) {
+      await loadHistory();
+    }
 
     setIsLoadingTranscript(true);
     try {
@@ -130,11 +150,10 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
 
       if (data.transcript) {
         setTranscripts((prev) => {
-          // Evict oldest if at capacity
+          // Evict oldest if at capacity — never evict the active or requested transcript
           let updated = [...prev];
           if (updated.length >= MAX_CACHED_TRANSCRIPTS) {
-            // Remove the oldest loaded transcript (not the one we're adding)
-            const oldestId = loadedIdsRef.current.find((id) => id !== fileId);
+            const oldestId = loadedIdsRef.current.find((id) => id !== fileId && id !== activeId);
             if (oldestId) {
               updated = updated.filter((t) => t.fileId !== oldestId);
               loadedIdsRef.current = loadedIdsRef.current.filter((id) => id !== oldestId);
@@ -156,7 +175,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
             updated[existingIdx] = newTranscript;
           } else {
             updated.push(newTranscript);
-            loadedIdsRef.current.push(fileId);
+            pushLoadedId(loadedIdsRef, fileId, [activeId]);
           }
           return updated;
         });
@@ -186,7 +205,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoadingTranscript(false);
     }
-  }, [transcripts, history]);
+  }, [history, activeId, loadHistory]);
 
   useEffect(() => {
     loadHistory();
@@ -200,12 +219,23 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
         updated[existing] = result;
         return updated;
       }
-      // Track in loaded order
-      loadedIdsRef.current.push(result.fileId);
-      return [...prev, result];
+
+      // Evict oldest if at capacity, but never evict the active transcript
+      let updated = [...prev];
+      if (updated.length >= MAX_CACHED_TRANSCRIPTS) {
+        const oldestId = loadedIdsRef.current.find((id) => id !== result.fileId && id !== activeId);
+        if (oldestId) {
+          updated = updated.filter((t) => t.fileId !== oldestId);
+          loadedIdsRef.current = loadedIdsRef.current.filter((id) => id !== oldestId);
+        }
+      }
+
+      // Track in loaded order (deduplicated, capped)
+      pushLoadedId(loadedIdsRef, result.fileId, [activeId]);
+      return [...updated, result];
     });
     setActiveId(result.fileId);
-  }, []);
+  }, [activeId]);
 
   const addSummary = useCallback((result: SummaryResult) => {
     setSummaries((prev) => {
