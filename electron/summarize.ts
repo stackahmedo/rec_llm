@@ -1,6 +1,7 @@
 import { ipcMain, net } from 'electron';
 import { getProvider, getProviderConfig, safeParseJson, ProviderError } from './providers';
 import { getAllApiKeys } from './credential-store';
+import { summarizeRequestSchema, validateSchema } from './shared/schemas';
 
 async function getSettings(): Promise<{ apiKeys: Record<string, string>; models: Record<string, string>; preferences: Record<string, unknown>; openaiProvider?: { providerType?: string; baseUrl?: string } }> {
   const { default: Store } = await import('electron-store');
@@ -204,7 +205,11 @@ async function callLLM(provider: string, apiKey: string, model: string, prompt: 
 }
 
 export function registerSummarizeHandlers(): void {
-  ipcMain.handle('summarize:generate', async (_event, request: SummaryRequest): Promise<SummaryResult> => {
+  ipcMain.handle('summarize:generate', async (_event, request: unknown): Promise<SummaryResult> => {
+    const v = validateSchema(summarizeRequestSchema, request);
+    if (!v.ok) {
+      return { ok: false, error: v.error };
+    }
     const { apiKeys, models, preferences, openaiProvider } = await getSettings();
     const provider = (preferences.summaryProvider as string) || 'gemini';
 
@@ -219,15 +224,15 @@ export function registerSummarizeHandlers(): void {
     try {
       // Determine chunks
       let chunks: string[];
-      if (request.utterances && request.utterances.length > 0) {
-        chunks = chunkByUtterances(request.utterances);
+      if (v.data.utterances && v.data.utterances.length > 0) {
+        chunks = chunkByUtterances(v.data.utterances);
       } else {
-        chunks = chunkByText(request.transcript);
+        chunks = chunkByText(v.data.transcript);
       }
 
       // Single chunk — direct summarization
       if (chunks.length === 1) {
-        const prompt = buildSinglePrompt(chunks[0], request.language);
+        const prompt = buildSinglePrompt(chunks[0], v.data.language);
         const raw = await callLLM(provider, apiKey, model, prompt, openaiBaseUrl);
         const parsed = parseResponse(raw);
         return { ok: true, ...parsed };
@@ -236,13 +241,13 @@ export function registerSummarizeHandlers(): void {
       // Multiple chunks — summarize each, then merge
       const chunkResults: ParsedChunk[] = [];
       for (let i = 0; i < chunks.length; i++) {
-        const prompt = buildChunkPrompt(chunks[i], i, chunks.length, request.language);
+        const prompt = buildChunkPrompt(chunks[i], i, chunks.length, v.data.language);
         const raw = await callLLM(provider, apiKey, model, prompt, openaiBaseUrl);
         chunkResults.push(parseResponse(raw));
       }
 
       // Merge all chunk summaries
-      const mergePrompt = buildMergePrompt(chunkResults, request.language);
+      const mergePrompt = buildMergePrompt(chunkResults, v.data.language);
       const mergeRaw = await callLLM(provider, apiKey, model, mergePrompt, openaiBaseUrl);
       const merged = parseResponse(mergeRaw);
       return { ok: true, ...merged };

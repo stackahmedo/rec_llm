@@ -1,7 +1,7 @@
 import { ipcMain, BrowserWindow, dialog } from 'electron';
 import fs from 'fs';
 import path from 'path';
-import { validateString } from './ipc-validation';
+import { exportTxtSchema, exportDocxSchema, fileNameSchema, validateSchema } from './shared/schemas';
 
 let _getStore: (() => Promise<any>) | null = null;
 
@@ -86,21 +86,17 @@ export function registerExportHandlers(): void {
   });
 
   // TXT export
-  ipcMain.handle('export:saveTxt', async (_event, fileName: string, content: string): Promise<{ ok: boolean; error?: string; filePath?: string }> => {
-    try {
-      validateString(fileName, 'fileName', 500);
-      validateString(content, 'content', 50_000_000); // 50MB max
-    } catch (err: any) {
-      return { ok: false, error: err.message };
-    }
+  ipcMain.handle('export:saveTxt', async (_event, fileName: unknown, content: unknown): Promise<{ ok: boolean; error?: string; filePath?: string }> => {
+    const v = validateSchema(exportTxtSchema, { fileName, content });
+    if (!v.ok) return { ok: false, error: v.error };
 
-    const defaultName = sanitizeFileName(fileName.replace(/\.[^.]+$/, '') + '_transcript.txt');
+    const defaultName = sanitizeFileName(v.data.fileName.replace(/\.[^.]+$/, '') + '_transcript.txt');
     const { filePath, cancelled } = await resolveExportPath(defaultName);
 
     if (cancelled || !filePath) return { ok: false, error: 'Export cancelled.' };
 
     try {
-      fs.writeFileSync(filePath, content, 'utf-8');
+      fs.writeFileSync(filePath, v.data.content, 'utf-8');
       return { ok: true, filePath };
     } catch (err: any) {
       return { ok: false, error: err.message || 'Write failed.' };
@@ -108,29 +104,19 @@ export function registerExportHandlers(): void {
   });
 
   // DOCX export (simple XML-based .docx)
-  ipcMain.handle('export:saveDocx', async (_event, fileName: string, data: {
-    utterances: Array<{ speaker: string; startMs: number; text: string }>;
-    languageCode: string;
-    summary?: string;
-    pointNotes?: string[];
-  }): Promise<{ ok: boolean; error?: string; filePath?: string }> => {
-    try {
-      validateString(fileName, 'fileName', 500);
-    } catch (err: any) {
-      return { ok: false, error: err.message };
-    }
+  ipcMain.handle('export:saveDocx', async (_event, fileName: unknown, data: unknown): Promise<{ ok: boolean; error?: string; filePath?: string }> => {
+    const fnV = validateSchema(fileNameSchema, fileName);
+    if (!fnV.ok) return { ok: false, error: fnV.error };
+    const dV = validateSchema(exportDocxSchema, data);
+    if (!dV.ok) return { ok: false, error: dV.error };
 
-    if (!data || typeof data !== 'object' || !Array.isArray(data.utterances)) {
-      return { ok: false, error: 'Invalid export data.' };
-    }
-
-    const defaultName = sanitizeFileName(fileName.replace(/\.[^.]+$/, '') + '_transcript.docx');
+    const defaultName = sanitizeFileName(fnV.data.replace(/\.[^.]+$/, '') + '_transcript.docx');
     const { filePath, cancelled } = await resolveExportPath(defaultName);
 
     if (cancelled || !filePath) return { ok: false, error: 'Export cancelled.' };
 
     try {
-      const docx = buildDocx(fileName, data);
+      const docx = buildDocx(fnV.data, dV.data);
       fs.writeFileSync(filePath, docx);
       return { ok: true, filePath };
     } catch (err: any) {

@@ -2,6 +2,7 @@ import { ipcMain, app } from 'electron';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
+import { historyJobSchema, idSchema, validateSchema } from './shared/schemas';
 
 const DATA_DIR = path.join(app.getPath('userData'), 'recllm-data');
 const HISTORY_FILE = path.join(DATA_DIR, 'history.json');
@@ -136,9 +137,11 @@ export function registerHistoryHandlers(): void {
     return metas.map((meta) => ({ ...meta }));
   });
 
-  ipcMain.handle('history:loadTranscript', async (_event, id: string): Promise<{ transcript?: TranscriptData; summary?: SummaryData } | null> => {
+  ipcMain.handle('history:loadTranscript', async (_event, id: unknown): Promise<{ transcript?: TranscriptData; summary?: SummaryData } | null> => {
+    const v = validateSchema(idSchema, id);
+    if (!v.ok) return null;
     try {
-      const safeId = sanitizeId(id);
+      const safeId = sanitizeId(v.data);
       const transcript = await readTranscript(safeId);
       const summary = await readSummary(safeId);
       if (!transcript && !summary) return null;
@@ -148,11 +151,13 @@ export function registerHistoryHandlers(): void {
     }
   });
 
-  ipcMain.handle('history:save', async (_event, job: HistoryJob): Promise<boolean> => {
+  ipcMain.handle('history:save', async (_event, job: unknown): Promise<boolean> => {
+    const v = validateSchema(historyJobSchema, job);
+    if (!v.ok) return false;
     try {
-      const safeId = sanitizeId(job.id);
+      const safeId = sanitizeId(v.data.id);
       const metas = await readHistoryMeta();
-      const { transcript, summary, ...meta } = job;
+      const { transcript, summary, ...meta } = v.data;
       meta.id = safeId;
 
       const idx = metas.findIndex((j) => j.id === safeId);
@@ -176,9 +181,11 @@ export function registerHistoryHandlers(): void {
     }
   });
 
-  ipcMain.handle('history:delete', async (_event, id: string): Promise<boolean> => {
+  ipcMain.handle('history:delete', async (_event, id: unknown): Promise<boolean> => {
+    const v = validateSchema(idSchema, id);
+    if (!v.ok) return false;
     try {
-      const safeId = sanitizeId(id);
+      const safeId = sanitizeId(v.data);
       const metas = await readHistoryMeta();
       const filtered = metas.filter((j) => j.id !== safeId);
       await writeHistoryMeta(filtered);
