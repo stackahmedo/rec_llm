@@ -836,8 +836,54 @@ function ProcessingTab({ autoRetry, setAutoRetry, autoCompress, setAutoCompress,
 
 // --- Tab: Export ---
 function ExportTab() {
+  const [exportFolder, setExportFolder] = useState<string>("");
+
+  useEffect(() => {
+    const api = window.electronAPI?.settings;
+    if (!api) return;
+    api.get('exportFolder').then((v) => {
+      if (typeof v === 'string') setExportFolder(v);
+    });
+  }, []);
+
+  const pickFolder = async () => {
+    const result = await window.electronAPI?.export?.selectFolder();
+    if (result?.ok && result.path) {
+      setExportFolder(result.path);
+      await window.electronAPI?.settings?.set('exportFolder', result.path);
+      toast.success("Export folder set");
+    }
+  };
+
+  const clearFolder = async () => {
+    setExportFolder("");
+    await window.electronAPI?.settings?.delete('exportFolder');
+    toast.message("Export folder cleared — will use save dialog");
+  };
+
   return (
     <div className="space-y-4">
+      <SectionLabel>Export Location</SectionLabel>
+      <p className="text-[9px] text-muted-foreground">All exports (PDF, TXT, DOCX) will save directly to this folder. Leave empty to choose each time.</p>
+      <div className="flex items-center gap-1.5">
+        <Input
+          value={exportFolder}
+          readOnly
+          placeholder="No folder set — save dialog will appear"
+          className="h-7 text-[11px] font-mono flex-1"
+        />
+        <Button type="button" variant="outline" size="sm" className="h-7 text-[10px] shrink-0" onClick={pickFolder}>
+          <FolderOpen className="size-3 mr-1" />Browse
+        </Button>
+        {exportFolder && (
+          <Button type="button" variant="ghost" size="sm" className="h-7 text-[10px] shrink-0 text-red-500 hover:text-red-600" onClick={clearFolder}>
+            <Trash2 className="size-3" />
+          </Button>
+        )}
+      </div>
+
+      <Separator />
+
       <SectionLabel>PDF Export</SectionLabel>
       <Row label="Default template"><Badge variant="outline" className="text-[9px] h-4">Business Report</Badge></Row>
       <Row label="Page size"><Badge variant="outline" className="text-[9px] h-4">A4</Badge></Row>

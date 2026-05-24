@@ -88,6 +88,7 @@ interface ElectronStorage {
 interface ElectronExport {
   saveTxt: (fileName: string, content: string) => Promise<{ ok: boolean; error?: string; filePath?: string }>;
   saveDocx: (fileName: string, data: any) => Promise<{ ok: boolean; error?: string; filePath?: string }>;
+  selectFolder: () => Promise<{ ok: boolean; path?: string }>;
 }
 
 interface ElectronAudio {

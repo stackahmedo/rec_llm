@@ -105,6 +105,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('export:saveTxt', fileName, content),
     saveDocx: (fileName: string, data: any): Promise<{ ok: boolean; error?: string; filePath?: string }> =>
       ipcRenderer.invoke('export:saveDocx', fileName, data),
+    selectFolder: (): Promise<{ ok: boolean; path?: string }> =>
+      ipcRenderer.invoke('export:selectFolder'),
   },
   audio: {
     metadata: (filePath: string): Promise<{ ok: boolean; error?: string; metadata?: any; recommendation?: any }> =>
