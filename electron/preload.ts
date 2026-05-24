@@ -1,4 +1,19 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type {
+  HistoryJobPayload,
+  TranscriptPayload,
+  SummaryPayload,
+  ExportDocxPayload,
+  AudioMetadata,
+  AudioRecommendation,
+  AudioAnalysis,
+  ChunkStatus,
+  ChunkDetail,
+  MergedTranscript,
+  RecoverablePipeline,
+  PdfExportData,
+  DocumentData,
+} from './shared/types';
 
 export interface AudioFileMeta {
   id: string;
@@ -51,43 +66,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }> => ipcRenderer.invoke('summarize:generate', { transcript, language, utterances }),
   },
   pdf: {
-    exportReport: (data: {
-      fileName: string;
-      processedAt: string;
-      languageCode: string;
-      summary?: string;
-      pointNotes?: string[];
-      actionItems?: string[];
-      decisions?: string[];
-      risks?: string[];
-      utterances?: Array<{ speaker: string; startMs: number; endMs: number; text: string }>;
-      config?: any;
-    }): Promise<{ ok: boolean; error?: string; filePath?: string }> =>
+    exportReport: (data: PdfExportData): Promise<{ ok: boolean; error?: string; filePath?: string }> =>
       ipcRenderer.invoke('pdf:exportReport', data),
-    print: (data: {
-      fileName: string;
-      processedAt: string;
-      languageCode: string;
-      summary?: string;
-      pointNotes?: string[];
-      actionItems?: string[];
-      decisions?: string[];
-      risks?: string[];
-      utterances?: Array<{ speaker: string; startMs: number; endMs: number; text: string }>;
-      config?: any;
-    }): Promise<{ ok: boolean; error?: string }> =>
+    print: (data: PdfExportData): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke('pdf:print', data),
   },
   history: {
-    load: (): Promise<any[]> => ipcRenderer.invoke('history:load'),
-    loadTranscript: (id: string): Promise<any | null> => ipcRenderer.invoke('history:loadTranscript', id),
-    save: (job: any): Promise<boolean> => ipcRenderer.invoke('history:save', job),
+    load: (): Promise<HistoryJobPayload[]> => ipcRenderer.invoke('history:load'),
+    loadTranscript: (id: string): Promise<{ transcript?: TranscriptPayload; summary?: SummaryPayload } | null> => ipcRenderer.invoke('history:loadTranscript', id),
+    save: (job: HistoryJobPayload): Promise<boolean> => ipcRenderer.invoke('history:save', job),
     delete: (id: string): Promise<boolean> => ipcRenderer.invoke('history:delete', id),
     clear: (): Promise<boolean> => ipcRenderer.invoke('history:clear'),
   },
   document: {
-    save: (fileId: string, data: any): Promise<boolean> => ipcRenderer.invoke('document:save', fileId, data),
-    load: (fileId: string): Promise<any | null> => ipcRenderer.invoke('document:load', fileId),
+    save: (fileId: string, data: DocumentData): Promise<boolean> => ipcRenderer.invoke('document:save', fileId, data),
+    load: (fileId: string): Promise<DocumentData | null> => ipcRenderer.invoke('document:load', fileId),
     exists: (fileId: string): Promise<boolean> => ipcRenderer.invoke('document:exists', fileId),
   },
   storage: {
@@ -103,13 +96,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   export: {
     saveTxt: (fileName: string, content: string): Promise<{ ok: boolean; error?: string; filePath?: string }> =>
       ipcRenderer.invoke('export:saveTxt', fileName, content),
-    saveDocx: (fileName: string, data: any): Promise<{ ok: boolean; error?: string; filePath?: string }> =>
+    saveDocx: (fileName: string, data: ExportDocxPayload): Promise<{ ok: boolean; error?: string; filePath?: string }> =>
       ipcRenderer.invoke('export:saveDocx', fileName, data),
     selectFolder: (): Promise<{ ok: boolean; path?: string }> =>
       ipcRenderer.invoke('export:selectFolder'),
   },
   audio: {
-    metadata: (filePath: string): Promise<{ ok: boolean; error?: string; metadata?: any; recommendation?: any }> =>
+    metadata: (filePath: string): Promise<{ ok: boolean; error?: string; metadata?: AudioMetadata; recommendation?: AudioRecommendation }> =>
       ipcRenderer.invoke('audio:metadata', filePath),
     compress: (filePath: string): Promise<{ ok: boolean; error?: string; outputPath?: string; savedMB?: number }> =>
       ipcRenderer.invoke('audio:compress', filePath),
@@ -119,23 +112,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('audio:ffmpegCheck'),
   },
   longAudio: {
-    analyze: (filePath: string): Promise<{ ok: boolean; error?: string; analysis?: any }> =>
+    analyze: (filePath: string): Promise<{ ok: boolean; error?: string; analysis?: AudioAnalysis }> =>
       ipcRenderer.invoke('longaudio:analyze', filePath),
-    start: (filePath: string, opts?: { concurrency?: number }): Promise<{ ok: boolean; error?: string; requiresChunking?: boolean; pipelineId?: string; totalChunks?: number; analysis?: any }> =>
+    start: (filePath: string, opts?: { concurrency?: number }): Promise<{ ok: boolean; error?: string; requiresChunking?: boolean; pipelineId?: string; totalChunks?: number; analysis?: AudioAnalysis }> =>
       ipcRenderer.invoke('longaudio:start', filePath, opts),
-    status: (pipelineId: string): Promise<{ ok: boolean; error?: string; status?: string; progress?: number; currentChunk?: number; totalChunks?: number; estimatedRemaining?: number; chunks?: any[] }> =>
+    status: (pipelineId: string): Promise<{ ok: boolean; error?: string; status?: string; progress?: number; currentChunk?: number; totalChunks?: number; estimatedRemaining?: number; chunks?: ChunkStatus[] }> =>
       ipcRenderer.invoke('longaudio:status', pipelineId),
-    nextChunk: (pipelineId: string): Promise<{ ok: boolean; error?: string; chunk?: any; allProcessed?: boolean }> =>
+    nextChunk: (pipelineId: string): Promise<{ ok: boolean; error?: string; chunk?: ChunkDetail | null; allProcessed?: boolean }> =>
       ipcRenderer.invoke('longaudio:nextChunk', pipelineId),
-    chunkDone: (pipelineId: string, chunkIndex: number, utterances: any[]): Promise<{ ok: boolean; error?: string; allDone?: boolean; progress?: number }> =>
+    chunkDone: (pipelineId: string, chunkIndex: number, utterances: Array<{ speaker?: string; text?: string; start?: number; end?: number; startMs?: number; endMs?: number; confidence?: number }>): Promise<{ ok: boolean; error?: string; allDone?: boolean; progress?: number }> =>
       ipcRenderer.invoke('longaudio:chunkDone', pipelineId, chunkIndex, utterances),
     chunkFailed: (pipelineId: string, chunkIndex: number, error: string): Promise<{ ok: boolean; error?: string; canRetry?: boolean; retryCount?: number }> =>
       ipcRenderer.invoke('longaudio:chunkFailed', pipelineId, chunkIndex, error),
-    getMerged: (pipelineId: string): Promise<{ ok: boolean; error?: string; partial?: boolean; transcript?: any }> =>
+    getMerged: (pipelineId: string): Promise<{ ok: boolean; error?: string; partial?: boolean; transcript?: MergedTranscript }> =>
       ipcRenderer.invoke('longaudio:getMerged', pipelineId),
     resume: (pipelineId: string): Promise<{ ok: boolean; error?: string; pipelineId?: string; remainingChunks?: number; totalChunks?: number }> =>
       ipcRenderer.invoke('longaudio:resume', pipelineId),
-    listRecoverable: (): Promise<{ ok: boolean; pipelines?: any[] }> =>
+    listRecoverable: (): Promise<{ ok: boolean; pipelines?: RecoverablePipeline[] }> =>
       ipcRenderer.invoke('longaudio:listRecoverable'),
     cleanup: (pipelineId: string): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke('longaudio:cleanup', pipelineId),

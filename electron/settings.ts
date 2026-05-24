@@ -2,14 +2,18 @@ import { ipcMain } from 'electron';
 import { getAllApiKeys, setAllApiKeys } from './credential-store';
 import { settingsKeySchema, validateSchema } from './shared/schemas';
 
-let store: any = null;
+interface SettingsStore {
+  get: (key: string) => unknown;
+  set: (key: string, value: unknown) => void;
+  delete: (key: string) => void;
+}
 
-async function getStore() {
+let store: SettingsStore | null = null;
+
+async function getStore(): Promise<SettingsStore> {
   if (!store) {
     const { default: Store } = await import('electron-store');
-    store = new Store({
-      name: 'recllm-settings',
-    });
+    store = new Store({ name: 'recllm-settings' }) as unknown as SettingsStore;
   }
   return store;
 }

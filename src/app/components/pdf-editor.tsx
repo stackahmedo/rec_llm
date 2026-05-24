@@ -316,7 +316,7 @@ export function PdfEditor() {
       config: {
         pageSize: settings.pageSize,
         orientation: settings.orientation,
-        margin: "medium",
+        margin: "medium" as const,
         fontSize: settings.fontSize,
         columns: settings.columns,
         header: headerConfig,

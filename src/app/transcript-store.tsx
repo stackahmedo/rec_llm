@@ -149,6 +149,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
       if (!historyItem) return;
 
       if (data.transcript) {
+        const transcript = data.transcript;
         setTranscripts((prev) => {
           // Evict oldest if at capacity — never evict the active or requested transcript
           let updated = [...prev];
@@ -165,9 +166,9 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
           const newTranscript: TranscriptResult = {
             fileId,
             fileName: historyItem.fileName,
-            fullText: data.transcript.fullText,
+            fullText: transcript.fullText,
             languageCode: historyItem.languageCode,
-            utterances: data.transcript.utterances,
+            utterances: transcript.utterances,
             completedAt: historyItem.completedAt,
           };
 
@@ -182,17 +183,18 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
       }
 
       if (data.summary) {
+        const summary = data.summary;
         setSummaries((prev) => {
           const existingIdx = prev.findIndex((s) => s.fileId === fileId);
           const newSummary: SummaryResult = {
             fileId,
-            language: data.summary.language as 'en' | 'ja',
-            summary: data.summary.summary,
-            pointNotes: data.summary.pointNotes,
-            actionItems: data.summary.actionItems,
-            decisions: data.summary.decisions,
-            risks: data.summary.risks,
-            generatedAt: data.summary.generatedAt,
+            language: summary.language as 'en' | 'ja',
+            summary: summary.summary,
+            pointNotes: summary.pointNotes,
+            actionItems: summary.actionItems,
+            decisions: summary.decisions,
+            risks: summary.risks,
+            generatedAt: summary.generatedAt,
           };
           if (existingIdx >= 0) {
             const updated = [...prev];
