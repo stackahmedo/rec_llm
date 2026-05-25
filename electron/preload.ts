@@ -149,6 +149,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('watcher:stop'),
     status: (): Promise<{ active: boolean; folderPath: string | null; knownFileCount: number }> =>
       ipcRenderer.invoke('watcher:status'),
+    onNewFiles: (callback: (files: Array<{ id: string; fileName: string; filePath: string; sizeBytes: number; extension: string }>) => void) => {
+      const handler = (_event: any, files: any) => callback(files);
+      ipcRenderer.on('watcher:newFiles', handler);
+      return () => { ipcRenderer.removeListener('watcher:newFiles', handler); };
+    },
   },
   longAudio: {
     analyze: (filePath: string): Promise<{ ok: boolean; error?: string; analysis?: AudioAnalysis }> =>

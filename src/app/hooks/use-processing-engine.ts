@@ -9,7 +9,7 @@ import { notifySessionStarted, notifySessionCompleted, notifySessionFailed } fro
 import { toast } from "sonner";
 
 export function useProcessingEngine() {
-  const { jobs, updateJob } = useUploadJobs();
+  const { jobs, updateJob, addJobs } = useUploadJobs();
   const { addTranscript, addHistoryJob } = useTranscripts();
   const processingRef = useRef(false);
 
@@ -396,6 +396,43 @@ export function useProcessingEngine() {
     const hasQueued = jobs.some((f) => f.stage === "queued" && f.filePath);
     if (hasQueued) processNext();
   }, [jobs, processNext]);
+
+  // --- Folder watcher: listen for new files and auto-queue ---
+  useEffect(() => {
+    const api = window.electronAPI as any;
+    if (!api?.watcher?.onNewFiles) return;
+
+    const cleanup = api.watcher.onNewFiles((files: Array<{ id: string; fileName: string; filePath: string; sizeBytes: number; extension: string }>) => {
+      if (!files || files.length === 0) return;
+
+      // Prevent duplicates: check against existing jobs by filePath
+      const existingPaths = new Set(jobs.map((j) => j.filePath).filter(Boolean));
+      const newFiles = files.filter((f) => !existingPaths.has(f.filePath));
+
+      if (newFiles.length === 0) return;
+
+      const newJobs: UploadJob[] = newFiles.map((f) => ({
+        id: f.id,
+        fileName: f.fileName,
+        filePath: f.filePath,
+        sizeBytes: f.sizeBytes,
+        format: f.extension,
+        stage: "queued" as JobStage,
+        progress: 0,
+        speakers: 0,
+        language: "auto",
+        createdAt: Date.now(),
+      }));
+
+      addJobs(newJobs);
+      toast.info(`Folder watcher: ${newFiles.length} new file${newFiles.length > 1 ? 's' : ''} queued`, {
+        description: newFiles.map((f) => f.fileName).slice(0, 3).join(', ') + (newFiles.length > 3 ? '...' : ''),
+        duration: 5000,
+      });
+    });
+
+    return cleanup;
+  }, [jobs, addJobs]);
 
   // Listen for progress updates from main process
   useEffect(() => {
