@@ -128,11 +128,11 @@ export function TranscriptWorkspace() {
     if (!chatInput.trim()) return;
     const msg = chatInput.trim();
     setChatMessages((prev) => [...prev, { role: "user", text: msg, timestamp: Date.now() }]);
-    // Simulate streaming AI response
+    // Chat AI backend not yet connected — show informative message
     setTimeout(() => {
-      setChatMessages((prev) => [...prev, { role: "ai", text: "I'll analyze the transcript for you. This feature connects to your configured AI provider for context-aware responses about this transcript.", timestamp: Date.now() }]);
+      setChatMessages((prev) => [...prev, { role: "ai", text: "Chat with transcript is not yet available. This feature will connect to your configured AI provider for context-aware Q&A about this transcript in a future update.", timestamp: Date.now() }]);
       chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 500);
+    }, 300);
     setChatInput("");
   };
 
@@ -410,6 +410,7 @@ export function TranscriptWorkspace() {
               <div className="p-2 space-y-2">
                 <div className="flex items-center gap-1">
                   <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium flex-1">{t("ai.translation")}</span>
+                  <span className="text-[8px] bg-yellow-100 text-yellow-800 border border-yellow-300 rounded px-1 py-0.5 uppercase tracking-wider">Coming Soon</span>
                 </div>
                 <div className="grid grid-cols-3 gap-0.5">
                   {[{ code: "en", label: "English" }, { code: "ja", label: "日本語" }, { code: "zh", label: "中文" }, { code: "ko", label: "한국어" }, { code: "es", label: "Español" }, { code: "fr", label: "Français" }].map((lang) => (

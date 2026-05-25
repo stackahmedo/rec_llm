@@ -184,8 +184,9 @@ export function FileObservation() {
           <div>
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="size-4" /> Per-file Observation
+              <span className="text-[9px] font-normal bg-yellow-100 text-yellow-800 border border-yellow-300 rounded px-1.5 py-0.5 uppercase tracking-wider">Preview</span>
             </CardTitle>
-            <CardDescription>Deep analysis of any completed recording — speakers, sentiment, topics, quality.</CardDescription>
+            <CardDescription>Deep analysis of any completed recording — speakers, sentiment, topics, quality. Sample data shown below.</CardDescription>
           </div>
           <div className="flex items-center gap-2">
             <Select value={fileId} onValueChange={setFileId}>

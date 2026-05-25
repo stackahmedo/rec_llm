@@ -244,6 +244,38 @@ export function useProcessingEngine() {
           description: `${result.utterances?.length || 0} segments · ${languageCode}`,
         });
         notifySessionCompleted(file.fileName);
+
+        // Auto-summarize in background (non-blocking)
+        if (window.electronAPI?.summarize && result.fullText && result.fullText.length > 50) {
+          const summaryLang: 'en' | 'ja' = 'ja'; // Default Japanese output
+          window.electronAPI.summarize.generate(result.fullText, summaryLang, result.utterances).then((sumResult) => {
+            if (sumResult.ok && sumResult.summary) {
+              // Save summary to history
+              window.electronAPI?.history?.save({
+                id: file.id,
+                fileName: file.fileName,
+                filePath: file.filePath!,
+                sizeBytes: file.sizeBytes,
+                status: 'done',
+                languageCode,
+                speakerCount,
+                createdAt: new Date(file.createdAt).toISOString(),
+                completedAt: now,
+                summary: {
+                  language: summaryLang,
+                  summary: sumResult.summary,
+                  pointNotes: sumResult.pointNotes || [],
+                  actionItems: sumResult.actionItems || [],
+                  decisions: sumResult.decisions || [],
+                  risks: sumResult.risks || [],
+                  generatedAt: new Date().toISOString(),
+                },
+              });
+            }
+          }).catch(() => {
+            // Summary failure is non-critical — don't block the queue
+          });
+        }
       } else {
         const errorMsg = result.error || "Unknown error";
         const isApiKeyError = errorMsg.startsWith("API_KEY_MISSING:") || errorMsg.startsWith("API_KEY_INVALID:");
@@ -272,6 +304,26 @@ export function useProcessingEngine() {
       processingRef.current = false;
     }
   }, [jobs, addTranscript, addHistoryJob, updateJob, processLongAudio]);
+
+  // --- Crash recovery: reset orphaned in-progress jobs on mount ---
+  const recoveryDoneRef = useRef(false);
+  useEffect(() => {
+    if (recoveryDoneRef.current) return;
+    recoveryDoneRef.current = true;
+
+    // Reset any jobs stuck in active states (from a previous crash)
+    const activeStages: JobStage[] = ["analyzing", "chunking", "uploading", "transcribing", "summarizing", "saving"];
+    const orphaned = jobs.filter((j) => activeStages.includes(j.stage));
+    for (const job of orphaned) {
+      updateJob(job.id, { stage: "queued", progress: 0, currentChunkLabel: undefined });
+    }
+    if (orphaned.length > 0) {
+      toast.info(`Recovered ${orphaned.length} interrupted job${orphaned.length > 1 ? 's' : ''}`, {
+        description: "Requeued for processing",
+        duration: 4000,
+      });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-advance queue
   useEffect(() => {

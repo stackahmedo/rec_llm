@@ -7,6 +7,7 @@
 
 import { ipcMain, app } from 'electron';
 import { annotateUtterancesWithGender } from './gender-detection';
+import { writeLog } from './history';
 import { execFile } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
@@ -522,6 +523,7 @@ export function registerLongAudioHandlers(): void {
       state.status = 'processing';
       state.progress = 15;
       await savePipelineState(state);
+      await writeLog('INFO', `Pipeline started: ${state.fileName}`, `pipeline=${pipelineId} tier=${tier} chunks=${chunks.length} duration=${(analysis.duration/3600).toFixed(1)}h`);
 
       return { ok: true, requiresChunking: true, pipelineId, totalChunks: chunks.length, analysis };
     } catch (err: any) {
@@ -566,6 +568,7 @@ export function registerLongAudioHandlers(): void {
     chunk.utterances = uv.data;
     state.progress = calculateProgress(state);
     savePipelineState(state);
+    await writeLog('INFO', `Chunk ${cv.data + 1}/${state.totalChunks} completed`, `pipeline=${pv.data} utterances=${uv.data.length}`);
 
     // Check if all done
     const allDone = state.chunks.every((c) => c.status === 'done');
@@ -588,6 +591,7 @@ export function registerLongAudioHandlers(): void {
       state.completedAt = Date.now();
       state.progress = 100;
       await savePipelineState(state);
+      await writeLog('INFO', `Pipeline completed`, `pipeline=${state.id} chunks=${state.totalChunks} duration=${((Date.now() - state.startedAt) / 60000).toFixed(1)}min`);
     }
 
     return { ok: true, allDone, progress: state.progress };
@@ -615,6 +619,7 @@ export function registerLongAudioHandlers(): void {
     } else {
       chunk.status = 'failed';
       chunk.error = `Failed after ${MAX_RETRIES} attempts: ${ev.data}`;
+      await writeLog('ERROR', `Chunk ${cv.data + 1}/${state.totalChunks} failed permanently`, `pipeline=${pv.data} error=${ev.data}`);
     }
     savePipelineState(state);
 

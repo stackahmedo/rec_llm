@@ -8,6 +8,37 @@ const DATA_DIR = path.join(app.getPath('userData'), 'recllm-data');
 const HISTORY_FILE = path.join(DATA_DIR, 'history.json');
 const TRANSCRIPTS_DIR = path.join(DATA_DIR, 'transcripts');
 const SUMMARIES_DIR = path.join(DATA_DIR, 'summaries');
+const LOG_FILE = path.join(DATA_DIR, 'processing.log');
+
+// --- Processing Log ---
+
+const MAX_LOG_SIZE = 5 * 1024 * 1024; // 5MB max log size
+
+async function ensureLogFile(): Promise<void> {
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  try {
+    const stat = await fs.stat(LOG_FILE);
+    // Rotate if too large
+    if (stat.size > MAX_LOG_SIZE) {
+      const backupPath = LOG_FILE + '.old';
+      try { await fs.unlink(backupPath); } catch {}
+      await fs.rename(LOG_FILE, backupPath);
+    }
+  } catch {
+    // File doesn't exist yet — fine
+  }
+}
+
+export async function writeLog(level: 'INFO' | 'WARN' | 'ERROR', message: string, detail?: string): Promise<void> {
+  try {
+    await ensureLogFile();
+    const ts = new Date().toISOString();
+    const line = `[${ts}] [${level}] ${message}${detail ? ' | ' + detail : ''}\n`;
+    await fs.appendFile(LOG_FILE, line, 'utf-8');
+  } catch {
+    // Logging should never crash the app
+  }
+}
 const DOCUMENTS_DIR = path.join(DATA_DIR, 'documents');
 
 // Sanitize IDs to prevent path traversal — allow only alphanumeric, dash, underscore, dot
@@ -240,6 +271,8 @@ export function registerHistoryHandlers(): void {
       const metas = await readHistoryMeta();
       const { transcript, summary, ...meta } = v.data;
       meta.id = safeId;
+
+      await writeLog('INFO', `Job saved: ${meta.fileName}`, `id=${safeId} status=${meta.status}`);
 
       // Populate metadata fields if not already set
       if (!meta.originalFileName) {
