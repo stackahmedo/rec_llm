@@ -142,6 +142,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ffmpegCheck: (): Promise<{ ok: boolean; ffmpegPath?: string; ffprobePath?: string; error?: string }> =>
       ipcRenderer.invoke('audio:ffmpegCheck'),
   },
+  watcher: {
+    start: (folderPath: string): Promise<{ ok: boolean; error?: string; fileCount?: number }> =>
+      ipcRenderer.invoke('watcher:start', folderPath),
+    stop: (): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke('watcher:stop'),
+    status: (): Promise<{ active: boolean; folderPath: string | null; knownFileCount: number }> =>
+      ipcRenderer.invoke('watcher:status'),
+  },
   longAudio: {
     analyze: (filePath: string): Promise<{ ok: boolean; error?: string; analysis?: AudioAnalysis }> =>
       ipcRenderer.invoke('longaudio:analyze', filePath),

@@ -891,11 +891,107 @@ function ProcessingTab({ autoRetry, setAutoRetry, autoCompress, setAutoCompress,
       <div className="text-[9px] text-muted-foreground px-1 -mt-1">
         Apply FFmpeg noise filter before transcription. Improves accuracy for noisy recordings. May reduce quality for clean audio.
       </div>
+
+      <Separator />
+
+      <SectionLabel>Folder Watcher</SectionLabel>
+      <FolderWatcherSettings />
     </div>
   );
 }
 
 // --- Tab: Export ---
+function FolderWatcherSettings() {
+  const [watcherActive, setWatcherActive] = useState(false);
+  const [watchFolder, setWatchFolder] = useState<string>("");
+  const [fileCount, setFileCount] = useState(0);
+  const [error, setError] = useState<string>("");
+
+  useEffect(() => {
+    // Check current watcher status on mount
+    const checkStatus = async () => {
+      const api = window.electronAPI as any;
+      if (!api?.watcher?.status) return;
+      const status = await api.watcher.status();
+      setWatcherActive(status.active);
+      if (status.folderPath) setWatchFolder(status.folderPath);
+      setFileCount(status.knownFileCount || 0);
+    };
+    checkStatus();
+  }, []);
+
+  const selectFolder = async () => {
+    const api = window.electronAPI;
+    if (!api?.openAudioFolder) return;
+    const result = await api.openAudioFolder();
+    if (result?.length > 0) {
+      // Extract folder path from first file's path
+      const firstFile = result[0];
+      const folderPath = firstFile.filePath?.replace(/[/\\][^/\\]+$/, '') || '';
+      if (folderPath) {
+        setWatchFolder(folderPath);
+        setError("");
+      }
+    }
+  };
+
+  const toggleWatcher = async (enabled: boolean) => {
+    const api = window.electronAPI as any;
+    if (!api?.watcher) return;
+
+    if (enabled) {
+      if (!watchFolder) {
+        setError("Select a folder first");
+        return;
+      }
+      const result = await api.watcher.start(watchFolder);
+      if (result.ok) {
+        setWatcherActive(true);
+        setFileCount(result.fileCount || 0);
+        setError("");
+        toast.success("Folder watcher started", { description: `Monitoring ${result.fileCount} existing files` });
+      } else {
+        setError(result.error || "Failed to start watcher");
+      }
+    } else {
+      await api.watcher.stop();
+      setWatcherActive(false);
+      setFileCount(0);
+      toast.info("Folder watcher stopped");
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <Row label="Enable Watcher">
+        <Switch checked={watcherActive} onCheckedChange={toggleWatcher} className="scale-75" />
+      </Row>
+      <div className="flex items-center gap-1">
+        <input
+          type="text"
+          value={watchFolder}
+          readOnly
+          placeholder="Select folder to watch..."
+          className="flex-1 h-5 text-[9px] px-1.5 rounded border bg-muted/30 truncate"
+        />
+        <button onClick={selectFolder} className="h-5 px-2 text-[9px] rounded border hover:bg-muted/40 transition-colors">
+          Browse
+        </button>
+      </div>
+      {watcherActive && (
+        <div className="flex items-center gap-1.5 text-[9px]">
+          <span className="size-1.5 rounded-full bg-green-500 animate-pulse" />
+          <span className="text-muted-foreground">Watching · {fileCount} files tracked</span>
+        </div>
+      )}
+      {error && <div className="text-[9px] text-red-500">{error}</div>}
+      <div className="text-[9px] text-muted-foreground px-1">
+        New audio files added to the watched folder will be automatically queued for processing.
+      </div>
+    </div>
+  );
+}
+
 function ExportTab() {
   const [exportFolder, setExportFolder] = useState<string>("");
 
