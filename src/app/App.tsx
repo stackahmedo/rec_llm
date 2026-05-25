@@ -10,6 +10,7 @@ import { Toaster } from "./components/ui/sonner";
 import { I18nProvider, useT } from "./i18n";
 import { TranscriptProvider } from "./transcript-store";
 import { UploadJobProvider } from "./upload-job-store";
+import { SpeakerMemoryProvider } from "./speaker-memory";
 import { PageErrorBoundary } from "./components/error-boundary";
 
 // UI Scale hook
@@ -154,7 +155,9 @@ export default function App() {
     <I18nProvider>
       <TranscriptProvider>
         <UploadJobProvider>
-          <Shell />
+          <SpeakerMemoryProvider>
+            <Shell />
+          </SpeakerMemoryProvider>
         </UploadJobProvider>
       </TranscriptProvider>
     </I18nProvider>

@@ -88,7 +88,7 @@ const defaultSettings: PdfSettings = {
   orientation: "portrait",
   columns: 1,
   showHeader: true,
-  headerText: "RecLLM — Transcript Report",
+  headerText: "",
   showFooter: true,
   showPageNumbers: true,
   showDateTime: true,
@@ -141,6 +141,8 @@ export function PdfEditor() {
   const [editorMode, setEditorMode] = useState<"preview" | "edit" | "print">(() => {
     try { return (localStorage.getItem("recllm-pdf-mode") as any) || "preview"; } catch { return "preview"; }
   });
+  const [printPreviewHtml, setPrintPreviewHtml] = useState<string | null>(null);
+  const [printPreviewLoading, setPrintPreviewLoading] = useState(false);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [exportQueue, setExportQueue] = useState<ExportQueueItem[]>([]);
   const [openTabs, setOpenTabs] = useState<string[]>([]);
@@ -360,6 +362,20 @@ export function PdfEditor() {
     }
   };
 
+  // Load print preview HTML when entering print mode
+  useEffect(() => {
+    if (editorMode !== "print" || !active) { setPrintPreviewHtml(null); return; }
+    const api = window.electronAPI?.pdf;
+    if (!api?.previewHtml) return;
+    setPrintPreviewLoading(true);
+    const data = buildExportData();
+    if (!data) { setPrintPreviewLoading(false); return; }
+    api.previewHtml(data).then((result: { ok: boolean; html?: string }) => {
+      if (result.ok && result.html) setPrintPreviewHtml(result.html);
+      setPrintPreviewLoading(false);
+    });
+  }, [editorMode, active, previewKey]);
+
   // --- Empty state ---
   if (transcripts.length === 0) {
     return (
@@ -382,7 +398,7 @@ export function PdfEditor() {
       <div className="h-9 border-b px-2 flex items-center gap-2 shrink-0 bg-background">
         {/* Mode switcher: Build / Edit / Preview */}
         <div className="flex items-center border rounded h-6 overflow-hidden">
-          {([["preview", Eye, "Preview"], ["edit", Pencil, "Edit"], ["print", Printer, "Build"]] as const).map(([mode, Icon, label]) => (
+          {([["preview", Eye, "Preview"], ["edit", Pencil, "Edit"], ["print", Printer, "Print Preview"]] as const).map(([mode, Icon, label]) => (
             <button
               key={mode}
               className={`h-6 px-2.5 flex items-center gap-1 text-[9px] font-medium transition-colors ${editorMode === mode ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/40"}`}
@@ -594,6 +610,45 @@ export function PdfEditor() {
                         <div>• Double-click transcript → fullscreen</div>
                         <div>• Click header/text → edit inline</div>
                       </div>
+                    </div>
+                  ) : editorMode === "print" ? (
+                    <div className="w-full max-w-[800px] flex flex-col items-center gap-3">
+                      {/* Print Preview action bar */}
+                      <div className="flex items-center gap-2 w-full px-2 py-1.5 bg-background border rounded-md shadow-sm">
+                        <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] gap-1" onClick={() => setEditorMode("preview")}>
+                          <ChevronLeft className="size-3" />Back to Edit
+                        </Button>
+                        <div className="flex-1" />
+                        <Badge variant="outline" className="text-[8px] h-4">Print Preview</Badge>
+                        <div className="flex-1" />
+                        <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] gap-1" onClick={printPdf} disabled={printing}>
+                          <Printer className="size-3" />Print
+                        </Button>
+                        <Button type="button" size="sm" className="h-6 text-[10px] gap-1" onClick={exportPdf} disabled={exporting}>
+                          <Download className="size-3" />Export PDF
+                        </Button>
+                      </div>
+                      {/* Rendered preview iframe */}
+                      {printPreviewLoading ? (
+                        <div className="w-full bg-white rounded shadow-lg p-8 space-y-4">
+                          <Skeleton className="h-6 w-48" />
+                          <Skeleton className="h-4 w-full" />
+                          <Skeleton className="h-4 w-3/4" />
+                          <Skeleton className="h-20 w-full" />
+                        </div>
+                      ) : printPreviewHtml ? (
+                        <div style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }} className="w-full">
+                          <iframe
+                            srcDoc={printPreviewHtml}
+                            className="w-full bg-white rounded shadow-xl border-0"
+                            style={{ minHeight: "1100px", height: "100%" }}
+                            sandbox="allow-same-origin"
+                            title="Print Preview"
+                          />
+                        </div>
+                      ) : (
+                        <div className="text-muted-foreground text-[11px]">No preview available. Select a transcript first.</div>
+                      )}
                     </div>
                   ) : previewLoading ? (
                     <div className="w-full max-w-[700px] space-y-4 p-8 bg-white dark:bg-white rounded shadow-lg">

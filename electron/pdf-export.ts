@@ -104,6 +104,43 @@ function msToTimestamp(ms: number): string {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
+function getLabels(lang: string) {
+  if (lang.startsWith('ja') || !lang) {
+    return {
+      title: 'RecLLM 文字起こしレポート',
+      summary: '要約',
+      keyPoints: '重要ポイント',
+      actionItems: 'アクション項目',
+      decisions: '決定事項',
+      risks: 'リスク / 課題',
+      speakers: '話者',
+      transcript: '文字起こし',
+      file: 'ファイル名',
+      processed: '作成日時',
+      language: '言語',
+      duration: '時間',
+      speakerCount: '話者数',
+      segments: 'セグメント数',
+    };
+  }
+  return {
+    title: 'RecLLM — Transcript Report',
+    summary: 'Summary',
+    keyPoints: 'Key Points',
+    actionItems: 'Action Items',
+    decisions: 'Decisions',
+    risks: 'Risks / Issues',
+    speakers: 'Speakers',
+    transcript: 'Transcript',
+    file: 'File',
+    processed: 'Processed',
+    language: 'Language',
+    duration: 'Duration',
+    speakerCount: 'Speakers',
+    segments: 'Segments',
+  };
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
@@ -143,6 +180,7 @@ function buildHtml(data: PdfExportData): string {
   const config = data.config || getDefaultConfig();
   const marginMm = getMarginMm(config.margin);
   const baseFontSize = getFontSizePx(config.fontSize);
+  const labels = getLabels(data.languageCode || '');
 
   const sections: string[] = [];
 
@@ -151,7 +189,7 @@ function buildHtml(data: PdfExportData): string {
     const align = getAlignStyle(config.header.alignment);
     const title = config.header.mode === 'custom' && config.header.title
       ? config.header.title
-      : 'RecLLM — Transcript Report';
+      : labels.title;
     const subtitle = config.header.subtitle || '';
     const metaParts: string[] = [];
     if (config.header.showFileName) metaParts.push(escapeHtml(data.fileName));
@@ -168,30 +206,24 @@ function buildHtml(data: PdfExportData): string {
     `);
   }
 
-  // --- Metadata Grid ---
-  const speakerCount = data.utterances
-    ? new Set(data.utterances.map((u) => u.speaker)).size
-    : 0;
-  const duration = data.utterances && data.utterances.length > 0
-    ? msToTimestamp(data.utterances[data.utterances.length - 1].endMs)
-    : '—';
+  // --- Compact Metadata (file + date only, no raw stats block) ---
+  if (config.header.showFileName || config.header.showDate) {
+    const metaLines: string[] = [];
+    if (config.header.showFileName) metaLines.push(`<div class="meta-line"><span class="meta-label">${labels.file}</span><span class="meta-value">${escapeHtml(data.fileName)}</span></div>`);
+    if (config.header.showDate) metaLines.push(`<div class="meta-line"><span class="meta-label">${labels.processed}</span><span class="meta-value">${escapeHtml(data.processedAt.slice(0, 10))}</span></div>`);
 
-  sections.push(`
-    <div class="meta-grid">
-      <div class="meta-item"><span class="meta-label">File</span><span class="meta-value">${escapeHtml(data.fileName)}</span></div>
-      <div class="meta-item"><span class="meta-label">Processed</span><span class="meta-value">${escapeHtml(data.processedAt.slice(0, 10))}</span></div>
-      <div class="meta-item"><span class="meta-label">Language</span><span class="meta-value">${escapeHtml(data.languageCode)}</span></div>
-      <div class="meta-item"><span class="meta-label">Duration</span><span class="meta-value">${duration}</span></div>
-      <div class="meta-item"><span class="meta-label">Speakers</span><span class="meta-value">${speakerCount}</span></div>
-      <div class="meta-item"><span class="meta-label">Segments</span><span class="meta-value">${data.utterances?.length || 0}</span></div>
-    </div>
-  `);
+    sections.push(`
+      <div class="meta-compact">
+        ${metaLines.join('\n')}
+      </div>
+    `);
+  }
 
   // --- Summary ---
   if (config.sections.summary && data.summary) {
     sections.push(`
       <div class="section">
-        <h2>Summary</h2>
+        <h2>${labels.summary}</h2>
         <p>${escapeHtml(data.summary)}</p>
       </div>
     `);
@@ -201,7 +233,7 @@ function buildHtml(data: PdfExportData): string {
   if (config.sections.keyPoints && data.pointNotes && data.pointNotes.length > 0) {
     sections.push(`
       <div class="section">
-        <h2>Key Points</h2>
+        <h2>${labels.keyPoints}</h2>
         <ol>
           ${data.pointNotes.map((n) => `<li>${escapeHtml(n)}</li>`).join('\n')}
         </ol>
@@ -213,7 +245,7 @@ function buildHtml(data: PdfExportData): string {
   if (config.sections.actionItems && data.actionItems && data.actionItems.length > 0) {
     sections.push(`
       <div class="section">
-        <h2>Action Items</h2>
+        <h2>${labels.actionItems}</h2>
         <ul>
           ${data.actionItems.map((n) => `<li>${escapeHtml(n)}</li>`).join('\n')}
         </ul>
@@ -225,7 +257,7 @@ function buildHtml(data: PdfExportData): string {
   if (config.sections.decisions && data.decisions && data.decisions.length > 0) {
     sections.push(`
       <div class="section">
-        <h2>Decisions</h2>
+        <h2>${labels.decisions}</h2>
         <ul>
           ${data.decisions.map((n) => `<li>${escapeHtml(n)}</li>`).join('\n')}
         </ul>
@@ -237,7 +269,7 @@ function buildHtml(data: PdfExportData): string {
   if (config.sections.risks && data.risks && data.risks.length > 0) {
     sections.push(`
       <div class="section">
-        <h2>Risks / Issues</h2>
+        <h2>${labels.risks}</h2>
         <ul>
           ${data.risks.map((n) => `<li>${escapeHtml(n)}</li>`).join('\n')}
         </ul>
@@ -265,7 +297,7 @@ function buildHtml(data: PdfExportData): string {
 
     sections.push(`
       <div class="section speaker-legend">
-        <h2>Speakers</h2>
+        <h2>${labels.speakers}</h2>
         <div class="legend-row">${legendItems}</div>
       </div>
     `);
@@ -287,14 +319,14 @@ function buildHtml(data: PdfExportData): string {
       return `<tr>${timeCell}<td class="speaker"${speakerStyle}>${escapeHtml(name)}</td><td class="text-cell">${escapeHtml(u.text)}</td></tr>`;
     }).join('\n');
 
-    const timeHeader = showTime ? '<th class="ts-header">Time</th>' : '';
+    const timeHeader = showTime ? `<th class="ts-header">${labels.duration}</th>` : '';
 
     sections.push(`
       <div class="section transcript-section">
-        <h2>Transcript${data.languageCode ? ` (${escapeHtml(data.languageCode)})` : ''}</h2>
+        <h2>${labels.transcript}</h2>
         <table>
           <thead>
-            <tr>${timeHeader}<th class="speaker-header">Speaker</th><th>Text</th></tr>
+            <tr>${timeHeader}<th class="speaker-header">${labels.speakers}</th><th>${labels.transcript}</th></tr>
           </thead>
           <tbody>
             ${rows}
@@ -362,6 +394,25 @@ function buildHtml(data: PdfExportData): string {
       page-break-inside: avoid;
     }
     .meta-item { display: flex; flex-direction: column; }
+    .meta-compact {
+      margin-bottom: 14px;
+      padding: 8px 10px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      page-break-inside: avoid;
+    }
+    .meta-line { display: flex; gap: 8px; margin-bottom: 2px; }
+    .meta-line .meta-label {
+      font-size: ${baseFontSize - 1}px;
+      color: #64748b;
+      min-width: 60px;
+    }
+    .meta-line .meta-value {
+      font-size: ${baseFontSize}px;
+      font-weight: 500;
+      color: #1e293b;
+    }
     .meta-label {
       font-size: ${baseFontSize - 2}px;
       text-transform: uppercase;
@@ -474,7 +525,7 @@ function getDefaultConfig(): PdfExportConfig {
     fontSize: 'medium',
     columns: 1,
     header: {
-      enabled: true, mode: 'auto', title: 'RecLLM — Transcript Report', subtitle: '',
+      enabled: true, mode: 'auto', title: '', subtitle: '',
       showFileName: true, showDate: true, showTime: false, showLogo: true, companyName: '', alignment: 'left',
     },
     footer: {
@@ -603,6 +654,20 @@ export function registerPdfHandlers(): void {
       return { ok: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Print failed.';
+      return { ok: false, error: msg };
+    }
+  });
+
+  // Preview HTML: return rendered HTML for iframe preview
+  ipcMain.handle('pdf:previewHtml', async (_event, data: unknown): Promise<{ ok: boolean; error?: string; html?: string }> => {
+    const v = validateSchema(pdfExportDataSchema, data);
+    if (!v.ok) return { ok: false, error: v.error };
+
+    try {
+      const html = buildHtml(v.data as PdfExportData);
+      return { ok: true, html };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Preview generation failed.';
       return { ok: false, error: msg };
     }
   });

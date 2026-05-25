@@ -128,7 +128,7 @@ function shouldPreprocessAudio(filePath: string, metadata: AudioMetadata): Prepr
   if (durationHours > 2) {
     return {
       action: 'split',
-      reason: `Audio is ${durationHours.toFixed(1)} hours. Consider splitting into chunks for reliable processing.`,
+      reason: `Audio is ${durationHours.toFixed(1)} hours. Long Audio Mode will be used automatically (30–45 min chunks).`,
       metadata,
     };
   }

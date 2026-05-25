@@ -53,7 +53,7 @@ export function TranscriptWorkspace() {
   const selectedId = activeId;
   const [activeTab, setActiveTab] = useState<AITab>("summary");
   const [generating, setGenerating] = useState(false);
-  const [summaryLang, setSummaryLang] = useState<"en" | "ja">("en");
+  const [summaryLang, setSummaryLang] = useState<"en" | "ja">("ja");
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "ai"; text: string; timestamp?: number }[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [filter, setFilter] = useState<TranscriptFilter>("all");
@@ -239,7 +239,16 @@ export function TranscriptWorkspace() {
             }}>{t("export.pdf")}</DropdownMenuItem>
             <DropdownMenuItem className="text-[10px]" onClick={() => {
               if (!active || !window.electronAPI?.export) return;
-              const lines = active.utterances.map((u) => `[${Math.floor(u.startMs/60000)}:${Math.floor((u.startMs%60000)/1000).toString().padStart(2,"0")}] ${u.speaker}: ${u.text}`);
+              const isJa = active.languageCode?.startsWith("ja");
+              const header = isJa ? "時間 | 話者 | 文字起こし" : "Time | Speaker | Transcript";
+              const lines = [header, ...active.utterances.map((u) => {
+                const totalSec = Math.floor(u.startMs / 1000);
+                const h = Math.floor(totalSec / 3600).toString().padStart(2, "0");
+                const m = Math.floor((totalSec % 3600) / 60).toString().padStart(2, "0");
+                const s = (totalSec % 60).toString().padStart(2, "0");
+                const ts = `${h}:${m}:${s}`;
+                return `${ts} | ${u.speaker} | ${u.text}`;
+              })];
               window.electronAPI.export.saveTxt(active.fileName, lines.join("\n")).then((r) => { if (r?.ok) toast.success(t("export.txtExported")); });
             }}>{t("export.txt")}</DropdownMenuItem>
           </DropdownMenuContent>

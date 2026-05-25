@@ -28,6 +28,7 @@ function formatBytes(b: number) {
 export function UploadConfirmDialog({ open, onOpenChange, files, onConfirm, onRemoveFile }: UploadConfirmDialogProps) {
   const totalSize = files.reduce((s, f) => s + f.sizeBytes, 0);
   const hasLargeFile = files.some((f) => f.sizeBytes > 100 * 1024 * 1024);
+  const hasLongAudio = files.some((f) => f.audioMeta && f.audioMeta.duration > 7200);
 
   const handleStart = () => {
     onConfirm(files.map((f) => f.id));
@@ -67,7 +68,10 @@ export function UploadConfirmDialog({ open, onOpenChange, files, onConfirm, onRe
                       {f.audioMeta && <span>{Math.floor(f.audioMeta.duration / 60)}m{Math.floor(f.audioMeta.duration % 60)}s</span>}
                     </div>
                   </div>
-                  {f.sizeBytes > 100 * 1024 * 1024 && (
+                  {f.audioMeta && f.audioMeta.duration > 7200 && (
+                    <Badge variant="outline" className="text-[9px] h-4 text-blue-600 border-blue-300">Long Audio</Badge>
+                  )}
+                  {f.sizeBytes > 100 * 1024 * 1024 && !(f.audioMeta && f.audioMeta.duration > 7200) && (
                     <Badge variant="outline" className="text-[9px] h-4 text-amber-600 border-amber-300">Large</Badge>
                   )}
                   <Button
@@ -85,8 +89,19 @@ export function UploadConfirmDialog({ open, onOpenChange, files, onConfirm, onRe
             </div>
           </ScrollArea>
 
+          {/* Long audio info */}
+          {hasLongAudio && (
+            <div className="flex items-start gap-2 p-2 rounded bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
+              <FileAudio className="size-3.5 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-medium">Long Audio Mode will be used automatically.</div>
+                <div className="mt-0.5 text-[10px] opacity-80">Files over 2 hours are split into 30–45 minute chunks for reliable processing. Progress is saved — you can close and resume later.</div>
+              </div>
+            </div>
+          )}
+
           {/* Warnings */}
-          {hasLargeFile && (
+          {hasLargeFile && !hasLongAudio && (
             <div className="flex items-start gap-2 p-2 rounded bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-300">
               <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
               <span>Large files detected. Processing may take several minutes. Do not close the app during transcription.</span>
@@ -100,7 +115,7 @@ export function UploadConfirmDialog({ open, onOpenChange, files, onConfirm, onRe
             </Button>
             <Button type="button" size="sm" onClick={handleStart} disabled={files.length === 0}>
               <Play className="size-3.5 mr-1" />
-              Start Processing ({files.length})
+              {hasLongAudio ? "Start Long Audio Processing" : `Start Processing (${files.length})`}
             </Button>
           </div>
         </div>

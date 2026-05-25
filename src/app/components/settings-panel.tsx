@@ -52,19 +52,19 @@ function isPlaceholderKey(key: string): boolean {
   return PLACEHOLDER_KEYS.some((p) => lower === p.replace(/[^a-z0-9_-]/g, ''));
 }
 
-const tabs: { id: SettingsTab; label: string; icon: any }[] = [
-  { id: "general", label: "General", icon: Settings2 },
-  { id: "transcription", label: "Transcription", icon: Mic },
-  { id: "ai-providers", label: "AI Providers", icon: Sparkles },
-  { id: "pipeline", label: "Pipeline Roles", icon: GitBranch },
-  { id: "processing", label: "Processing", icon: Cpu },
-  { id: "storage", label: "Storage & Cache", icon: Database },
-  { id: "export", label: "Export", icon: Download },
-  { id: "advanced", label: "Advanced", icon: Wrench },
+const tabs: { id: SettingsTab; labelKey: string; icon: any }[] = [
+  { id: "general", labelKey: "settings.tab.general", icon: Settings2 },
+  { id: "transcription", labelKey: "settings.tab.transcription", icon: Mic },
+  { id: "ai-providers", labelKey: "settings.tab.aiProviders", icon: Sparkles },
+  { id: "pipeline", labelKey: "settings.tab.pipeline", icon: GitBranch },
+  { id: "processing", labelKey: "settings.tab.processing", icon: Cpu },
+  { id: "storage", labelKey: "settings.tab.storage", icon: Database },
+  { id: "export", labelKey: "settings.tab.export", icon: Download },
+  { id: "advanced", labelKey: "settings.tab.advanced", icon: Wrench },
 ];
 
 export function SettingsPanel() {
-  const { lang, setLang } = useT();
+  const { lang, setLang, t } = useT();
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
   const [dirty, setDirty] = useState(false);
 
@@ -86,12 +86,13 @@ export function SettingsPanel() {
   const [gptBaseUrl, setGptBaseUrl] = useState("https://api.openai.com/v1");
 
   const [summaryProvider, setSummaryProvider] = useState<"gemini" | "chatgpt">("gemini");
-  const [summaryLang, setSummaryLang] = useState("en");
+  const [summaryLang, setSummaryLang] = useState("ja");
 
   // Processing
   const [autoRetry, setAutoRetry] = useState(true);
   const [autoCompress, setAutoCompress] = useState(true);
   const [autoSaveTxt, setAutoSaveTxt] = useState(true);
+  const [speakerMemoryEnabled, setSpeakerMemoryEnabled] = useState(true);
 
   // System info
   const [ffmpegOk, setFfmpegOk] = useState<boolean | null>(null);
@@ -138,6 +139,8 @@ export function SettingsPanel() {
         if (typeof prefs.autoCompress === 'boolean') setAutoCompress(prefs.autoCompress);
         if (typeof prefs.autoSaveTxt === 'boolean') setAutoSaveTxt(prefs.autoSaveTxt);
       }
+      const smEnabled = await api.get('speakerMemory.enabled');
+      if (smEnabled === false) setSpeakerMemoryEnabled(false);
     })();
     window.electronAPI?.audio?.ffmpegCheck().then((r) => setFfmpegOk(r.ok));
     window.electronAPI?.storage?.stats().then((s) => {
@@ -225,7 +228,7 @@ export function SettingsPanel() {
     await api.set('openaiProvider', { providerType: gptProviderType, baseUrl: gptBaseUrl });
     await api.set('preferences', { summaryProvider, asmDiarize, asmLang, summaryLang, autoRetry, autoCompress, autoSaveTxt });
     setDirty(false);
-    toast.success("Settings saved");
+    toast.success(t("settings.saved"));
   };
 
   const resetAll = async () => {
@@ -234,7 +237,7 @@ export function SettingsPanel() {
     setAsmKey(""); setGemKey(""); setGptKey("");
     setAsmState("idle"); setGemState("idle"); setGptState("idle");
     setDirty(false);
-    toast.message("Settings reset");
+    toast.message(t("settings.resetDone"));
   };
 
   return (
@@ -252,7 +255,7 @@ export function SettingsPanel() {
               onClick={() => setActiveTab(tab.id)}
             >
               <Icon className="size-3.5" />
-              {tab.label}
+              {t(tab.labelKey)}
             </button>
           );
         })}
@@ -296,6 +299,7 @@ export function SettingsPanel() {
               autoCompress={autoCompress} setAutoCompress={(v) => { setAutoCompress(v); markDirty(); }}
               autoSaveTxt={autoSaveTxt} setAutoSaveTxt={(v) => { setAutoSaveTxt(v); markDirty(); }}
               asmDiarize={asmDiarize} setAsmDiarize={(v) => { setAsmDiarize(v); markDirty(); }}
+              speakerMemory={speakerMemoryEnabled} setSpeakerMemory={(v) => { setSpeakerMemoryEnabled(v); window.electronAPI?.settings?.set('speakerMemory.enabled', v); }}
             />
           )}
           {activeTab === "storage" && (
@@ -650,11 +654,50 @@ const workflowPresets = [
 ];
 
 function PipelineTab({ summaryProvider }: { summaryProvider: string }) {
-  const [stages, setStages] = useState<PipelineStage[]>(defaultPipeline);
+  const { t } = useT();
+  const [stages, setStages] = useState<PipelineStage[]>(() => {
+    try {
+      const saved = localStorage.getItem("recllm-pipeline-stages");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          if (process.env.NODE_ENV !== 'production') console.log('[Pipeline] hydrate from localStorage');
+          return parsed;
+        }
+      }
+    } catch {}
+    return defaultPipeline;
+  });
   const [expandedStage, setExpandedStage] = useState<string | null>(null);
-  const [activePreset, setActivePreset] = useState<string>("balanced");
-  const [concurrency, setConcurrency] = useState(2);
-  const [chunkStrategy, setChunkStrategy] = useState<"auto" | "fixed" | "speaker">("auto");
+  const [activePreset, setActivePreset] = useState<string>(() => {
+    try { return localStorage.getItem("recllm-pipeline-preset") || "balanced"; } catch { return "balanced"; }
+  });
+  const [concurrency, setConcurrency] = useState<number>(() => {
+    try { return Number(localStorage.getItem("recllm-pipeline-concurrency")) || 2; } catch { return 2; }
+  });
+  const [chunkStrategy, setChunkStrategy] = useState<"auto" | "fixed" | "speaker">(() => {
+    try { return (localStorage.getItem("recllm-pipeline-chunk") as any) || "auto"; } catch { return "auto"; }
+  });
+
+  // Persist pipeline state on change
+  useEffect(() => {
+    try {
+      localStorage.setItem("recllm-pipeline-stages", JSON.stringify(stages));
+      if (process.env.NODE_ENV !== 'production') console.log('[Pipeline] save stages');
+    } catch {}
+  }, [stages]);
+
+  useEffect(() => {
+    try { localStorage.setItem("recllm-pipeline-preset", activePreset); } catch {}
+  }, [activePreset]);
+
+  useEffect(() => {
+    try { localStorage.setItem("recllm-pipeline-concurrency", String(concurrency)); } catch {}
+  }, [concurrency]);
+
+  useEffect(() => {
+    try { localStorage.setItem("recllm-pipeline-chunk", chunkStrategy); } catch {}
+  }, [chunkStrategy]);
 
   const applyPreset = (presetId: string) => {
     setActivePreset(presetId);
@@ -675,7 +718,7 @@ function PipelineTab({ summaryProvider }: { summaryProvider: string }) {
     <div className="space-y-3">
       {/* Pipeline Presets */}
       <div className="flex items-center gap-1.5">
-        <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Preset:</span>
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">{t("settings.preset")}:</span>
         {(["cheapest", "balanced", "fastest", "quality", "custom"] as const).map((p) => (
           <button
             key={p}
@@ -735,27 +778,27 @@ function PipelineTab({ summaryProvider }: { summaryProvider: string }) {
               <div className="px-2.5 pb-2 pt-1 border-t bg-muted/5 space-y-1.5">
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
                   <div>
-                    <div className="text-[9px] text-muted-foreground mb-0.5">Provider</div>
+                    <div className="text-[9px] text-muted-foreground mb-0.5">{t("settings.provider")}</div>
                     <Input value={stage.provider} onChange={(e) => updateStage(stage.id, { provider: e.target.value })} className="h-6 text-[10px] font-mono" />
                   </div>
                   <div>
-                    <div className="text-[9px] text-muted-foreground mb-0.5">Model</div>
+                    <div className="text-[9px] text-muted-foreground mb-0.5">{t("settings.model")}</div>
                     <Input value={stage.model} onChange={(e) => updateStage(stage.id, { model: e.target.value })} className="h-6 text-[10px] font-mono" />
                   </div>
                   <div>
-                    <div className="text-[9px] text-muted-foreground mb-0.5">Fallback Provider</div>
+                    <div className="text-[9px] text-muted-foreground mb-0.5">{t("settings.fallbackProvider")}</div>
                     <Input value={stage.fallback || ""} onChange={(e) => updateStage(stage.id, { fallback: e.target.value })} placeholder="None" className="h-6 text-[10px] font-mono" />
                   </div>
                   <div>
-                    <div className="text-[9px] text-muted-foreground mb-0.5">Timeout (sec)</div>
+                    <div className="text-[9px] text-muted-foreground mb-0.5">{t("settings.timeout")}</div>
                     <Input type="number" value={stage.timeout} onChange={(e) => updateStage(stage.id, { timeout: Number(e.target.value) })} className="h-6 text-[10px] font-mono" />
                   </div>
                   <div>
-                    <div className="text-[9px] text-muted-foreground mb-0.5">Retries</div>
+                    <div className="text-[9px] text-muted-foreground mb-0.5">{t("settings.retries")}</div>
                     <Input type="number" value={stage.retries} onChange={(e) => updateStage(stage.id, { retries: Number(e.target.value) })} min={0} max={5} className="h-6 text-[10px] font-mono" />
                   </div>
                   <div>
-                    <div className="text-[9px] text-muted-foreground mb-0.5">Tags</div>
+                    <div className="text-[9px] text-muted-foreground mb-0.5">{t("settings.tags")}</div>
                     <Input value={stage.tags.join(", ")} onChange={(e) => updateStage(stage.id, { tags: e.target.value.split(",").map((t) => t.trim()).filter(Boolean) })} className="h-6 text-[10px]" />
                   </div>
                 </div>
@@ -767,14 +810,14 @@ function PipelineTab({ summaryProvider }: { summaryProvider: string }) {
 
       {/* Runtime Controls */}
       <div className="border rounded p-2 space-y-1.5">
-        <div className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">Runtime</div>
+        <div className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">{t("settings.section.runtime")}</div>
         <div className="grid grid-cols-3 gap-2">
           <div>
-            <div className="text-[9px] text-muted-foreground mb-0.5">Concurrency</div>
+            <div className="text-[9px] text-muted-foreground mb-0.5">{t("settings.concurrency")}</div>
             <Input type="number" value={concurrency} onChange={(e) => setConcurrency(Number(e.target.value))} min={1} max={8} className="h-6 text-[10px] font-mono" />
           </div>
           <div>
-            <div className="text-[9px] text-muted-foreground mb-0.5">Chunk Strategy</div>
+            <div className="text-[9px] text-muted-foreground mb-0.5">{t("settings.chunkStrategy")}</div>
             <Select value={chunkStrategy} onValueChange={(v: any) => setChunkStrategy(v)}>
               <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -785,7 +828,7 @@ function PipelineTab({ summaryProvider }: { summaryProvider: string }) {
             </Select>
           </div>
           <div>
-            <div className="text-[9px] text-muted-foreground mb-0.5">Parallel Stages</div>
+            <div className="text-[9px] text-muted-foreground mb-0.5">{t("settings.parallelStages")}</div>
             <Badge variant="outline" className="text-[9px] h-5">Sequential</Badge>
           </div>
         </div>
@@ -793,7 +836,7 @@ function PipelineTab({ summaryProvider }: { summaryProvider: string }) {
 
       {/* Workflow Presets */}
       <div className="border rounded p-2 space-y-1.5">
-        <div className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">Workflow Templates</div>
+        <div className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">{t("settings.section.workflowTemplates")}</div>
         <div className="grid grid-cols-2 gap-1">
           {workflowPresets.map((w) => (
             <button key={w.id} className="text-left p-1.5 rounded border hover:bg-muted/20 transition-colors">
@@ -808,28 +851,32 @@ function PipelineTab({ summaryProvider }: { summaryProvider: string }) {
 }
 
 // --- Tab: Processing ---
-function ProcessingTab({ autoRetry, setAutoRetry, autoCompress, setAutoCompress, autoSaveTxt, setAutoSaveTxt, asmDiarize, setAsmDiarize }: {
+function ProcessingTab({ autoRetry, setAutoRetry, autoCompress, setAutoCompress, autoSaveTxt, setAutoSaveTxt, asmDiarize, setAsmDiarize, speakerMemory, setSpeakerMemory }: {
   autoRetry: boolean; setAutoRetry: (v: boolean) => void;
   autoCompress: boolean; setAutoCompress: (v: boolean) => void;
   autoSaveTxt: boolean; setAutoSaveTxt: (v: boolean) => void;
   asmDiarize: boolean; setAsmDiarize: (v: boolean) => void;
+  speakerMemory: boolean; setSpeakerMemory: (v: boolean) => void;
 }) {
+  const { t } = useT();
   return (
     <div className="space-y-4">
-      <SectionLabel>Queue Behavior</SectionLabel>
-      <Row label="Auto-retry on failure"><Switch checked={autoRetry} onCheckedChange={setAutoRetry} className="scale-75" /></Row>
-      <Row label="Auto-compress large files"><Switch checked={autoCompress} onCheckedChange={setAutoCompress} className="scale-75" /></Row>
+      <SectionLabel>{t("settings.section.queueBehavior")}</SectionLabel>
+      <Row label={t("settings.autoRetry")}><Switch checked={autoRetry} onCheckedChange={setAutoRetry} className="scale-75" /></Row>
+      <Row label={t("settings.autoCompress")}><Switch checked={autoCompress} onCheckedChange={setAutoCompress} className="scale-75" /></Row>
 
       <Separator />
 
-      <SectionLabel>Transcription</SectionLabel>
-      <Row label="Speaker diarization"><Switch checked={asmDiarize} onCheckedChange={setAsmDiarize} className="scale-75" /></Row>
-      <Row label="Language detection"><Badge variant="outline" className="text-[9px] h-4">Auto</Badge></Row>
+      <SectionLabel>{t("settings.section.transcription")}</SectionLabel>
+      <Row label={t("settings.speakerDiarization")}><Switch checked={asmDiarize} onCheckedChange={setAsmDiarize} className="scale-75" /></Row>
+      <Row label={t("settings.rememberSpeakers")}><Switch checked={speakerMemory} onCheckedChange={setSpeakerMemory} className="scale-75" /></Row>
+      <Row label={t("settings.aiSpeakerSuggestion")}><Switch checked={speakerMemory} onCheckedChange={setSpeakerMemory} className="scale-75" /></Row>
+      <Row label={t("settings.languageDetection")}><Badge variant="outline" className="text-[9px] h-4">Auto</Badge></Row>
 
       <Separator />
 
-      <SectionLabel>Output</SectionLabel>
-      <Row label="Auto-save TXT after transcription"><Switch checked={autoSaveTxt} onCheckedChange={setAutoSaveTxt} className="scale-75" /></Row>
+      <SectionLabel>{t("settings.section.output")}</SectionLabel>
+      <Row label={t("settings.autoSaveTxt")}><Switch checked={autoSaveTxt} onCheckedChange={setAutoSaveTxt} className="scale-75" /></Row>
     </div>
   );
 }

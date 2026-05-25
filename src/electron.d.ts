@@ -37,6 +37,11 @@ interface ElectronSummarize {
     decisions?: string[];
     risks?: string[];
   }>;
+  suggestSpeakers: (utterances: Array<{ speaker: string; startMs: number; text: string }>) => Promise<{
+    ok: boolean;
+    error?: string;
+    suggestions?: Array<{ speakerLabel: string; suggestedName: string; confidence: number; reason: string; evidenceTimestamp?: string }>;
+  }>;
 }
 
 interface PdfHeaderConfig {
@@ -107,6 +112,7 @@ interface PdfExportData {
 interface ElectronPdf {
   exportReport: (data: PdfExportData) => Promise<{ ok: boolean; error?: string; filePath?: string }>;
   print: (data: PdfExportData) => Promise<{ ok: boolean; error?: string }>;
+  previewHtml: (data: PdfExportData) => Promise<{ ok: boolean; error?: string; html?: string }>;
 }
 
 interface HistoryMetaPayload {

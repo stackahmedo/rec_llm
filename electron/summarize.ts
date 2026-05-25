@@ -51,6 +51,14 @@ interface ParsedChunk {
   risks: string[];
 }
 
+interface SpeakerSuggestion {
+  speakerLabel: string;
+  suggestedName: string;
+  confidence: number;
+  reason: string;
+  evidenceTimestamp?: string;
+}
+
 const CHUNK_CHAR_LIMIT = 10000;
 
 function msToTimestamp(ms: number): string {
@@ -102,8 +110,13 @@ function chunkByText(text: string): string[] {
 }
 
 function buildChunkPrompt(chunk: string, chunkIndex: number, totalChunks: number, language: 'en' | 'ja'): string {
-  const lang = language === 'ja' ? 'Japanese' : 'English';
-  return `You are a meeting analyst. Analyze this transcript segment (part ${chunkIndex + 1} of ${totalChunks}) and produce output in ${lang}.
+  const langInstruction = language === 'ja'
+    ? `必ず日本語で出力してください。自然な日本語のビジネス文書スタイルで、簡潔な文章を心がけてください。英語の直訳調は避けてください。`
+    : `Produce all output in English.`;
+
+  return `You are a meeting analyst. Analyze this transcript segment (part ${chunkIndex + 1} of ${totalChunks}).
+
+${langInstruction}
 
 Return a JSON object with these exact keys:
 {
@@ -128,7 +141,10 @@ ${chunk}`;
 }
 
 function buildMergePrompt(chunkSummaries: ParsedChunk[], language: 'en' | 'ja'): string {
-  const lang = language === 'ja' ? 'Japanese' : 'English';
+  const langInstruction = language === 'ja'
+    ? `必ず日本語で出力してください。自然な日本語のビジネス文書スタイルで、簡潔な文章を心がけてください。英語の直訳調は避けてください。会議要約として適切な表現を使用してください。`
+    : `Produce all output in English.`;
+
   const input = chunkSummaries.map((c, i) => `--- Segment ${i + 1} ---
 Summary: ${c.summary}
 Points: ${c.pointNotes.join('; ')}
@@ -136,7 +152,9 @@ Actions: ${c.actionItems.join('; ')}
 Decisions: ${c.decisions.join('; ')}
 Risks: ${c.risks.join('; ')}`).join('\n\n');
 
-  return `You are a meeting analyst. Below are summaries of ${chunkSummaries.length} consecutive segments of a single meeting transcript. Merge them into one cohesive final summary in ${lang}.
+  return `You are a meeting analyst. Below are summaries of ${chunkSummaries.length} consecutive segments of a single meeting transcript. Merge them into one cohesive final summary.
+
+${langInstruction}
 
 Return a JSON object with these exact keys:
 {
@@ -161,8 +179,13 @@ ${input}`;
 }
 
 function buildSinglePrompt(transcript: string, language: 'en' | 'ja'): string {
-  const lang = language === 'ja' ? 'Japanese' : 'English';
-  return `You are a meeting analyst. Analyze the following transcript and produce output in ${lang}.
+  const langInstruction = language === 'ja'
+    ? `必ず日本語で出力してください。自然な日本語のビジネス文書スタイルで、簡潔な文章を心がけてください。英語の直訳調は避けてください。会議要約として適切な表現を使用してください。`
+    : `Produce all output in English.`;
+
+  return `You are a meeting analyst. Analyze the following transcript.
+
+${langInstruction}
 
 Return a JSON object with these exact keys:
 {
@@ -268,6 +291,68 @@ function formatProviderError(err: unknown): string {
   return 'Summary generation failed. Check AI provider settings.';
 }
 
+function buildSpeakerSuggestionPrompt(utterances: UtteranceInput[]): string {
+  // Group utterances by speaker, take first 20 per speaker for context
+  const speakerMap = new Map<string, UtteranceInput[]>();
+  for (const u of utterances) {
+    const existing = speakerMap.get(u.speaker) || [];
+    if (existing.length < 20) existing.push(u);
+    speakerMap.set(u.speaker, existing);
+  }
+
+  const speakerSections = Array.from(speakerMap.entries()).map(([speaker, utts]) => {
+    const lines = utts.map((u) => `[${msToTimestamp(u.startMs)}] ${u.text}`).join('\n');
+    return `--- ${speaker} ---\n${lines}`;
+  }).join('\n\n');
+
+  return `あなたは文字起こしの話者分析アシスタントです。以下の文字起こしテキストを分析し、各話者の実名を推定してください。
+
+注意: これは音声の本人認識ではなく、文字起こし内容に基づく候補表示です。
+
+名前の手がかりとなるパターン:
+- 自己紹介: 「〇〇です」「My name is ...」「I'm ...」
+- 他者からの呼びかけ: 「〇〇さん」「〇〇、お願いします」「Hey 〇〇」
+- 署名的な発言
+
+以下のJSON配列を返してください:
+[
+  {
+    "speakerLabel": "話者ラベル (例: A, B)",
+    "suggestedName": "推定される名前",
+    "confidence": 0-100の数値,
+    "reason": "推定根拠を日本語で簡潔に説明",
+    "evidenceTimestamp": "根拠となる発言のタイムスタンプ (例: 00:01:20)"
+  }
+]
+
+ルール:
+- 名前が特定できない話者は含めない
+- confidence は証拠の強さに基づく (自己紹介=80-95, 他者からの呼びかけ=60-80, 推測=30-60)
+- 出力はJSON配列のみ。マークダウンや説明は不要
+
+話者別の発言:
+${speakerSections}`;
+}
+
+function parseSpeakerSuggestions(raw: string): SpeakerSuggestion[] {
+  const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+  try {
+    const parsed = JSON.parse(cleaned);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item: any) =>
+      item.speakerLabel && item.suggestedName && typeof item.confidence === 'number'
+    ).map((item: any) => ({
+      speakerLabel: String(item.speakerLabel),
+      suggestedName: String(item.suggestedName),
+      confidence: Math.min(100, Math.max(0, Number(item.confidence))),
+      reason: String(item.reason || ''),
+      evidenceTimestamp: item.evidenceTimestamp ? String(item.evidenceTimestamp) : undefined,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export function registerSummarizeHandlers(): void {
   ipcMain.handle('summarize:generate', async (_event, request: unknown): Promise<SummaryResult> => {
     const v = validateSchema(summarizeRequestSchema, request);
@@ -319,6 +404,35 @@ export function registerSummarizeHandlers(): void {
       const mergeRaw = await callLLM(provider, apiKey, model, mergePrompt, openaiBaseUrl);
       const merged = parseResponse(mergeRaw);
       return { ok: true, ...merged };
+    } catch (err: any) {
+      return { ok: false, error: formatProviderError(err) };
+    }
+  });
+
+  // --- AI Speaker Name Suggestion ---
+  ipcMain.handle('summarize:suggestSpeakers', async (_event, request: unknown): Promise<{ ok: boolean; error?: string; suggestions?: SpeakerSuggestion[] }> => {
+    if (!request || typeof request !== 'object') return { ok: false, error: 'Invalid request' };
+    const data = request as { utterances: UtteranceInput[] };
+    if (!data.utterances || !Array.isArray(data.utterances) || data.utterances.length === 0) {
+      return { ok: false, error: 'No utterances provided' };
+    }
+
+    const { apiKeys, models, preferences, openaiProvider } = await getSettings();
+    const provider = (preferences.summaryProvider as string) || 'gemini';
+    const apiKey = apiKeys[provider];
+    const model = models[provider] || (provider === 'gemini' ? 'gemini-2.5-flash' : 'gpt-4o');
+    const openaiBaseUrl = provider !== 'gemini'
+      ? (openaiProvider?.providerType === 'custom' ? openaiProvider.baseUrl : DEFAULT_OPENAI_BASES[provider])
+      : undefined;
+
+    const configError = validateProviderConfig(provider, apiKey, model, openaiBaseUrl);
+    if (configError) return { ok: false, error: configError };
+
+    try {
+      const prompt = buildSpeakerSuggestionPrompt(data.utterances);
+      const raw = await callLLM(provider, apiKey, model, prompt, openaiBaseUrl);
+      const suggestions = parseSpeakerSuggestions(raw);
+      return { ok: true, suggestions };
     } catch (err: any) {
       return { ok: false, error: formatProviderError(err) };
     }

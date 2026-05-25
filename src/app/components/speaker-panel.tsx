@@ -5,9 +5,11 @@ import { Badge } from "./ui/badge";
 import { Separator } from "./ui/separator";
 import {
   Users, Pencil, Check, X, Search, FileAudio, Clock, Mic2,
-  BarChart3, MessageSquare, Activity,
+  BarChart3, MessageSquare, Activity, Sparkles, Loader2,
 } from "lucide-react";
 import { useTranscripts } from "../transcript-store";
+import { useSpeakerMemory } from "../speaker-memory";
+import { toast } from "sonner";
 
 const speakerColors = [
   "bg-blue-500", "bg-rose-500", "bg-amber-500",
@@ -40,24 +42,25 @@ interface SpeakerProfile {
   lastSeen: string;
 }
 
-// Load/save speaker aliases from localStorage
-function loadAliases(): Record<string, string> {
-  try { return JSON.parse(localStorage.getItem("recllm-speaker-aliases") || "{}"); } catch { return {}; }
-}
-function saveAliases(aliases: Record<string, string>) {
-  try { localStorage.setItem("recllm-speaker-aliases", JSON.stringify(aliases)); } catch {}
-}
-
 export function SpeakerPanel() {
   const { transcripts } = useTranscripts();
-  const [aliases, setAliases] = useState<Record<string, string>>(loadAliases);
+  const { profiles: memoryProfiles, saveProfile, removeProfile, getAlias } = useSpeakerMemory();
+  const [aliases, setAliases] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [aiSuggesting, setAiSuggesting] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<Array<{ speakerLabel: string; suggestedName: string; confidence: number; reason: string; evidenceTimestamp?: string }>>([]);
+  const [editingSuggestion, setEditingSuggestion] = useState<string | null>(null);
+  const [suggestionEditValue, setSuggestionEditValue] = useState("");
 
-  // Persist aliases
-  useEffect(() => { saveAliases(aliases); }, [aliases]);
+  // Sync aliases from speaker memory
+  useEffect(() => {
+    const map: Record<string, string> = {};
+    memoryProfiles.forEach((p) => { if (p.customName) map[p.label] = p.customName; });
+    setAliases(map);
+  }, [memoryProfiles]);
 
   // Build speaker profiles from all transcripts
   const profiles = useMemo((): SpeakerProfile[] => {
@@ -118,14 +121,50 @@ export function SpeakerPanel() {
   const saveEdit = (id: string) => {
     const trimmed = editValue.trim();
     if (trimmed) {
-      setAliases((prev) => ({ ...prev, [id]: trimmed }));
+      saveProfile(id, trimmed, "", "");
     } else {
-      setAliases((prev) => { const next = { ...prev }; delete next[id]; return next; });
+      removeProfile(id);
     }
     setEditing(null);
   };
 
   const getDisplayName = (p: SpeakerProfile) => p.alias || `Speaker ${p.id}`;
+
+  const suggestSpeakerNames = async () => {
+    const api = window.electronAPI?.summarize;
+    if (!api?.suggestSpeakers) { toast.error("AI suggestion not available"); return; }
+    // Gather all utterances from all transcripts
+    const allUtterances = transcripts.flatMap((t) =>
+      t.utterances.map((u) => ({ speaker: u.speaker, startMs: u.startMs, text: u.text }))
+    );
+    if (allUtterances.length === 0) { toast.error("No utterances to analyze"); return; }
+    setAiSuggesting(true);
+    setAiSuggestions([]);
+    const result = await api.suggestSpeakers(allUtterances);
+    setAiSuggesting(false);
+    if (result.ok && result.suggestions && result.suggestions.length > 0) {
+      setAiSuggestions(result.suggestions);
+      toast.success(`${result.suggestions.length}件の話者名候補を検出`);
+    } else if (result.ok) {
+      toast.info("話者名の手がかりが見つかりませんでした");
+    } else {
+      toast.error(result.error || "AI suggestion failed");
+    }
+  };
+
+  const applySuggestion = (speakerLabel: string, name: string, confidence: number, reason: string) => {
+    saveProfile(speakerLabel, name, "", "", {
+      confidence,
+      evidenceText: reason,
+      confirmedSpeakerLabel: speakerLabel,
+    });
+    setAiSuggestions((prev) => prev.filter((s) => s.speakerLabel !== speakerLabel));
+    toast.success(`${speakerLabel} → ${name}`);
+  };
+
+  const dismissSuggestion = (speakerLabel: string) => {
+    setAiSuggestions((prev) => prev.filter((s) => s.speakerLabel !== speakerLabel));
+  };
 
   // Get segments for selected speaker
   const selectedSegments = useMemo(() => {
@@ -156,8 +195,80 @@ export function SpeakerPanel() {
         <span className="text-[11px] font-medium">Speaker Directory</span>
         <Badge variant="outline" className="h-4 text-[9px] px-1.5 font-mono">{profiles.length} speakers</Badge>
         <div className="flex-1" />
+        <Button type="button" variant="outline" size="sm" className="h-6 text-[9px] gap-1 px-2" onClick={suggestSpeakerNames} disabled={aiSuggesting || profiles.length === 0}>
+          {aiSuggesting ? <Loader2 className="size-3 animate-spin" /> : <Sparkles className="size-3" />}
+          AIで話者名を推定
+        </Button>
         <Badge variant="outline" className="h-4 text-[9px] px-1.5 font-mono">{transcripts.length} recordings</Badge>
       </div>
+
+      {/* AI Suggestions */}
+      {aiSuggestions.length > 0 && (
+        <div className="border-b bg-primary/5 px-3 py-2 space-y-1.5 shrink-0 max-h-[200px] overflow-auto">
+          <div className="flex items-center gap-1.5">
+            <Sparkles className="size-3 text-primary" />
+            <span className="text-[10px] font-medium text-primary">話者名候補</span>
+            <span className="text-[8px] text-muted-foreground ml-1">これは音声の本人認識ではなく、文字起こし内容に基づく候補表示です。</span>
+          </div>
+          {aiSuggestions.map((s) => (
+            <div key={s.speakerLabel} className="flex items-start gap-2 p-1.5 rounded border bg-background">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono text-muted-foreground">{s.speakerLabel}</span>
+                  <span className="text-[10px]">→</span>
+                  {editingSuggestion === s.speakerLabel ? (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        value={suggestionEditValue}
+                        onChange={(e) => setSuggestionEditValue(e.target.value)}
+                        className="h-5 text-[10px] w-[120px]"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && suggestionEditValue.trim()) {
+                            applySuggestion(s.speakerLabel, suggestionEditValue.trim(), s.confidence, s.reason);
+                            setEditingSuggestion(null);
+                          }
+                          if (e.key === "Escape") setEditingSuggestion(null);
+                        }}
+                      />
+                      <Button type="button" size="sm" className="h-5 text-[8px] px-1.5" onClick={() => {
+                        if (suggestionEditValue.trim()) applySuggestion(s.speakerLabel, suggestionEditValue.trim(), s.confidence, s.reason);
+                        setEditingSuggestion(null);
+                      }}><Check className="size-2.5" /></Button>
+                      <Button type="button" variant="ghost" size="sm" className="h-5 text-[8px] px-1.5" onClick={() => setEditingSuggestion(null)}>
+                        <X className="size-2.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] font-medium">{s.suggestedName}</span>
+                  )}
+                  <Badge variant="outline" className="text-[8px] h-3.5 px-1 ml-1">{s.confidence}%</Badge>
+                </div>
+                <div className="text-[9px] text-muted-foreground mt-0.5 pl-4">
+                  {s.evidenceTimestamp && <span className="font-mono mr-1">[{s.evidenceTimestamp}]</span>}
+                  {s.reason}
+                </div>
+              </div>
+              {editingSuggestion !== s.speakerLabel && (
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <Button type="button" size="sm" className="h-5 text-[8px] px-1.5" onClick={() => applySuggestion(s.speakerLabel, s.suggestedName, s.confidence, s.reason)}>
+                    適用
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-5 text-[8px] px-1.5" onClick={() => {
+                    setSuggestionEditValue(s.suggestedName);
+                    setEditingSuggestion(s.speakerLabel);
+                  }}>
+                    編集
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-5 text-[8px] px-1 text-muted-foreground" onClick={() => dismissSuggestion(s.speakerLabel)}>
+                    <X className="size-2.5" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* 3-panel workspace */}
       <div className="flex-1 min-h-0 flex">

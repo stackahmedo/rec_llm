@@ -31,3 +31,4 @@ logs/
 # Downloaded models
 models/
 *.gguf
+release/

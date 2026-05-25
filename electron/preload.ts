@@ -64,12 +64,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
       decisions?: string[];
       risks?: string[];
     }> => ipcRenderer.invoke('summarize:generate', { transcript, language, utterances }),
+    suggestSpeakers: (utterances: Array<{ speaker: string; startMs: number; text: string }>): Promise<{
+      ok: boolean;
+      error?: string;
+      suggestions?: Array<{ speakerLabel: string; suggestedName: string; confidence: number; reason: string; evidenceTimestamp?: string }>;
+    }> => ipcRenderer.invoke('summarize:suggestSpeakers', { utterances }),
   },
   pdf: {
     exportReport: (data: PdfExportData): Promise<{ ok: boolean; error?: string; filePath?: string }> =>
       ipcRenderer.invoke('pdf:exportReport', data),
     print: (data: PdfExportData): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke('pdf:print', data),
+    previewHtml: (data: PdfExportData): Promise<{ ok: boolean; error?: string; html?: string }> =>
+      ipcRenderer.invoke('pdf:previewHtml', data),
   },
   history: {
     load: (): Promise<HistoryJobPayload[]> => ipcRenderer.invoke('history:load'),

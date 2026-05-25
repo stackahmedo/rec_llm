@@ -1,15 +1,16 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { Textarea } from "./ui/textarea";
 import { Input } from "./ui/input";
+import { Textarea } from "./ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { Pencil, Check, X, FileAudio, Upload, Mic2, Sparkles, FileText, Globe, Copy, Highlighter, MessageSquare, ChevronDown, ChevronRight } from "lucide-react";
+import { Pencil, Check, X, FileAudio, Upload, Mic2, Sparkles, FileText, Globe, Copy, Highlighter, MessageSquare, ChevronDown, ChevronRight, UserCheck } from "lucide-react";
 import { useTranscripts, Utterance } from "../transcript-store";
 import { useT } from "../i18n";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { toast } from "sonner";
 import { loadSpeakerProfiles, saveSpeakerProfiles, getDisplayName, generateProfiles } from "../pdf-speaker-store";
+import { useSpeakerMemory } from "../speaker-memory";
 
 const speakerColors = [
   "bg-blue-500", "bg-rose-500", "bg-amber-500", "bg-emerald-500",
@@ -34,6 +35,7 @@ const RENDER_BATCH = 100;
 export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
   const { transcripts, addTranscript } = useTranscripts();
   const { t } = useT();
+  const { getSuggestion, saveProfile, enabled: speakerMemoryEnabled } = useSpeakerMemory();
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
   const [editedIndices, setEditedIndices] = useState<Set<number>>(new Set());
@@ -41,6 +43,9 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
   const [speakerProfiles, setSpeakerProfiles] = useState<any[]>([]);
   const [editingSpeaker, setEditingSpeaker] = useState<string | null>(null);
   const [editingSpeakerName, setEditingSpeakerName] = useState("");
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
+  const [editingSuggestion, setEditingSuggestion] = useState<string | null>(null);
+  const [suggestionEditValue, setSuggestionEditValue] = useState("");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const active = fileId ? transcripts.find((t) => t.fileId === fileId) || null : null;
@@ -91,6 +96,43 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
   }, []);
 
   const cancelEdit = () => setEditingIdx(null);
+
+  const applySpeakerName = useCallback((speakerLabel: string, newName: string) => {
+    if (!active || !fileId) return;
+    const updatedUtterances = active.utterances.map((u) =>
+      u.speaker === speakerLabel ? { ...u, speaker: newName } : u
+    );
+    const updated = { ...active, utterances: updatedUtterances };
+    addTranscript(updated);
+    saveProfile(speakerLabel, newName, fileId, active.languageCode);
+    setDismissedSuggestions((prev) => new Set(prev).add(speakerLabel));
+    toast.success(`Renamed ${speakerLabel} → ${newName}`);
+
+    const api = window.electronAPI?.history;
+    if (api) {
+      api.save({
+        id: active.fileId,
+        fileName: active.fileName,
+        filePath: '',
+        sizeBytes: 0,
+        status: 'done',
+        languageCode: active.languageCode,
+        speakerCount: new Set(updatedUtterances.map((u) => u.speaker)).size,
+        createdAt: active.completedAt,
+        completedAt: active.completedAt,
+        transcript: { fullText: updatedUtterances.map((u) => u.text).join(' '), utterances: updatedUtterances },
+      });
+    }
+  }, [active, fileId, addTranscript, saveProfile]);
+
+  const firstOccurrenceIndices = useMemo(() => {
+    if (!active) return new Map<string, number>();
+    const map = new Map<string, number>();
+    active.utterances.forEach((u, i) => {
+      if (!map.has(u.speaker)) map.set(u.speaker, i);
+    });
+    return map;
+  }, [active]);
 
   const copySegment = useCallback((text: string) => {
     navigator.clipboard.writeText(text);
@@ -338,6 +380,59 @@ export function TranscriptEditor({ fileId }: TranscriptEditorProps) {
                     {wasEdited && <Badge variant="secondary" className="text-[7px] h-3 px-0.5">edited</Badge>}
                     <span className="text-[7px] text-muted-foreground font-mono">{Math.round((u.endMs - u.startMs) / 1000)}s</span>
                   </div>
+                  {/* Speaker suggestion banner */}
+                  {speakerMemoryEnabled && firstOccurrenceIndices.get(u.speaker) === idx && (() => {
+                    const suggestion = getSuggestion(u.speaker);
+                    if (!suggestion || dismissedSuggestions.has(u.speaker)) return null;
+                    if (editingSuggestion === u.speaker) {
+                      return (
+                        <div className="flex items-center gap-1.5 mt-0.5 mb-0.5 px-2 py-1 bg-primary/5 border border-primary/20 rounded text-[10px]">
+                          <UserCheck className="size-3 text-primary shrink-0" />
+                          <Input
+                            value={suggestionEditValue}
+                            onChange={(e) => setSuggestionEditValue(e.target.value)}
+                            className="h-5 text-[10px] flex-1 max-w-[160px]"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && suggestionEditValue.trim()) {
+                                applySpeakerName(u.speaker, suggestionEditValue.trim());
+                                setEditingSuggestion(null);
+                              }
+                              if (e.key === "Escape") setEditingSuggestion(null);
+                            }}
+                          />
+                          <Button type="button" size="sm" className="h-5 text-[9px] px-1.5" onClick={() => {
+                            if (suggestionEditValue.trim()) applySpeakerName(u.speaker, suggestionEditValue.trim());
+                            setEditingSuggestion(null);
+                          }}>
+                            <Check className="size-2.5" />
+                          </Button>
+                          <Button type="button" size="sm" variant="ghost" className="h-5 text-[9px] px-1.5" onClick={() => setEditingSuggestion(null)}>
+                            <X className="size-2.5" />
+                          </Button>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="flex items-center gap-1.5 mt-0.5 mb-0.5 px-2 py-0.5 bg-primary/5 border border-primary/20 rounded text-[10px]">
+                        <UserCheck className="size-3 text-primary shrink-0" />
+                        <span className="text-muted-foreground">Suggested:</span>
+                        <span className="font-medium">{suggestion.customName}</span>
+                        <Button type="button" size="sm" className="h-4 text-[8px] px-1.5 ml-1" onClick={() => applySpeakerName(u.speaker, suggestion.customName)}>
+                          Apply
+                        </Button>
+                        <Button type="button" size="sm" variant="ghost" className="h-4 text-[8px] px-1.5" onClick={() => {
+                          setSuggestionEditValue(suggestion.customName);
+                          setEditingSuggestion(u.speaker);
+                        }}>
+                          Edit
+                        </Button>
+                        <Button type="button" size="sm" variant="ghost" className="h-4 text-[8px] px-1 text-muted-foreground" onClick={() => setDismissedSuggestions((prev) => new Set(prev).add(u.speaker))}>
+                          <X className="size-2.5" />
+                        </Button>
+                      </div>
+                    );
+                  })()}
                   {isEditing ? (
                     <div className="mt-1 space-y-1">
                       <Textarea

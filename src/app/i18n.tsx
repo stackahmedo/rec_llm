@@ -274,6 +274,57 @@ const en: Dict = {
   "settings.uiScale.default": "Default",
   "settings.uiScale.large": "Large",
   "settings.uiScale.extraLarge": "Extra Large",
+
+  // Settings tabs
+  "settings.tab.general": "General",
+  "settings.tab.transcription": "Transcription",
+  "settings.tab.aiProviders": "AI Providers",
+  "settings.tab.pipeline": "Pipeline Roles",
+  "settings.tab.processing": "Processing",
+  "settings.tab.storage": "Storage & Cache",
+  "settings.tab.export": "Export",
+  "settings.tab.advanced": "Advanced",
+
+  // Settings sections
+  "settings.section.queueBehavior": "Queue Behavior",
+  "settings.section.transcription": "Transcription",
+  "settings.section.output": "Output",
+  "settings.section.runtime": "Runtime",
+  "settings.section.workflowTemplates": "Workflow Templates",
+  "settings.section.dangerZone": "Danger Zone",
+
+  // Settings labels
+  "settings.autoRetry": "Auto-retry on failure",
+  "settings.autoCompress": "Auto-compress large files",
+  "settings.speakerDiarization": "Speaker diarization",
+  "settings.rememberSpeakers": "Remember speaker names",
+  "settings.languageDetection": "Language detection",
+  "settings.autoSaveTxt": "Auto-save TXT after transcription",
+  "settings.concurrency": "Concurrency",
+  "settings.chunkStrategy": "Chunk Strategy",
+  "settings.parallelStages": "Parallel Stages",
+  "settings.preset": "Preset",
+  "settings.provider": "Provider",
+  "settings.timeout": "Timeout (sec)",
+  "settings.retries": "Retries",
+  "settings.tags": "Tags",
+  "settings.fallbackProvider": "Fallback Provider",
+  "settings.saved": "Settings saved",
+  "settings.resetDone": "Settings reset",
+
+  // Speaker AI
+  "speaker.aiSuggest": "Suggest Speaker Names",
+  "speaker.aiSuggestJa": "AIで話者名を推定",
+  "speaker.candidates": "Speaker Name Candidates",
+  "speaker.limitation": "This is not voice biometric recognition. Suggestions are based on transcript content analysis.",
+  "speaker.apply": "Apply",
+  "speaker.edit": "Edit",
+  "speaker.ignore": "Ignore",
+  "speaker.confidence": "Confidence",
+  "speaker.noClues": "No speaker name clues found in transcript.",
+  "speaker.detected": "speaker name candidates detected",
+  "settings.aiSpeakerSuggestion": "AI speaker name suggestions",
+  "settings.autoSuggestSpeakers": "Auto-suggest after transcription",
 };
 
 const ja: Dict = {
@@ -546,6 +597,57 @@ const ja: Dict = {
   "settings.uiScale.default": "標準",
   "settings.uiScale.large": "大",
   "settings.uiScale.extraLarge": "特大",
+
+  // Settings tabs
+  "settings.tab.general": "一般",
+  "settings.tab.transcription": "文字起こし",
+  "settings.tab.aiProviders": "AIプロバイダー",
+  "settings.tab.pipeline": "パイプライン",
+  "settings.tab.processing": "処理",
+  "settings.tab.storage": "ストレージ",
+  "settings.tab.export": "エクスポート",
+  "settings.tab.advanced": "詳細設定",
+
+  // Settings sections
+  "settings.section.queueBehavior": "キュー動作",
+  "settings.section.transcription": "文字起こし",
+  "settings.section.output": "出力",
+  "settings.section.runtime": "ランタイム",
+  "settings.section.workflowTemplates": "ワークフローテンプレート",
+  "settings.section.dangerZone": "危険操作",
+
+  // Settings labels
+  "settings.autoRetry": "失敗時に自動再試行",
+  "settings.autoCompress": "大きなファイルを自動圧縮",
+  "settings.speakerDiarization": "話者分離",
+  "settings.rememberSpeakers": "話者名を記憶する",
+  "settings.languageDetection": "言語検出",
+  "settings.autoSaveTxt": "文字起こし後にTXTを自動保存",
+  "settings.concurrency": "同時実行数",
+  "settings.chunkStrategy": "チャンク戦略",
+  "settings.parallelStages": "並列ステージ",
+  "settings.preset": "プリセット",
+  "settings.provider": "プロバイダー",
+  "settings.timeout": "タイムアウト (秒)",
+  "settings.retries": "リトライ回数",
+  "settings.tags": "タグ",
+  "settings.fallbackProvider": "フォールバック",
+  "settings.saved": "設定を保存しました",
+  "settings.resetDone": "設定をリセットしました",
+
+  // Speaker AI
+  "speaker.aiSuggest": "話者名を推定",
+  "speaker.aiSuggestJa": "AIで話者名を推定",
+  "speaker.candidates": "話者名候補",
+  "speaker.limitation": "これは音声の本人認識ではなく、文字起こし内容に基づく候補表示です。",
+  "speaker.apply": "適用",
+  "speaker.edit": "編集",
+  "speaker.ignore": "無視",
+  "speaker.confidence": "確信度",
+  "speaker.noClues": "文字起こしから話者名の手がかりが見つかりませんでした。",
+  "speaker.detected": "件の話者名候補を検出",
+  "settings.aiSpeakerSuggestion": "AI話者名推定",
+  "settings.autoSuggestSpeakers": "文字起こし後に自動推定",
 };
 
 const dictionaries: Record<"en" | "ja", Dict> = { en, ja };

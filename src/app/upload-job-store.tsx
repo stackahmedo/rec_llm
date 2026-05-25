@@ -1,6 +1,3 @@
-// Global upload job store — persists across navigation
-// Solves the vanishing-file bug where queue disappears on screen change
-
 import { createContext, useContext, useState, ReactNode, useCallback, useRef, useEffect } from "react";
 
 export type JobStage = "queued" | "analyzing" | "chunking" | "uploading" | "transcribing" | "summarizing" | "saving" | "done" | "failed" | "paused";
@@ -110,14 +107,45 @@ export function useUploadJobs() {
   return useContext(Ctx);
 }
 
+// Persist jobs to localStorage (survives app restart)
+const JOBS_STORAGE_KEY = "recllm-upload-jobs";
+
+function loadPersistedJobs(): UploadJob[] {
+  try {
+    const raw = localStorage.getItem(JOBS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as UploadJob[];
+    // Reset in-progress jobs to their appropriate state on reload
+    return parsed.map((j) => {
+      if (j.stage === "analyzing" || j.stage === "chunking" || j.stage === "uploading" || j.stage === "transcribing" || j.stage === "summarizing" || j.stage === "saving") {
+        // Was processing when app closed — mark as paused for retry
+        return { ...j, stage: "paused" as JobStage, progress: 0, error: "Interrupted by app restart" };
+      }
+      return j;
+    });
+  } catch { return []; }
+}
+
+function persistJobs(jobs: UploadJob[]) {
+  try {
+    // Only persist jobs that haven't been cleared — keep done, failed, paused, queued
+    localStorage.setItem(JOBS_STORAGE_KEY, JSON.stringify(jobs));
+  } catch {}
+}
+
 export function UploadJobProvider({ children }: { children: ReactNode }) {
-  const [jobs, setJobs] = useState<UploadJob[]>([]);
+  const [jobs, setJobs] = useState<UploadJob[]>(() => loadPersistedJobs());
   const [preset, setPresetState] = useState<UploadPreset>(() => {
     try {
       const saved = localStorage.getItem("recllm-upload-preset");
       return saved ? { ...defaultPreset, ...JSON.parse(saved) } : defaultPreset;
     } catch { return defaultPreset; }
   });
+
+  // Persist jobs whenever they change
+  useEffect(() => {
+    persistJobs(jobs);
+  }, [jobs]);
 
   const addJobs = useCallback((newJobs: UploadJob[]) => {
     setJobs((prev) => [...newJobs, ...prev]);
