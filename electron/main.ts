@@ -10,6 +10,7 @@ import { registerStorageStatsHandlers } from './storage-stats';
 import { registerExportHandlers } from './export';
 import { registerAudioPreprocessHandlers } from './audio-preprocess';
 import { registerLongAudioHandlers } from './long-audio-pipeline';
+import { registerFolderWatcherHandlers } from './folder-watcher';
 import { migrateFromElectronStore } from './credential-store';
 
 // Global error handlers — prevent silent crashes, log safely (no secrets/file contents)
@@ -39,6 +40,7 @@ registerStorageStatsHandlers();
 registerExportHandlers();
 registerAudioPreprocessHandlers();
 registerLongAudioHandlers();
+registerFolderWatcherHandlers();
 
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'm4a', 'mp4', 'aac', 'flac'];
 

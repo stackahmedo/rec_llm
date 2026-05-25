@@ -476,4 +476,75 @@ Answer in the same language as the question. Be direct and helpful.`;
       return { ok: false, error: formatProviderError(err) };
     }
   });
+
+  // Grammar correction — batch process utterances through LLM
+  ipcMain.handle('summarize:correctGrammar', async (_event, request: unknown): Promise<{
+    ok: boolean;
+    error?: string;
+    corrected?: Array<{ index: number; original: string; corrected: string }>;
+  }> => {
+    if (!request || typeof request !== 'object') return { ok: false, error: 'Invalid request' };
+    const data = request as { utterances: Array<{ speaker: string; text: string; index: number }> };
+    if (!data.utterances || !Array.isArray(data.utterances) || data.utterances.length === 0) {
+      return { ok: false, error: 'No utterances provided' };
+    }
+
+    const { apiKeys, models, preferences, openaiProvider } = await getSettings();
+    const provider = (preferences.summaryProvider as string) || 'gemini';
+    const apiKey = apiKeys[provider];
+    const model = models[provider] || (provider === 'gemini' ? 'gemini-2.5-flash' : 'gpt-4o');
+    const openaiBaseUrl = provider !== 'gemini'
+      ? (openaiProvider?.providerType === 'custom' ? openaiProvider.baseUrl : DEFAULT_OPENAI_BASES[provider])
+      : undefined;
+
+    const configError = validateProviderConfig(provider, apiKey, model, openaiBaseUrl);
+    if (configError) return { ok: false, error: configError };
+
+    try {
+      // Process in batches of 20 utterances
+      const BATCH_SIZE = 20;
+      const allCorrected: Array<{ index: number; original: string; corrected: string }> = [];
+
+      for (let i = 0; i < data.utterances.length; i += BATCH_SIZE) {
+        const batch = data.utterances.slice(i, i + BATCH_SIZE);
+        const lines = batch.map((u, idx) => `[${idx}] ${u.speaker}: ${u.text}`).join('\n');
+
+        const prompt = `You are a grammar correction assistant. Correct the grammar, punctuation, and sentence structure of the following transcript utterances. Rules:
+- Fix grammar and punctuation errors
+- Improve sentence clarity where needed
+- Do NOT change the meaning
+- Do NOT change speaker labels
+- Do NOT merge or split utterances
+- Keep the same number of lines
+- Output ONLY the corrected lines in the same format: [index] Speaker: corrected text
+
+INPUT:
+${lines}
+
+OUTPUT:`;
+
+        const raw = await callLLM(provider, apiKey, model, prompt, openaiBaseUrl);
+        const correctedLines = raw.trim().split('\n').filter((l) => l.trim());
+
+        for (const line of correctedLines) {
+          const match = line.match(/^\[(\d+)\]\s*([^:]+):\s*(.+)$/);
+          if (match) {
+            const batchIdx = parseInt(match[1], 10);
+            const originalUtterance = batch[batchIdx];
+            if (originalUtterance && match[3].trim() !== originalUtterance.text.trim()) {
+              allCorrected.push({
+                index: originalUtterance.index,
+                original: originalUtterance.text,
+                corrected: match[3].trim(),
+              });
+            }
+          }
+        }
+      }
+
+      return { ok: true, corrected: allCorrected };
+    } catch (err: any) {
+      return { ok: false, error: formatProviderError(err) };
+    }
+  });
 }

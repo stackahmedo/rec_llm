@@ -47,6 +47,11 @@ interface ElectronSummarize {
     error?: string;
     reply?: string;
   }>;
+  correctGrammar: (utterances: Array<{ speaker: string; text: string; index: number }>) => Promise<{
+    ok: boolean;
+    error?: string;
+    corrected?: Array<{ index: number; original: string; corrected: string }>;
+  }>;
 }
 
 interface PdfHeaderConfig {

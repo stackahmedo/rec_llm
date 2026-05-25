@@ -76,6 +76,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       error?: string;
       reply?: string;
     }> => ipcRenderer.invoke('summarize:chat', { question, transcriptContext, history }),
+    correctGrammar: (utterances: Array<{ speaker: string; text: string; index: number }>): Promise<{
+      ok: boolean;
+      error?: string;
+      corrected?: Array<{ index: number; original: string; corrected: string }>;
+    }> => ipcRenderer.invoke('summarize:correctGrammar', { utterances }),
   },
   pdf: {
     exportReport: (data: PdfExportData): Promise<{ ok: boolean; error?: string; filePath?: string }> =>
