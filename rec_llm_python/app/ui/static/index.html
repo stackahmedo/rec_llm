@@ -359,6 +359,10 @@ function app() {
       await this.loadRecordings();
       await this.checkApi();
       this.connectWebSocket();
+      // Auto-refresh dashboard every 30s
+      setInterval(() => {
+        if (this.currentView === 'dashboard') this.loadDashboard();
+      }, 30000);
     },
 
     connectWebSocket() {
