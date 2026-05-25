@@ -13,7 +13,8 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 </style>
 </head>
-<body class="bg-gray-50 text-gray-900 min-h-screen" x-data="app()" x-cloak>
+<body class="bg-gray-50 text-gray-900 min-h-screen" x-data="app()" x-cloak
+  @keydown.window="handleKeyboard($event)">
 
 <!-- Sidebar -->
 <div class="fixed inset-y-0 left-0 w-56 bg-white border-r border-gray-200 flex flex-col">
@@ -546,6 +547,30 @@ function app() {
       const m = Math.floor((total % 3600) / 60);
       const s = total % 60;
       return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    },
+
+    handleKeyboard(event) {
+      // Skip if typing in an input
+      if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') return;
+
+      // Cmd/Ctrl + K: Focus search
+      if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+        event.preventDefault();
+        document.querySelector('input[placeholder="検索..."]')?.focus();
+        return;
+      }
+
+      // Number keys for navigation
+      const navMap = { '1': 'dashboard', '2': 'upload', '3': 'transcripts', '4': 'settings' };
+      if (navMap[event.key] && !event.metaKey && !event.ctrlKey) {
+        this.currentView = navMap[event.key];
+      }
+
+      // Escape: back to dashboard
+      if (event.key === 'Escape') {
+        if (this.currentView === 'transcript-detail') this.currentView = 'transcripts';
+        else if (this.currentView === 'search') this.currentView = 'dashboard';
+      }
     },
   };
 }
