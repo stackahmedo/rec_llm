@@ -439,17 +439,39 @@ function app() {
 
     async addFiles(files) {
       for (const file of files) {
-        this.queue.push({
+        const item = {
           id: crypto.randomUUID(),
           fileName: file.name,
+          file: file,
           status: 'queued',
-        });
+          progress: 0,
+        };
+        this.queue.push(item);
       }
     },
 
-    startAll() {
-      // Trigger processing via API
-      this.queue.forEach(item => { if (item.status === 'queued') item.status = 'running'; });
+    async startAll() {
+      for (const item of this.queue) {
+        if (item.status !== 'queued') continue;
+        item.status = 'running';
+        try {
+          const formData = new FormData();
+          formData.append('file', item.file);
+          const resp = await fetch('/api/recordings/upload', { method: 'POST', body: formData });
+          if (resp.ok) {
+            const data = await resp.json();
+            item.status = 'done';
+            item.recordingId = data.id;
+            item.progress = 100;
+          } else {
+            item.status = 'failed';
+          }
+        } catch (e) {
+          item.status = 'failed';
+        }
+      }
+      await this.loadRecordings();
+      await this.loadDashboard();
     },
 
     clearDone() {
