@@ -58,7 +58,11 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
       <p class="text-xs text-gray-500" x-text="navItems.find(n => n.id === currentView)?.sub"></p>
     </div>
     <div class="flex items-center gap-3">
-      <input type="text" placeholder="検索..." class="text-sm border border-gray-200 rounded-md px-3 py-1.5 w-48 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      <button @click="toggleDarkMode()" class="p-1.5 rounded-md hover:bg-gray-100 text-gray-500" title="ダークモード切替">
+        <svg x-show="!darkMode" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        <svg x-show="darkMode" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+      </button>
+      <input type="text" placeholder="検索... (⌘K)" class="text-sm border border-gray-200 rounded-md px-3 py-1.5 w-48 focus:outline-none focus:ring-1 focus:ring-blue-500"
         x-model="searchQuery" @keyup.enter="doSearch()">
     </div>
   </header>
@@ -325,6 +329,7 @@ function app() {
     searchQuery: '',
     transcriptSearch: '',
     dragOver: false,
+    darkMode: localStorage.getItem('darkMode') === 'true',
     apiConnected: false,
     stats: { totalRecordings: 0, totalHours: 0, totalUtterances: 0, uniqueSpeakers: 0 },
     recentJobs: [],
@@ -614,6 +619,12 @@ function app() {
 
     removeToast(id) {
       this.toasts = this.toasts.filter(t => t.id !== id);
+    },
+
+    toggleDarkMode() {
+      this.darkMode = !this.darkMode;
+      localStorage.setItem('darkMode', this.darkMode);
+      document.documentElement.classList.toggle('dark', this.darkMode);
     },
   };
 }
