@@ -295,6 +295,249 @@ GET /api/settings/api-keys/status
 
 ---
 
+## AI Processing
+
+#### 要約生成
+
+```
+POST /api/ai/summarize
+Content-Type: application/json
+
+{ "recording_id": "abc123", "language": "ja" }
+```
+
+**Response:**
+```json
+{
+  "ok": true,
+  "summary": "会議の要約...",
+  "pointNotes": ["ポイント1", "ポイント2"],
+  "actionItems": ["アクション1"],
+  "decisions": ["決定事項1"],
+  "risks": ["リスク1"]
+}
+```
+
+#### 文法修正
+
+```
+POST /api/ai/grammar
+Content-Type: application/json
+
+{ "recording_id": "abc123" }
+```
+
+**Response:**
+```json
+{ "ok": true, "correctedCount": 15 }
+```
+
+#### 翻訳
+
+```
+POST /api/ai/translate
+Content-Type: application/json
+
+{ "recording_id": "abc123", "target_language": "en", "mode": "full" }
+```
+
+**Response:**
+```json
+{ "ok": true, "translatedCount": 120, "targetLanguage": "en" }
+```
+
+#### 要約取得
+
+```
+GET /api/ai/summaries/{recording_id}
+```
+
+**Response:**
+```json
+{
+  "summaries": [
+    {
+      "id": 1,
+      "summaryType": "executive",
+      "language": "ja",
+      "summary": "...",
+      "pointNotes": [],
+      "actionItems": [],
+      "decisions": [],
+      "risks": [],
+      "generatedAt": "2025-01-15T10:30:00Z"
+    }
+  ]
+}
+```
+
+---
+
+## Speakers
+
+#### 録音の話者分析
+
+```
+GET /api/speakers/{recording_id}
+```
+
+**Response:**
+```json
+{
+  "speakers": [
+    {
+      "speaker": "Speaker A",
+      "utterance_count": 45,
+      "total_words": 1200,
+      "avg_wpm": 142,
+      "speed_label": "normal",
+      "estimated_voice_type": "male",
+      "voice_confidence": 0.85
+    }
+  ]
+}
+```
+
+#### 全話者一覧
+
+```
+GET /api/speakers/?limit=50
+```
+
+#### 話者名変更
+
+```
+PUT /api/speakers/{recording_id}/rename?old_name=Speaker+A&new_name=田中
+```
+
+---
+
+## Batch Import
+
+#### 一括インポート
+
+```
+POST /api/batch/batch-import
+Content-Type: application/json
+
+{
+  "files": [
+    { "file_path": "/path/to/file1.mp3" },
+    { "file_path": "/path/to/file2.wav" }
+  ],
+  "auto_start": true
+}
+```
+
+**Response:**
+```json
+{
+  "imported": 2,
+  "failed": 0,
+  "results": [
+    { "id": "abc123", "file_name": "file1.mp3", "duration_seconds": 3600, "tier": "normal", "total_chunks": 1 }
+  ],
+  "errors": []
+}
+```
+
+---
+
+## Exports
+
+#### エクスポート作成
+
+```
+POST /api/exports/
+Content-Type: application/json
+
+{
+  "recording_id": "abc123",
+  "export_type": "pdf",
+  "include_metadata": true,
+  "include_summary": true,
+  "language": "ja"
+}
+```
+
+**Response:**
+```json
+{ "ok": true, "filePath": "/path/to/output.pdf", "exportType": "pdf" }
+```
+
+#### エクスポート履歴
+
+```
+GET /api/exports/history?recording_id=abc123
+```
+
+---
+
+## Analytics
+
+#### 概要統計
+
+```
+GET /api/analytics/overview
+```
+
+**Response:**
+```json
+{
+  "totalRecordings": 150,
+  "totalHours": 245.5,
+  "totalUtterances": 50000,
+  "uniqueSpeakers": 25,
+  "avgWpm": 142.5,
+  "statusCounts": { "done": 140, "failed": 5, "pending": 3, "processing": 2 },
+  "speedCounts": { "slow": 5000, "normal": 40000, "fast": 5000 }
+}
+```
+
+#### 本日の統計
+
+```
+GET /api/analytics/today
+```
+
+#### 話者統計
+
+```
+GET /api/analytics/speakers
+```
+
+---
+
+## Folder Watcher
+
+#### 状態確認
+
+```
+GET /api/watcher/status
+```
+
+**Response:**
+```json
+{ "active": true, "folderPath": "/path/to/watch", "knownFileCount": 15 }
+```
+
+#### 監視開始
+
+```
+POST /api/watcher/start
+Content-Type: application/json
+
+{ "folder_path": "/path/to/watch" }
+```
+
+#### 監視停止
+
+```
+POST /api/watcher/stop
+```
+
+---
+
 ## エラーレスポンス
 
 ```json
