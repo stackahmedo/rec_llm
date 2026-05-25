@@ -39,6 +39,7 @@ type TranscriptFilter = "all" | "questions" | "decisions" | "tasks" | "risks" | 
 const slashCommands = [
   { cmd: "/summary", desc: "Generate executive summary" },
   { cmd: "/translate", desc: "Translate transcript" },
+  { cmd: "/grammar", desc: "Correct grammar and punctuation" },
   { cmd: "/tasks", desc: "Extract action items" },
   { cmd: "/minutes", desc: "Create meeting minutes" },
   { cmd: "/risks", desc: "Identify risks and issues" },
@@ -53,6 +54,7 @@ export function TranscriptWorkspace() {
   const selectedId = activeId;
   const [activeTab, setActiveTab] = useState<AITab>("summary");
   const [generating, setGenerating] = useState(false);
+  const [correcting, setCorrecting] = useState(false);
   const [summaryLang, setSummaryLang] = useState<"en" | "ja">("ja");
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "ai"; text: string; timestamp?: number }[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -124,6 +126,46 @@ export function TranscriptWorkspace() {
     toast.success(t("common.copied"));
   };
 
+  const correctGrammar = useCallback(async () => {
+    if (!active || !active.utterances.length) return;
+    if (!window.electronAPI?.summarize?.correctGrammar) { toast.error("Grammar correction not available"); return; }
+    setCorrecting(true);
+    toast.info("Correcting grammar...", { description: `${active.utterances.length} utterances`, duration: 3000 });
+
+    try {
+      const utterancesForCorrection = active.utterances.map((u, i) => ({
+        speaker: u.speaker,
+        text: u.text,
+        index: i,
+      }));
+
+      const result = await window.electronAPI.summarize.correctGrammar(utterancesForCorrection);
+
+      if (result.ok && result.corrected && result.corrected.length > 0) {
+        // Save corrected version as a chat message (preserves original transcript)
+        const corrections = result.corrected.map((c) =>
+          `[${c.index}] "${c.original}" → "${c.corrected}"`
+        ).join('\n');
+
+        setChatMessages((prev) => [...prev, {
+          role: "ai",
+          text: `Grammar correction complete. ${result.corrected!.length} utterances corrected:\n\n${corrections}`,
+          timestamp: Date.now(),
+        }]);
+        setActiveTab("chat");
+        toast.success(`${result.corrected.length} corrections applied`);
+      } else if (result.ok) {
+        toast.success("No grammar corrections needed");
+      } else {
+        toast.error(result.error || "Grammar correction failed");
+      }
+    } catch {
+      toast.error("Grammar correction failed");
+    } finally {
+      setCorrecting(false);
+    }
+  }, [active]);
+
   const sendChatMessage = () => {
     if (!chatInput.trim()) return;
     const msg = chatInput.trim();
@@ -168,6 +210,8 @@ export function TranscriptWorkspace() {
         toast.info(`Running: ${slashCmd.desc}`, { description: t("common.processing") });
         if (cmd === "/summary" || cmd === "/tasks" || cmd === "/risks" || cmd === "/decisions") {
           generate();
+        } else if (cmd === "/grammar") {
+          correctGrammar();
         }
       } else {
         toast.error(`Unknown command: ${cmd.split(" ")[0]}`);
