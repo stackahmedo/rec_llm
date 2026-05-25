@@ -27,6 +27,7 @@ def create_app(queue: JobQueue) -> FastAPI:
     from app.api.routes_progress import router as progress_router
     from app.api.routes_exports import router as exports_router
     from app.api.routes_watcher import router as watcher_router
+    from app.api.routes_ai import router as ai_router
 
     app.include_router(recordings_router, prefix="/api/recordings", tags=["recordings"])
     app.include_router(jobs_router, prefix="/api/jobs", tags=["jobs"])
@@ -35,6 +36,7 @@ def create_app(queue: JobQueue) -> FastAPI:
     app.include_router(analytics_router, prefix="/api/analytics", tags=["analytics"])
     app.include_router(exports_router, prefix="/api/exports", tags=["exports"])
     app.include_router(watcher_router, prefix="/api/watcher", tags=["watcher"])
+    app.include_router(ai_router, prefix="/api/ai", tags=["ai"])
     app.include_router(progress_router, tags=["progress"])
 
     # Health check
