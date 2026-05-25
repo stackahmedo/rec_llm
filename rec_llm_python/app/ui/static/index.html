@@ -281,14 +281,39 @@ function app() {
       await this.loadDashboard();
       await this.loadRecordings();
       await this.checkApi();
+      this.connectWebSocket();
+    },
+
+    connectWebSocket() {
+      try {
+        const ws = new WebSocket(`ws://${location.host}/ws/progress`);
+        ws.onmessage = (event) => {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'progress') {
+            // Update queue item progress
+            const item = this.queue.find(q => q.jobId === msg.jobId);
+            if (item) {
+              item.progress = msg.progress;
+              if (msg.status === 'done') { item.status = 'done'; this.loadRecordings(); }
+              if (msg.status === 'failed') item.status = 'failed';
+            }
+            // Refresh dashboard
+            this.loadDashboard();
+          }
+        };
+        ws.onclose = () => { setTimeout(() => this.connectWebSocket(), 5000); };
+      } catch {}
     },
 
     async loadDashboard() {
       try {
-        const resp = await fetch('/api/jobs/stats');
+        const resp = await fetch('/api/analytics/overview');
         if (resp.ok) {
           const data = await resp.json();
-          this.stats.totalRecordings = data.total || 0;
+          this.stats.totalRecordings = data.totalRecordings || 0;
+          this.stats.totalHours = data.totalHours || 0;
+          this.stats.totalUtterances = data.totalUtterances || 0;
+          this.stats.uniqueSpeakers = data.uniqueSpeakers || 0;
         }
       } catch {}
       try {
