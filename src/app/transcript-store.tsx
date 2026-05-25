@@ -75,9 +75,20 @@ const Ctx = createContext<TranscriptStore>({
   isLoadingTranscript: false,
 });
 
-// Maximum number of transcripts to keep in memory at once
+// Maximum number of full transcripts (with utterances) to keep in memory at once.
+// Evicted transcripts keep their metadata shell (fileId, fileName, etc.) visible in the list.
 const MAX_CACHED_TRANSCRIPTS = 3;
 const MAX_CACHED_SUMMARIES = 5;
+
+/** Create a lightweight shell of a transcript (no heavy data) */
+function toShell(t: TranscriptResult): TranscriptResult {
+  return { fileId: t.fileId, fileName: t.fileName, fullText: '', languageCode: t.languageCode, utterances: [], completedAt: t.completedAt };
+}
+
+/** Check if a transcript has its full data loaded */
+function isLoaded(t: TranscriptResult): boolean {
+  return t.utterances.length > 0 || t.fullText.length > 0;
+}
 
 /**
  * Push a fileId to loadedIdsRef, deduplicating and enforcing max size.
@@ -152,17 +163,19 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
       if (data.transcript) {
         const transcript = data.transcript;
         setTranscripts((prev) => {
-          // Evict oldest if at capacity — never evict the active or requested transcript
           let updated = [...prev];
-          if (updated.length >= MAX_CACHED_TRANSCRIPTS) {
+
+          // Evict oldest heavy data if at capacity — convert to shell, never remove
+          const loadedCount = updated.filter((t) => isLoaded(t)).length;
+          if (loadedCount >= MAX_CACHED_TRANSCRIPTS) {
             const oldestId = loadedIdsRef.current.find((id) => id !== fileId && id !== activeId);
             if (oldestId) {
-              updated = updated.filter((t) => t.fileId !== oldestId);
+              updated = updated.map((t) => t.fileId === oldestId ? toShell(t) : t);
               loadedIdsRef.current = loadedIdsRef.current.filter((id) => id !== oldestId);
             }
           }
 
-          // Add new transcript
+          // Add or update transcript
           const existingIdx = updated.findIndex((t) => t.fileId === fileId);
           const newTranscript: TranscriptResult = {
             fileId,
@@ -177,8 +190,8 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
             updated[existingIdx] = newTranscript;
           } else {
             updated.push(newTranscript);
-            pushLoadedId(loadedIdsRef, fileId, [activeId]);
           }
+          pushLoadedId(loadedIdsRef, fileId, [activeId]);
           return updated;
         });
       }
@@ -223,12 +236,13 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
         return updated;
       }
 
-      // Evict oldest if at capacity, but never evict the active transcript
+      // Evict oldest heavy data if at capacity — convert to shell, never remove from list
       let updated = [...prev];
-      if (updated.length >= MAX_CACHED_TRANSCRIPTS) {
+      const loadedCount = updated.filter((t) => isLoaded(t)).length;
+      if (loadedCount >= MAX_CACHED_TRANSCRIPTS) {
         const oldestId = loadedIdsRef.current.find((id) => id !== result.fileId && id !== activeId);
         if (oldestId) {
-          updated = updated.filter((t) => t.fileId !== oldestId);
+          updated = updated.map((t) => t.fileId === oldestId ? toShell(t) : t);
           loadedIdsRef.current = loadedIdsRef.current.filter((id) => id !== oldestId);
         }
       }
