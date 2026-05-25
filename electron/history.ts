@@ -184,6 +184,37 @@ async function writeSummary(id: string, data: SummaryData): Promise<void> {
 export function registerHistoryHandlers(): void {
   ipcMain.handle('history:load', async (): Promise<HistoryJob[]> => {
     const metas = await readHistoryMeta();
+    // Migration: backfill metadata for old entries that lack generatedFileName
+    let needsWrite = false;
+    const existingNames = metas.map((m) => m.generatedFileName || '').filter(Boolean);
+    for (const meta of metas) {
+      if (!meta.originalFileName) {
+        meta.originalFileName = meta.fileName;
+        needsWrite = true;
+      }
+      if (!meta.generatedFileName) {
+        const generated = generateFileName(meta.originalFileName || meta.fileName, new Date(meta.completedAt || meta.createdAt));
+        meta.generatedFileName = ensureUniqueName(generated, existingNames);
+        existingNames.push(meta.generatedFileName);
+        needsWrite = true;
+      }
+      if (!meta.displayName) {
+        meta.displayName = meta.generatedFileName;
+        needsWrite = true;
+      }
+      if (!meta.fileExtension) {
+        meta.fileExtension = path.extname(meta.fileName).slice(1).toLowerCase();
+        needsWrite = true;
+      }
+      if (!meta.uploadedAt) { meta.uploadedAt = meta.createdAt; needsWrite = true; }
+      if (!meta.processedAt) { meta.processedAt = meta.completedAt; needsWrite = true; }
+      if (!meta.sourcePath && meta.filePath) { meta.sourcePath = meta.filePath; needsWrite = true; }
+      if (!meta.jobId) { meta.jobId = meta.id; needsWrite = true; }
+      if (!meta.transcriptId) { meta.transcriptId = meta.id; needsWrite = true; }
+    }
+    if (needsWrite) {
+      await writeHistoryMeta(metas);
+    }
     return metas.map((meta) => ({ ...meta }));
   });
 
