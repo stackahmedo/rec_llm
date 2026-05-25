@@ -92,6 +92,7 @@ export function SettingsPanel() {
   const [autoRetry, setAutoRetry] = useState(true);
   const [autoCompress, setAutoCompress] = useState(true);
   const [autoSaveTxt, setAutoSaveTxt] = useState(true);
+  const [noiseReduction, setNoiseReduction] = useState(false);
   const [speakerMemoryEnabled, setSpeakerMemoryEnabled] = useState(true);
 
   // System info
@@ -138,6 +139,7 @@ export function SettingsPanel() {
         if (typeof prefs.autoRetry === 'boolean') setAutoRetry(prefs.autoRetry);
         if (typeof prefs.autoCompress === 'boolean') setAutoCompress(prefs.autoCompress);
         if (typeof prefs.autoSaveTxt === 'boolean') setAutoSaveTxt(prefs.autoSaveTxt);
+        if (typeof prefs.noiseReduction === 'boolean') setNoiseReduction(prefs.noiseReduction);
       }
       const smEnabled = await api.get('speakerMemory.enabled');
       if (smEnabled === false) setSpeakerMemoryEnabled(false);
@@ -226,7 +228,7 @@ export function SettingsPanel() {
     await api.set('apiKeys', keysToSave);
     await api.set('models', { assemblyai: asmModel, gemini: gemModel, chatgpt: gptModel });
     await api.set('openaiProvider', { providerType: gptProviderType, baseUrl: gptBaseUrl });
-    await api.set('preferences', { summaryProvider, asmDiarize, asmLang, summaryLang, autoRetry, autoCompress, autoSaveTxt });
+    await api.set('preferences', { summaryProvider, asmDiarize, asmLang, summaryLang, autoRetry, autoCompress, autoSaveTxt, noiseReduction });
     setDirty(false);
     toast.success(t("settings.saved"));
   };
@@ -298,6 +300,7 @@ export function SettingsPanel() {
               autoRetry={autoRetry} setAutoRetry={(v) => { setAutoRetry(v); markDirty(); }}
               autoCompress={autoCompress} setAutoCompress={(v) => { setAutoCompress(v); markDirty(); }}
               autoSaveTxt={autoSaveTxt} setAutoSaveTxt={(v) => { setAutoSaveTxt(v); markDirty(); }}
+              noiseReduction={noiseReduction} setNoiseReduction={(v) => { setNoiseReduction(v); markDirty(); }}
               asmDiarize={asmDiarize} setAsmDiarize={(v) => { setAsmDiarize(v); markDirty(); }}
               speakerMemory={speakerMemoryEnabled} setSpeakerMemory={(v) => { setSpeakerMemoryEnabled(v); window.electronAPI?.settings?.set('speakerMemory.enabled', v); }}
             />
@@ -851,10 +854,11 @@ function PipelineTab({ summaryProvider }: { summaryProvider: string }) {
 }
 
 // --- Tab: Processing ---
-function ProcessingTab({ autoRetry, setAutoRetry, autoCompress, setAutoCompress, autoSaveTxt, setAutoSaveTxt, asmDiarize, setAsmDiarize, speakerMemory, setSpeakerMemory }: {
+function ProcessingTab({ autoRetry, setAutoRetry, autoCompress, setAutoCompress, autoSaveTxt, setAutoSaveTxt, noiseReduction, setNoiseReduction, asmDiarize, setAsmDiarize, speakerMemory, setSpeakerMemory }: {
   autoRetry: boolean; setAutoRetry: (v: boolean) => void;
   autoCompress: boolean; setAutoCompress: (v: boolean) => void;
   autoSaveTxt: boolean; setAutoSaveTxt: (v: boolean) => void;
+  noiseReduction: boolean; setNoiseReduction: (v: boolean) => void;
   asmDiarize: boolean; setAsmDiarize: (v: boolean) => void;
   speakerMemory: boolean; setSpeakerMemory: (v: boolean) => void;
 }) {
@@ -877,6 +881,16 @@ function ProcessingTab({ autoRetry, setAutoRetry, autoCompress, setAutoCompress,
 
       <SectionLabel>{t("settings.section.output")}</SectionLabel>
       <Row label={t("settings.autoSaveTxt")}><Switch checked={autoSaveTxt} onCheckedChange={setAutoSaveTxt} className="scale-75" /></Row>
+
+      <Separator />
+
+      <SectionLabel>Audio Preprocessing</SectionLabel>
+      <Row label="Noise Reduction">
+        <Switch checked={noiseReduction} onCheckedChange={setNoiseReduction} className="scale-75" />
+      </Row>
+      <div className="text-[9px] text-muted-foreground px-1 -mt-1">
+        Apply FFmpeg noise filter before transcription. Improves accuracy for noisy recordings. May reduce quality for clean audio.
+      </div>
     </div>
   );
 }

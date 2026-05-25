@@ -201,6 +201,18 @@ export function useProcessingEngine() {
         if (metaResult.ok && metaResult.metadata && metaResult.recommendation) {
           updateJob(file.id, { audioMeta: metaResult.metadata, recommendation: metaResult.recommendation, progress: 8 });
 
+          // Step 1.5: Noise reduction (if enabled in settings)
+          const prefs = await window.electronAPI.settings?.get('preferences') as Record<string, unknown> | null;
+          if (prefs?.noiseReduction && window.electronAPI.audio.denoise) {
+            updateJob(file.id, { stage: "analyzing", progress: 9, currentChunkLabel: "Noise reduction..." });
+            const denoiseResult = await window.electronAPI.audio.denoise(file.filePath!);
+            if (denoiseResult.ok && denoiseResult.outputPath) {
+              uploadPath = denoiseResult.outputPath;
+              updateJob(file.id, { progress: 12 });
+            }
+            // If denoise fails, fall through with original file (non-blocking)
+          }
+
           // Check if long-audio pipeline is needed
           if (metaResult.recommendation.action === 'split' && window.electronAPI.longAudio) {
             updateJob(file.id, { stage: "chunking", progress: 10 });
