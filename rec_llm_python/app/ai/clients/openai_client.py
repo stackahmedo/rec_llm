@@ -1,68 +1,87 @@
-"""RecLLM Python Core — OpenAI-compatible AI Client"""
+"""RecLLM Python — OpenAI Client (GPT-4o / GPT-4o-mini)"""
 
-import httpx
-import json
 import logging
+import httpx
 
 logger = logging.getLogger(__name__)
 
+OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
+DEFAULT_MODEL = "gpt-4o-mini"
+
 
 class OpenAIClient:
-    """Async client for OpenAI (or compatible) API."""
+    """Async OpenAI API client for summarization, grammar, and translation."""
 
-    def __init__(self, api_key: str, model: str = "gpt-4o", base_url: str = "https://api.openai.com/v1"):
+    def __init__(self, api_key: str, model: str = DEFAULT_MODEL):
         self.api_key = api_key
         self.model = model
-        self.base_url = base_url.rstrip("/")
         self._client = httpx.AsyncClient(
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=httpx.Timeout(120.0, connect=30.0),
-        )
-
-    async def close(self):
-        await self._client.aclose()
-
-    async def generate(self, prompt: str, system_instruction: str = "") -> str:
-        """Generate text from a prompt."""
-        messages = []
-        if system_instruction:
-            messages.append({"role": "system", "content": system_instruction})
-        messages.append({"role": "user", "content": prompt})
-
-        resp = await self._client.post(
-            f"{self.base_url}/chat/completions",
-            json={
-                "model": self.model,
-                "messages": messages,
-                "temperature": 0.3,
-                "max_tokens": 8192,
+            timeout=120.0,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
             },
         )
-        resp.raise_for_status()
-        data = resp.json()
 
-        choices = data.get("choices", [])
-        if not choices:
-            raise RuntimeError("No response from OpenAI")
+    async def generate(self, prompt: str, system_prompt: str = "") -> str:
+        """Generate text using OpenAI Chat Completions API."""
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
 
-        return choices[0].get("message", {}).get("content", "")
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": 0.3,
+            "max_tokens": 4096,
+        }
 
-    async def generate_json(self, prompt: str, system_instruction: str = "") -> dict:
-        """Generate and parse JSON response."""
-        text = await self.generate(prompt, system_instruction)
-        text = text.strip()
-        if text.startswith("```json"):
-            text = text[7:]
-        if text.startswith("```"):
-            text = text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-        return json.loads(text.strip())
-
-    async def check_connection(self) -> bool:
-        """Verify API key is valid."""
         try:
-            resp = await self._client.get(f"{self.base_url}/models")
-            return resp.status_code == 200
-        except Exception:
-            return False
+            response = await self._client.post(OPENAI_API_URL, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            return data["choices"][0]["message"]["content"].strip()
+        except httpx.HTTPStatusError as e:
+            logger.error("OpenAI API error %d: %s", e.response.status_code, e.response.text[:200])
+            raise RuntimeError(f"OpenAI API error: {e.response.status_code}") from e
+        except Exception as e:
+            logger.error("OpenAI request failed: %s", e)
+            raise
+
+    async def generate_structured(self, prompt: str, system_prompt: str = "") -> str:
+        """Generate with JSON mode enabled."""
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": 0.2,
+            "max_tokens": 4096,
+            "response_format": {"type": "json_object"},
+        }
+
+        try:
+            response = await self._client.post(OPENAI_API_URL, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            return data["choices"][0]["message"]["content"].strip()
+        except httpx.HTTPStatusError as e:
+            logger.error("OpenAI API error %d: %s", e.response.status_code, e.response.text[:200])
+            raise RuntimeError(f"OpenAI API error: {e.response.status_code}") from e
+        except Exception as e:
+            logger.error("OpenAI request failed: %s", e)
+            raise
+
+    async def close(self):
+        """Close the HTTP client."""
+        await self._client.aclose()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        await self.close()
