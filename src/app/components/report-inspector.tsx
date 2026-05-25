@@ -93,6 +93,25 @@ export function ReportInspector({ selectedId }: ReportInspectorProps) {
         </div>
       </div>
 
+      {/* File metadata */}
+      <div className="p-2.5 border-b">
+        <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">Metadata</div>
+        <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[10px]">
+          <div className="text-muted-foreground">Original</div>
+          <div className="truncate" title={job.fileName}>{job.fileName}</div>
+          <div className="text-muted-foreground">Size</div>
+          <div>{(job.sizeBytes / (1024 * 1024)).toFixed(1)} MB</div>
+          {job.audioMeta?.duration && (
+            <>
+              <div className="text-muted-foreground">Duration</div>
+              <div>{Math.floor(job.audioMeta.duration / 60)}m {Math.floor(job.audioMeta.duration % 60)}s</div>
+            </>
+          )}
+          <div className="text-muted-foreground">Created</div>
+          <div>{new Date(job.createdAt).toLocaleString()}</div>
+        </div>
+      </div>
+
       {/* Processing info */}
       {isActive && (
         <div className="p-2.5 border-b">
