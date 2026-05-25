@@ -2,7 +2,7 @@
   "name": "recllm",
   "productName": "Rec LLM",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "AI-powered audio transcription, summarization, and document intelligence desktop app",
   "author": "RecLLM <hello@recllm.app>",
   "license": "MIT",
