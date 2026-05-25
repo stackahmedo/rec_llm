@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   openAudioFiles: (): Promise<AudioFileMeta[]> =>
     ipcRenderer.invoke('dialog:openAudioFiles'),
+  openAudioFolder: (): Promise<AudioFileMeta[]> =>
+    ipcRenderer.invoke('dialog:openAudioFolder'),
   settings: {
     get: (key: string): Promise<unknown> =>
       ipcRenderer.invoke('settings:get', key),

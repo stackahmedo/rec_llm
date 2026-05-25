@@ -86,6 +86,10 @@ interface UploadJobStore {
   updateJob: (id: string, patch: Partial<UploadJob>) => void;
   removeJob: (id: string) => void;
   clearDone: () => void;
+  startAll: () => void;
+  pauseAll: () => void;
+  retryFailed: () => void;
+  removeSelected: (ids: string[]) => void;
   setPreset: (patch: Partial<UploadPreset>) => void;
   getActiveJobs: () => UploadJob[];
   getQueuedJobs: () => UploadJob[];
@@ -98,6 +102,10 @@ const Ctx = createContext<UploadJobStore>({
   updateJob: () => {},
   removeJob: () => {},
   clearDone: () => {},
+  startAll: () => {},
+  pauseAll: () => {},
+  retryFailed: () => {},
+  removeSelected: () => {},
   setPreset: () => {},
   getActiveJobs: () => [],
   getQueuedJobs: () => [],
@@ -163,6 +171,23 @@ export function UploadJobProvider({ children }: { children: ReactNode }) {
     setJobs((prev) => prev.filter((j) => j.stage !== "done"));
   }, []);
 
+  const startAll = useCallback(() => {
+    setJobs((prev) => prev.map((j) => j.stage === "paused" ? { ...j, stage: "queued" as JobStage } : j));
+  }, []);
+
+  const pauseAll = useCallback(() => {
+    setJobs((prev) => prev.map((j) => j.stage === "queued" ? { ...j, stage: "paused" as JobStage } : j));
+  }, []);
+
+  const retryFailed = useCallback(() => {
+    setJobs((prev) => prev.map((j) => j.stage === "failed" ? { ...j, stage: "queued" as JobStage, progress: 0, error: undefined } : j));
+  }, []);
+
+  const removeSelected = useCallback((ids: string[]) => {
+    const idSet = new Set(ids);
+    setJobs((prev) => prev.filter((j) => !idSet.has(j.id)));
+  }, []);
+
   const setPreset = useCallback((patch: Partial<UploadPreset>) => {
     setPresetState((prev) => {
       const updated = { ...prev, ...patch };
@@ -180,7 +205,7 @@ export function UploadJobProvider({ children }: { children: ReactNode }) {
   }, [jobs]);
 
   return (
-    <Ctx.Provider value={{ jobs, preset, addJobs, updateJob, removeJob, clearDone, setPreset, getActiveJobs, getQueuedJobs }}>
+    <Ctx.Provider value={{ jobs, preset, addJobs, updateJob, removeJob, clearDone, startAll, pauseAll, retryFailed, removeSelected, setPreset, getActiveJobs, getQueuedJobs }}>
       {children}
     </Ctx.Provider>
   );

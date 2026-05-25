@@ -289,6 +289,7 @@ interface ElectronLongAudio {
 interface ElectronAPI {
   platform: string;
   openAudioFiles: () => Promise<AudioFileMeta[]>;
+  openAudioFolder: () => Promise<AudioFileMeta[]>;
   settings: ElectronSettings;
   assemblyai: ElectronAssemblyAI;
   summarize: ElectronSummarize;

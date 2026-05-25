@@ -87,6 +87,61 @@ ipcMain.handle('dialog:openAudioFiles', async (): Promise<AudioFileMeta[]> => {
   return files;
 });
 
+// Recursive folder scan for audio files
+function scanFolderForAudio(dirPath: string): AudioFileMeta[] {
+  const results: AudioFileMeta[] = [];
+  let counter = 0;
+
+  function walk(dir: string) {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return; // Skip inaccessible directories
+    }
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(fullPath);
+      } else if (entry.isFile()) {
+        const ext = path.extname(entry.name).slice(1).toLowerCase();
+        if (AUDIO_EXTENSIONS.includes(ext)) {
+          try {
+            const stat = fs.statSync(fullPath);
+            results.push({
+              id: `folder-${Date.now()}-${counter++}`,
+              fileName: entry.name,
+              filePath: fullPath,
+              sizeBytes: stat.size,
+              extension: ext,
+              status: 'queued',
+              createdAt: new Date().toISOString(),
+            });
+          } catch {
+            // Skip files we can't stat
+          }
+        }
+      }
+    }
+  }
+
+  walk(dirPath);
+  return results;
+}
+
+ipcMain.handle('dialog:openAudioFolder', async (): Promise<AudioFileMeta[]> => {
+  const win = BrowserWindow.getFocusedWindow();
+  if (!win) return [];
+
+  const result = await dialog.showOpenDialog(win, {
+    title: 'Select Audio Folder',
+    properties: ['openDirectory'],
+  });
+
+  if (result.canceled || result.filePaths.length === 0) return [];
+  return scanFolderForAudio(result.filePaths[0]);
+});
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1400,

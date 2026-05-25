@@ -74,6 +74,12 @@ const en: Dict = {
   "upload.viewDetails": "View details",
   "upload.restart": "Restart pipeline",
   "upload.remove": "Remove",
+  "upload.addFolder": "Add Folder",
+  "upload.startAll": "Start All",
+  "upload.pauseAll": "Pause All",
+  "upload.retryFailed": "Retry Failed",
+  "upload.removeSelected": "Remove",
+  "upload.addedFiles": "files added to queue",
 
   // Stages
   "stage.queued": "Queued",
@@ -397,6 +403,12 @@ const ja: Dict = {
   "upload.viewDetails": "詳細を表示",
   "upload.restart": "パイプラインを再開",
   "upload.remove": "削除",
+  "upload.addFolder": "フォルダを追加",
+  "upload.startAll": "すべて開始",
+  "upload.pauseAll": "すべて一時停止",
+  "upload.retryFailed": "失敗を再試行",
+  "upload.removeSelected": "削除",
+  "upload.addedFiles": "件をキューに追加",
 
   // Stages
   "stage.queued": "待機中",

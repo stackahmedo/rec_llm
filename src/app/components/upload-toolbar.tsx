@@ -1,10 +1,10 @@
 import { useCallback, useRef, useState } from "react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { UploadCloud, Plus, Layers } from "lucide-react";
+import { UploadCloud, Plus, FolderOpen, Layers, Play, Pause, RotateCw, Trash2 } from "lucide-react";
 import { useUploadJobs, UploadJob, JobStage } from "../upload-job-store";
-import { UploadConfirmDialog } from "./upload-confirm-dialog";
 import { useT } from "../i18n";
+import { toast } from "sonner";
 
 function formatBytes(b: number) {
   if (b < 1024) return `${b} B`;
@@ -16,35 +16,45 @@ function formatBytes(b: number) {
 }
 
 export function UploadToolbar() {
-  const { jobs, addJobs } = useUploadJobs();
+  const { jobs, addJobs, clearDone, startAll, pauseAll, retryFailed } = useUploadJobs();
+  const { t } = useT();
   const [drag, setDrag] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [pendingFiles, setPendingFiles] = useState<UploadJob[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const stats = {
     total: jobs.length,
-    active: jobs.filter((j) => ["uploading", "transcribing", "analyzing", "summarizing", "saving"].includes(j.stage)).length,
+    active: jobs.filter((j) => ["uploading", "transcribing", "analyzing", "summarizing", "saving", "chunking"].includes(j.stage)).length,
     queued: jobs.filter((j) => j.stage === "queued").length,
+    paused: jobs.filter((j) => j.stage === "paused").length,
     done: jobs.filter((j) => j.stage === "done").length,
     failed: jobs.filter((j) => j.stage === "failed").length,
   };
 
+  const addFilesToQueue = (incoming: UploadJob[]) => {
+    if (incoming.length === 0) return;
+    addJobs(incoming);
+    toast.success(`${incoming.length} ${t("upload.addedFiles")}`, { duration: 2000 });
+  };
+
   const handleFiles = (list: FileList | null) => {
     if (!list || list.length === 0) return;
-    const incoming: UploadJob[] = Array.from(list).map((file, i) => ({
-      id: `u${Date.now()}-${i}`,
-      fileName: file.name,
-      sizeBytes: file.size,
-      format: (file.name.split(".").pop() || "AUD").toUpperCase(),
-      speakers: 0,
-      language: "auto",
-      stage: "paused" as JobStage,
-      progress: 0,
-      createdAt: Date.now(),
-    }));
-    setPendingFiles(incoming);
-    setConfirmOpen(true);
+    const incoming: UploadJob[] = Array.from(list)
+      .filter((file) => {
+        const ext = file.name.split(".").pop()?.toLowerCase() || "";
+        return ["mp3", "wav", "m4a", "mp4", "aac", "flac", "ogg"].includes(ext);
+      })
+      .map((file, i) => ({
+        id: `u${Date.now()}-${i}`,
+        fileName: file.name,
+        sizeBytes: file.size,
+        format: (file.name.split(".").pop() || "AUD").toUpperCase(),
+        speakers: 0,
+        language: "auto",
+        stage: "queued" as JobStage,
+        progress: 0,
+        createdAt: Date.now(),
+      }));
+    addFilesToQueue(incoming);
   };
 
   const openNativePicker = async () => {
@@ -61,25 +71,34 @@ export function UploadToolbar() {
       format: meta.extension.toUpperCase(),
       speakers: 0,
       language: "auto",
-      stage: "paused" as JobStage,
+      stage: "queued" as JobStage,
       progress: 0,
       createdAt: Date.now(),
       filePath: meta.filePath,
     }));
-    setPendingFiles(incoming);
-    setConfirmOpen(true);
+    addFilesToQueue(incoming);
   };
 
-  const handleConfirmStart = (fileIds: string[]) => {
-    const confirmed = pendingFiles
-      .filter((f) => fileIds.includes(f.id))
-      .map((f) => ({ ...f, stage: "queued" as JobStage }));
-    addJobs(confirmed);
-    setPendingFiles([]);
-  };
-
-  const handleRemovePending = (id: string) => {
-    setPendingFiles((prev) => prev.filter((f) => f.id !== id));
+  const openFolderPicker = async () => {
+    if (!window.electronAPI?.openAudioFolder) {
+      toast.error(t("notify.notAvailable"));
+      return;
+    }
+    const results = await window.electronAPI.openAudioFolder();
+    if (results.length === 0) return;
+    const incoming: UploadJob[] = results.map((meta) => ({
+      id: meta.id,
+      fileName: meta.fileName,
+      sizeBytes: meta.sizeBytes,
+      format: meta.extension.toUpperCase(),
+      speakers: 0,
+      language: "auto",
+      stage: "queued" as JobStage,
+      progress: 0,
+      createdAt: Date.now(),
+      filePath: meta.filePath,
+    }));
+    addFilesToQueue(incoming);
   };
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -90,23 +109,48 @@ export function UploadToolbar() {
   }, []);
 
   return (
-    <>
     <div
-      className={`h-10 border-b flex items-center gap-2 px-3 shrink-0 transition-colors ${drag ? "bg-primary/10 border-primary" : "bg-muted/20"}`}
+      className={`h-10 border-b flex items-center gap-1.5 px-3 shrink-0 transition-colors ${drag ? "bg-primary/10 border-primary" : "bg-muted/20"}`}
       onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
       onDragLeave={() => setDrag(false)}
       onDrop={onDrop}
     >
+      {/* Add files */}
       <Button type="button" size="sm" variant="default" className="h-7 text-xs gap-1.5" onClick={openNativePicker}>
-        <Plus className="size-3" />Add Files
+        <Plus className="size-3" />{t("upload.select")}
+      </Button>
+      <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={openFolderPicker}>
+        <FolderOpen className="size-3" />{t("upload.selectFolder")}
       </Button>
 
       <div className="text-[10px] text-muted-foreground flex-1">
-        {drag ? "Drop files to add..." : "or drag audio files here"}
+        {drag ? t("upload.release") : ""}
       </div>
 
+      {/* Batch actions */}
+      {stats.paused > 0 && (
+        <Button type="button" size="sm" variant="ghost" className="h-6 text-[10px] gap-1 px-2" onClick={startAll}>
+          <Play className="size-2.5" />{t("upload.startAll")}
+        </Button>
+      )}
+      {stats.queued > 0 && (
+        <Button type="button" size="sm" variant="ghost" className="h-6 text-[10px] gap-1 px-2" onClick={pauseAll}>
+          <Pause className="size-2.5" />{t("upload.pauseAll")}
+        </Button>
+      )}
+      {stats.failed > 0 && (
+        <Button type="button" size="sm" variant="ghost" className="h-6 text-[10px] gap-1 px-2 text-red-600" onClick={retryFailed}>
+          <RotateCw className="size-2.5" />{t("upload.retryFailed")}
+        </Button>
+      )}
+      {stats.done > 0 && (
+        <Button type="button" size="sm" variant="ghost" className="h-6 text-[10px] gap-1 px-2" onClick={clearDone}>
+          <Trash2 className="size-2.5" />{t("upload.clearDone")}
+        </Button>
+      )}
+
       {/* Stats */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5 ml-1">
         {stats.total > 0 && (
           <>
             <Badge variant="outline" className="h-5 text-[10px] gap-1 font-mono">
@@ -140,14 +184,5 @@ export function UploadToolbar() {
         onChange={(e) => handleFiles(e.target.files)}
       />
     </div>
-
-    <UploadConfirmDialog
-      open={confirmOpen}
-      onOpenChange={(v) => { if (!v) setPendingFiles([]); setConfirmOpen(v); }}
-      files={pendingFiles}
-      onConfirm={handleConfirmStart}
-      onRemoveFile={handleRemovePending}
-    />
-    </>
   );
 }
