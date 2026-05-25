@@ -1,10 +1,11 @@
 """RecLLM Python Core — Recordings API Routes"""
 
 import uuid
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from pydantic import BaseModel
 
 from app.config import RECORDINGS_DIR, AUDIO_EXTENSIONS, ensure_dirs
@@ -107,6 +108,90 @@ async def import_file(file_path: str):
         "recommendation": recommendation.reason,
         "total_chunks": recommendation.total_chunks,
     }
+
+
+@router.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    """Upload an audio file via multipart form data."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No filename provided")
+
+    ext = Path(file.filename).suffix.lstrip(".").lower()
+    if ext not in AUDIO_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Unsupported format: {ext}")
+
+    ensure_dirs()
+    recording_id = str(uuid.uuid4())[:12]
+    save_path = RECORDINGS_DIR / f"{recording_id}.{ext}"
+
+    # Save uploaded file
+    with open(save_path, "wb") as f:
+        content = await file.read()
+        f.write(content)
+
+    # Get metadata
+    try:
+        meta = get_audio_metadata(str(save_path))
+    except Exception as e:
+        save_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail=f"Cannot read audio: {str(e)}")
+
+    recommendation = get_tier_recommendation(meta.duration_seconds)
+    now = datetime.now(timezone.utc).isoformat()
+
+    with get_cursor() as cur:
+        cur.execute(
+            """INSERT INTO recordings (id, original_file_name, file_path, file_extension, size_bytes,
+               duration_seconds, language_code, status, imported_at, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (recording_id, file.filename, str(save_path), ext, len(content),
+             meta.duration_seconds, "auto", "pending", now, now),
+        )
+
+    return {
+        "id": recording_id,
+        "file_name": file.filename,
+        "duration_seconds": meta.duration_seconds,
+        "size_bytes": len(content),
+        "tier": recommendation.tier.value,
+        "recommendation": recommendation.reason,
+        "total_chunks": recommendation.total_chunks,
+    }
+
+
+@router.put("/{recording_id}/utterances/{utterance_id}")
+async def update_utterance(recording_id: str, utterance_id: int, text: str = Form(...)):
+    """Edit a single utterance's text (transcript editing)."""
+    with get_cursor() as cur:
+        cur.execute(
+            "SELECT id FROM utterances WHERE id = ? AND recording_id = ?",
+            (utterance_id, recording_id),
+        )
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Utterance not found")
+
+        cur.execute(
+            "UPDATE utterances SET corrected_text = ? WHERE id = ?",
+            (text, utterance_id),
+        )
+
+    return {"ok": True, "utterance_id": utterance_id}
+
+
+@router.put("/{recording_id}/speaker")
+async def rename_speaker(recording_id: str, old_name: str = Form(...), new_name: str = Form(...)):
+    """Rename a speaker across all utterances in a recording."""
+    with get_cursor() as cur:
+        cur.execute(
+            "UPDATE utterances SET speaker = ? WHERE recording_id = ? AND speaker = ?",
+            (new_name, recording_id, old_name),
+        )
+        count = cur.rowcount
+
+    if count == 0:
+        raise HTTPException(status_code=404, detail=f"Speaker '{old_name}' not found")
+
+    return {"ok": True, "renamed": count}
 
 
 @router.delete("/{recording_id}")
