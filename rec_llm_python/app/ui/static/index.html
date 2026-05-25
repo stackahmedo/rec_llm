@@ -270,6 +270,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
     <div class="mb-4 flex items-center justify-between">
       <button @click="currentView = 'transcripts'" class="text-sm text-blue-600 hover:text-blue-800">← 一覧に戻る</button>
       <div class="flex gap-2">
+        <button @click="copyTranscript()" class="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">コピー</button>
         <button @click="exportTranscript('txt')" class="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">TXT出力</button>
         <button @click="exportTranscript('pdf')" class="text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700">PDF出力</button>
       </div>
@@ -551,6 +552,19 @@ function app() {
           this.currentUtterances = data.utterances || [];
         }
       } catch {}
+    },
+
+    async copyTranscript() {
+      if (!this.currentUtterances.length) return;
+      const text = this.currentUtterances.map(u =>
+        `[${this.msToTime(u.start_ms)}] ${u.speaker}: ${u.corrected_text || u.text}`
+      ).join('\n');
+      try {
+        await navigator.clipboard.writeText(text);
+        this.showToast('クリップボードにコピーしました', 'success');
+      } catch {
+        this.showToast('コピーに失敗しました', 'error');
+      }
     },
 
     async exportTranscript(type) {
