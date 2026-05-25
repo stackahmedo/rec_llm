@@ -128,12 +128,30 @@ export function TranscriptWorkspace() {
     if (!chatInput.trim()) return;
     const msg = chatInput.trim();
     setChatMessages((prev) => [...prev, { role: "user", text: msg, timestamp: Date.now() }]);
-    // Chat AI backend not yet connected — show informative message
-    setTimeout(() => {
-      setChatMessages((prev) => [...prev, { role: "ai", text: "Chat with transcript is not yet available. This feature will connect to your configured AI provider for context-aware Q&A about this transcript in a future update.", timestamp: Date.now() }]);
-      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 300);
     setChatInput("");
+
+    // Call AI chat backend
+    const api = window.electronAPI?.summarize;
+    if (!api?.chat || !active) {
+      setChatMessages((prev) => [...prev, { role: "ai", text: "Chat requires an active transcript and configured AI provider. Check Settings.", timestamp: Date.now() }]);
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+
+    const context = active.fullText || active.utterances.map((u) => `[${u.speaker}]: ${u.text}`).join('\n');
+    const history = chatMessages.slice(-6).map((m) => ({ role: m.role === "user" ? "user" : "assistant", text: m.text }));
+
+    api.chat(msg, context, history).then((result) => {
+      if (result.ok && result.reply) {
+        setChatMessages((prev) => [...prev, { role: "ai", text: result.reply!, timestamp: Date.now() }]);
+      } else {
+        setChatMessages((prev) => [...prev, { role: "ai", text: result.error || "Failed to get response. Check your AI provider settings.", timestamp: Date.now() }]);
+      }
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }).catch(() => {
+      setChatMessages((prev) => [...prev, { role: "ai", text: "Connection error. Please try again.", timestamp: Date.now() }]);
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    });
   };
 
   const handleAiCommand = () => {

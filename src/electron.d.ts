@@ -42,6 +42,11 @@ interface ElectronSummarize {
     error?: string;
     suggestions?: Array<{ speakerLabel: string; suggestedName: string; confidence: number; reason: string; evidenceTimestamp?: string }>;
   }>;
+  chat: (question: string, transcriptContext: string, history?: Array<{ role: string; text: string }>) => Promise<{
+    ok: boolean;
+    error?: string;
+    reply?: string;
+  }>;
 }
 
 interface PdfHeaderConfig {

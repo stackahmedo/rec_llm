@@ -71,6 +71,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       error?: string;
       suggestions?: Array<{ speakerLabel: string; suggestedName: string; confidence: number; reason: string; evidenceTimestamp?: string }>;
     }> => ipcRenderer.invoke('summarize:suggestSpeakers', { utterances }),
+    chat: (question: string, transcriptContext: string, history?: Array<{ role: string; text: string }>): Promise<{
+      ok: boolean;
+      error?: string;
+      reply?: string;
+    }> => ipcRenderer.invoke('summarize:chat', { question, transcriptContext, history }),
   },
   pdf: {
     exportReport: (data: PdfExportData): Promise<{ ok: boolean; error?: string; filePath?: string }> =>

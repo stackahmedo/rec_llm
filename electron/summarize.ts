@@ -437,4 +437,43 @@ export function registerSummarizeHandlers(): void {
       return { ok: false, error: formatProviderError(err) };
     }
   });
+
+  // Chat with transcript — context-aware Q&A
+  ipcMain.handle('summarize:chat', async (_event, request: unknown): Promise<{ ok: boolean; error?: string; reply?: string }> => {
+    if (!request || typeof request !== 'object') return { ok: false, error: 'Invalid request' };
+    const data = request as { question: string; transcriptContext: string; history?: Array<{ role: string; text: string }> };
+    if (!data.question || !data.transcriptContext) {
+      return { ok: false, error: 'Question and transcript context are required' };
+    }
+
+    const { apiKeys, models, preferences, openaiProvider } = await getSettings();
+    const provider = (preferences.summaryProvider as string) || 'gemini';
+    const apiKey = apiKeys[provider];
+    const model = models[provider] || (provider === 'gemini' ? 'gemini-2.5-flash' : 'gpt-4o');
+    const openaiBaseUrl = provider !== 'gemini'
+      ? (openaiProvider?.providerType === 'custom' ? openaiProvider.baseUrl : DEFAULT_OPENAI_BASES[provider])
+      : undefined;
+
+    const configError = validateProviderConfig(provider, apiKey, model, openaiBaseUrl);
+    if (configError) return { ok: false, error: configError };
+
+    try {
+      // Build chat prompt with transcript context
+      const historyText = data.history?.slice(-6).map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.text}`).join('\n') || '';
+      const prompt = `You are an AI assistant helping analyze a transcript. Answer the user's question based on the transcript content below. Be concise and specific. If the answer is not in the transcript, say so.
+
+TRANSCRIPT (excerpt):
+${data.transcriptContext.slice(0, 30000)}
+
+${historyText ? `CONVERSATION HISTORY:\n${historyText}\n` : ''}
+USER QUESTION: ${data.question}
+
+Answer in the same language as the question. Be direct and helpful.`;
+
+      const reply = await callLLM(provider, apiKey, model, prompt, openaiBaseUrl);
+      return { ok: true, reply: reply.trim() };
+    } catch (err: any) {
+      return { ok: false, error: formatProviderError(err) };
+    }
+  });
 }
