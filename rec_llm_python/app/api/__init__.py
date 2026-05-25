@@ -1,10 +1,15 @@
 """RecLLM Python Core — FastAPI Application Factory"""
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
+import logging
 
 from app.core.job_queue import JobQueue
+
+logger = logging.getLogger(__name__)
 
 
 def create_app(queue: JobQueue) -> FastAPI:
@@ -14,6 +19,24 @@ def create_app(queue: JobQueue) -> FastAPI:
         version="0.3.0",
         description="AI-powered audio transcription and document intelligence",
     )
+
+    # CORS middleware (allow pywebview and local dev)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Global error handler
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        logger.error("Unhandled error: %s", exc, exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Internal server error: {type(exc).__name__}"},
+        )
 
     # Store queue in app state
     app.state.queue = queue
