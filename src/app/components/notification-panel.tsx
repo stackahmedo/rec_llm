@@ -31,7 +31,7 @@ export function NotificationButton({ onClick, className }: { onClick: () => void
       size="icon"
       className={`relative h-9 w-9 ${className || ""}`}
       onClick={onClick}
-      title="Notifications"
+      title="通知"
     >
       <Bell className="size-4" />
       {unread > 0 && (

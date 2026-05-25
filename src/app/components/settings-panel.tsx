@@ -1116,7 +1116,7 @@ function AdvancedTab({ ffmpegOk, storageSize, transcriptCount, resetAll }: {
         <div className="flex items-center gap-2 text-[11px]">
           <span className={`size-2 rounded-full ${ffmpegOk ? "bg-emerald-500" : ffmpegOk === null ? "bg-yellow-500" : "bg-red-500"}`} />
           <span>FFmpeg</span>
-          <span className="text-muted-foreground ml-auto font-mono">{ffmpegOk ? "Ready" : ffmpegOk === null ? "Checking..." : "Not found"}</span>
+          <span className="text-muted-foreground ml-auto font-mono">{ffmpegOk ? "準備完了" : ffmpegOk === null ? "確認中..." : "未検出"}</span>
         </div>
         <div className="flex items-center gap-2 text-[11px]">
           <span className="size-2 rounded-full bg-slate-400" />
