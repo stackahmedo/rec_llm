@@ -1,59 +1,68 @@
-# RecLLM v0.2.0 — Changelog
+# Changelog
 
-## Release Date: 2025-01-XX
+All notable changes to RecLLM are documented here.
 
-## Major Features
+## [0.3.1] - 2026-05-26
 
-### Enterprise Audio Pipeline
-- **30-hour audio support** — Enterprise mode with 25-minute chunks, sequential processing
-- **Streaming merge** — Incremental disk writes, no RAM accumulation for large recordings
-- **Parallel chunk processing** — Configurable concurrency (1-5 workers) with rate-limit protection
-- **Crash recovery** — Orphaned jobs automatically reset to queued on restart
+### Added
+- AI processing API — summarize, grammar correction, translate endpoints
+- Speaker analysis API — per-recording analysis, global speaker list, rename
+- Batch import API — multi-file import with validation and tier routing
+- Folder watcher API — start/stop/status for auto-import
+- OpenAI client (GPT-4o / GPT-4o-mini) with JSON mode
+- Gemini client (gemini-1.5-flash) for summarization
+- AssemblyAI client — upload, transcribe, poll with speaker diarization
+- Web UI transcript detail viewer — utterance list, WPM badges, export buttons
+- Web UI WebSocket progress — real-time job status updates
+- Web UI file upload wired to API — drag-and-drop + upload
+- Web UI recording list — status badges, duration, speaker count, delete with confirm
+- CORS middleware + global error handler
+- Request logging middleware + rate limiter module
+- Database migration system — forward-only numbered migrations
+- System health check — DB status, disk space, FFmpeg, API keys
+- GitHub Actions CI workflow — TypeScript build+test, Python pytest
+- OpenAPI schema export — 35 endpoints auto-documented
+- Startup script with CLI flags (--port, --host, --reload, --desktop)
+- Python backend README with architecture docs
+- Extended API integration tests (118 total)
 
-### AI Intelligence
-- **AI Chat** — Real LLM-powered Q&A about transcript content
-- **Translation** — Full, bilingual, and by-speaker translation modes
-- **Grammar correction** — `/grammar` slash command for post-transcription cleanup
-- **MapReduce summarization** — Hierarchical multi-level summary for 100+ file batches
-- **Auto-summarize** — Triggers automatically after transcription completes
-- **Speaker suggestion** — AI-powered speaker name identification
+### Fixed
+- Search route `completed_at` → `processed_at` column reference
+- Database singleton isolation for test parallelism
+- FastAPI version string consistency
 
-### Audio Processing
-- **Noise reduction** — Optional FFmpeg afftdn preprocessing (Settings toggle)
-- **Speaking speed detection** — WPM calculation per utterance (slow/normal/fast)
-- **Recording date extraction** — From filename patterns, file metadata, audio tags
-- **Voice gender estimation** — Pitch-based heuristic classification
+## [0.3.0] - 2026-05-26
 
-### Workflow Automation
-- **Folder watcher** — Monitor a folder for new audio files, auto-queue for processing
-- **Batch processing** — One-click processing for entire folders (100+ files)
-- **Processing log** — Timestamped events written to disk for debugging
+### Added
+- Complete Python FastAPI backend (dual-stack delivery)
+- File upload API + transcript editing + speaker rename
+- Settings manager — obfuscated API key storage
+- Exports API — PDF/TXT/DOCX endpoints + export history
+- Analytics API — overview, today stats, speaker stats
+- Search API — FTS5 full-text search with filters
+- Job queue with crash recovery + orphan detection
+- Transcription worker — chunked pipeline for long audio
+- Audio tier routing (Normal < 2h, Long 2-10h, Enterprise 10-30h)
+- Web UI SPA — Alpine.js + Tailwind CSS dashboard
+- pywebview desktop wrapper
+- Windows build support (PyInstaller)
 
-### Analytics
-- **Real data analytics** — Processing stats, speed distribution, job status from actual history
-- **Replaced all mock/demo data** with live transcript statistics
+## [0.2.0] - 2026-05-25
 
-### UI/UX
-- **Report inspector** — File metadata panel (original name, size, duration, date)
-- **Multi-file upload redesign** — Improved batch upload experience
-- **Preview badges** — Mock features clearly labeled as "Preview" or "Coming Soon"
+### Added
+- TypeScript/Electron desktop application
+- AssemblyAI transcription integration
+- Gemini AI summarization + grammar correction
+- Speaker diarization + WPM analysis
+- SQLite database with FTS5 search
+- PDF/TXT/DOCX export
+- Folder watcher for auto-import
+- Settings UI with API key management
 
-## Technical Improvements
-- 55 automated tests (stress tests for 100-file scale, streaming merge, MapReduce)
-- TypeScript strict compilation for both renderer and electron main
-- Processing log file with rotation (5MB max)
-- Pipeline state persistence with checkpoint/resume
-- Tier-based routing: normal → long_audio → enterprise → blocked
+## [0.1.0] - 2026-05-24
 
-## Architecture
-- Electron 34 + React 19 + Vite 6
-- AssemblyAI for speech-to-text
-- Gemini/OpenAI/Groq for AI features
-- FFmpeg bundled (no external install needed)
-- Self-contained Windows NSIS installer
-
-## Requirements
-- Windows 10/11 (64-bit)
-- No external dependencies (Node.js, Python, FFmpeg all bundled)
-- AssemblyAI API key required for transcription
-- Gemini or OpenAI API key required for AI features
+### Added
+- Initial project structure
+- Audio file import + metadata extraction
+- FFmpeg integration for format conversion
+- Basic transcription pipeline
