@@ -48,19 +48,62 @@ export function SearchPanel({ open, onOpenChange, onNavigate }: SearchPanelProps
   }, [open]);
 
   // Debounced search
-  const doSearch = useCallback((q: string, f: SearchFilters) => {
+  const doSearch = useCallback(async (q: string, f: SearchFilters) => {
     if (!q.trim()) {
       setResults([]);
       setLoading(false);
       return;
     }
     setLoading(true);
-    // Use setTimeout to avoid blocking UI on large datasets
-    setTimeout(() => {
-      const res = searchAppData(q, transcripts, summaries, history, f);
-      setResults(res);
-      setLoading(false);
-    }, 10);
+
+    // In-memory search (loaded transcripts)
+    const memResults = searchAppData(q, transcripts, summaries, history, f);
+
+    // Backend search (disk/SQLite — covers unloaded transcripts)
+    let backendResults: SearchResult[] = [];
+    try {
+      const api = window.electronAPI?.history as any;
+      if (api?.search) {
+        const resp = await api.search(q, {
+          dateFrom: f.dateFrom,
+          dateTo: f.dateTo,
+          language: f.language,
+          speaker: f.speaker,
+        });
+        if (resp?.ok && resp.results) {
+          // Convert backend results to SearchResult format, dedup against memory results
+          const memIds = new Set(memResults.map((r) => r.id));
+          for (const r of resp.results) {
+            const id = `be-${r.fileId}-${r.matchField}-${r.matchedText?.slice(0, 20)}`;
+            if (memIds.has(id)) continue;
+            // Skip if already matched same file+field in memory results
+            if (memResults.some((m) => m.fileId === r.fileId && m.matchField === r.matchField && m.matchedText === r.matchedText)) continue;
+            backendResults.push({
+              id,
+              type: r.matchField === 'Summary' ? 'summary' : r.matchField === 'File name' ? 'history' : 'transcript',
+              fileId: r.fileId,
+              fileName: r.fileName,
+              matchedText: r.matchedText,
+              matchField: r.matchField,
+              date: r.date || '',
+              language: r.language || '',
+              speaker: r.speaker,
+              timestamp: r.timestamp,
+              hasSummary: false,
+              hasPdf: false,
+              status: 'done',
+            });
+          }
+        }
+      }
+    } catch {
+      // Backend search failure is non-critical
+    }
+
+    // Merge: memory results first, then backend results
+    const combined = [...memResults, ...backendResults].slice(0, 50);
+    setResults(combined);
+    setLoading(false);
   }, [transcripts, summaries, history]);
 
   const handleQueryChange = (value: string) => {
