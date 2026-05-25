@@ -363,6 +363,133 @@ export function registerHistoryHandlers(): void {
     return true;
   });
 
+  // --- Full-text search across all stored transcripts ---
+  ipcMain.handle('history:search', async (_event, query: unknown, filters?: unknown): Promise<{
+    ok: boolean;
+    results: Array<{
+      fileId: string;
+      fileName: string;
+      matchedText: string;
+      matchField: string;
+      speaker?: string;
+      timestamp?: string;
+      date?: string;
+      language?: string;
+    }>;
+  }> => {
+    if (typeof query !== 'string' || !query.trim()) return { ok: true, results: [] };
+    const q = query.trim().toLowerCase();
+    const filterData = (filters && typeof filters === 'object') ? filters as Record<string, string> : {};
+
+    const results: Array<{
+      fileId: string;
+      fileName: string;
+      matchedText: string;
+      matchField: string;
+      speaker?: string;
+      timestamp?: string;
+      date?: string;
+      language?: string;
+    }> = [];
+
+    try {
+      const metas = await readHistoryMeta();
+      const MAX_RESULTS = 100;
+
+      for (const meta of metas) {
+        if (results.length >= MAX_RESULTS) break;
+
+        // Apply date filter
+        if (filterData.dateFrom && meta.completedAt && meta.completedAt < filterData.dateFrom) continue;
+        if (filterData.dateTo && meta.completedAt && meta.completedAt > filterData.dateTo + 'T23:59:59') continue;
+        if (filterData.language && meta.languageCode && meta.languageCode !== filterData.language) continue;
+
+        // Match file name
+        if (meta.fileName?.toLowerCase().includes(q)) {
+          results.push({
+            fileId: meta.id,
+            fileName: meta.fileName,
+            matchedText: meta.fileName,
+            matchField: 'File name',
+            date: meta.completedAt,
+            language: meta.languageCode,
+          });
+        }
+
+        // Search transcript file on disk
+        const transcript = await readTranscript(meta.id);
+        if (!transcript) continue;
+
+        let fileMatches = 0;
+        for (const u of transcript.utterances || []) {
+          if (fileMatches >= 5) break; // Max 5 matches per file
+          if (results.length >= MAX_RESULTS) break;
+
+          // Speaker filter
+          if (filterData.speaker && !u.speaker.toLowerCase().includes(filterData.speaker.toLowerCase())) continue;
+
+          if (u.text.toLowerCase().includes(q)) {
+            const idx = u.text.toLowerCase().indexOf(q);
+            const start = Math.max(0, idx - 40);
+            const end = Math.min(u.text.length, idx + q.length + 40);
+            let snippet = u.text.slice(start, end);
+            if (start > 0) snippet = '...' + snippet;
+            if (end < u.text.length) snippet += '...';
+
+            results.push({
+              fileId: meta.id,
+              fileName: meta.fileName || meta.id,
+              matchedText: snippet,
+              matchField: 'Transcript',
+              speaker: u.speaker,
+              timestamp: msToTimestamp(u.startMs),
+              date: meta.completedAt,
+              language: meta.languageCode,
+            });
+            fileMatches++;
+          }
+        }
+
+        // Search summary
+        const summary = await readSummary(meta.id);
+        if (summary && results.length < MAX_RESULTS) {
+          const summaryTexts = [
+            summary.summary,
+            ...(summary.pointNotes || []),
+            ...(summary.actionItems || []),
+            ...(summary.decisions || []),
+            ...(summary.risks || []),
+          ];
+          for (const text of summaryTexts) {
+            if (!text) continue;
+            if (text.toLowerCase().includes(q)) {
+              const idx = text.toLowerCase().indexOf(q);
+              const start = Math.max(0, idx - 40);
+              const end = Math.min(text.length, idx + q.length + 40);
+              let snippet = text.slice(start, end);
+              if (start > 0) snippet = '...' + snippet;
+              if (end < text.length) snippet += '...';
+
+              results.push({
+                fileId: meta.id,
+                fileName: meta.fileName || meta.id,
+                matchedText: snippet,
+                matchField: 'Summary',
+                date: summary.generatedAt,
+                language: summary.language,
+              });
+              break; // One summary match per file
+            }
+          }
+        }
+      }
+
+      return { ok: true, results };
+    } catch {
+      return { ok: true, results: [] };
+    }
+  });
+
   // --- Document edit persistence ---
   ipcMain.handle('document:save', async (_event, fileId: unknown, data: unknown): Promise<boolean> => {
     const v = validateSchema(documentIdSchema, fileId);

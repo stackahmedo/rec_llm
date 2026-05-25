@@ -106,6 +106,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     save: (job: HistoryJobPayload): Promise<boolean> => ipcRenderer.invoke('history:save', job),
     delete: (id: string): Promise<boolean> => ipcRenderer.invoke('history:delete', id),
     clear: (): Promise<boolean> => ipcRenderer.invoke('history:clear'),
+    search: (query: string, filters?: { dateFrom?: string; dateTo?: string; language?: string; speaker?: string }): Promise<{
+      ok: boolean;
+      results: Array<{
+        fileId: string;
+        fileName: string;
+        matchedText: string;
+        matchField: string;
+        speaker?: string;
+        timestamp?: string;
+        date?: string;
+        language?: string;
+      }>;
+    }> => ipcRenderer.invoke('history:search', query, filters),
   },
   document: {
     save: (fileId: string, data: DocumentData): Promise<boolean> => ipcRenderer.invoke('document:save', fileId, data),
