@@ -57,11 +57,26 @@ export function ReportInspector({ selectedId }: ReportInspectorProps) {
 
   const exportTxt = async () => {
     if (!transcript || !job) return;
+
+    // Build metadata header
+    const metaLines: string[] = [];
+    metaLines.push(`# ${job.fileName}`);
+    metaLines.push(`# Language: ${transcript.languageCode}`);
+    if (job.completedAt) metaLines.push(`# Processed: ${job.completedAt.slice(0, 10)}`);
+    if (job.audioMeta?.duration) {
+      const h = Math.floor(job.audioMeta.duration / 3600);
+      const m = Math.floor((job.audioMeta.duration % 3600) / 60);
+      metaLines.push(`# Duration: ${h > 0 ? `${h}h ${m}m` : `${m}m`}`);
+    }
+    const speakerCount = new Set(transcript.utterances.map((u) => u.speaker)).size;
+    if (speakerCount > 0) metaLines.push(`# Speakers: ${speakerCount}`);
+    metaLines.push('');
+
     const lines = transcript.utterances.map((u) => {
       const ts = `${Math.floor(u.startMs / 60000)}:${Math.floor((u.startMs % 60000) / 1000).toString().padStart(2, "0")}`;
       return `[${ts}] ${u.speaker}: ${u.text}`;
     });
-    const content = `# ${job.fileName}\n# Language: ${transcript.languageCode}\n\n${lines.join("\n")}`;
+    const content = metaLines.join("\n") + lines.join("\n");
     const result = await window.electronAPI?.export?.saveTxt(job.fileName, content);
     if (result?.ok) {
       toast.success("TXT exported");
