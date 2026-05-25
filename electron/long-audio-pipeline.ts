@@ -79,7 +79,7 @@ export interface MergedUtterance {
 
 // --- Constants ---
 
-const CHUNK_DURATION_MINUTES = 45;       // Target chunk size
+const CHUNK_DURATION_MINUTES = 45;       // Target chunk size for standard long audio (2–10h)
 const MIN_CHUNK_MINUTES = 30;
 const MAX_CHUNK_MINUTES = 90;
 const LONG_AUDIO_THRESHOLD_HOURS = 2;    // Activate long-audio mode at 2 hours
@@ -88,6 +88,30 @@ const MAX_CONCURRENT_CHUNKS = 2;
 const MAX_RETRIES = 3;
 const SILENCE_DETECT_THRESHOLD = '-30dB';
 const SILENCE_MIN_DURATION = '0.5';
+
+// --- Enterprise Mode Constants (10–30h) ---
+const ENTERPRISE_THRESHOLD_HOURS = 10;   // Force enterprise mode at 10 hours
+const MAX_SUPPORTED_HOURS = 30;          // Hard block above 30 hours
+const ENTERPRISE_CHUNK_MINUTES = 25;     // Smaller chunks for enterprise mode
+const ENTERPRISE_CONCURRENCY = 1;        // Sequential only for enterprise
+const MIN_DISK_SPACE_GB = 5;             // Minimum free disk space to start enterprise pipeline
+
+type AudioTier = 'normal' | 'long_audio' | 'enterprise' | 'blocked';
+
+function getAudioTier(durationHours: number): AudioTier {
+  if (durationHours > MAX_SUPPORTED_HOURS) return 'blocked';
+  if (durationHours >= ENTERPRISE_THRESHOLD_HOURS) return 'enterprise';
+  if (durationHours >= LONG_AUDIO_THRESHOLD_HOURS) return 'long_audio';
+  return 'normal';
+}
+
+function getChunkMinutes(tier: AudioTier): number {
+  return tier === 'enterprise' ? ENTERPRISE_CHUNK_MINUTES : CHUNK_DURATION_MINUTES;
+}
+
+function getConcurrency(tier: AudioTier): number {
+  return tier === 'enterprise' ? ENTERPRISE_CONCURRENCY : MAX_CONCURRENT_CHUNKS;
+}
 
 // --- State Management ---
 
@@ -220,13 +244,19 @@ async function analyzeAudio(filePath: string): Promise<AudioAnalysis> {
   const sizeBytes = (await fs.stat(filePath)).size;
   const duration = parseFloat(format.duration || audioStream.duration || '0');
   const durationHours = duration / 3600;
+  const tier = getAudioTier(durationHours);
 
-  const requiresChunking = durationHours > LONG_AUDIO_THRESHOLD_HOURS || sizeBytes > LONG_AUDIO_THRESHOLD_BYTES;
-  const estimatedChunks = requiresChunking ? Math.ceil(duration / (CHUNK_DURATION_MINUTES * 60)) : 1;
+  const requiresChunking = tier !== 'normal' && tier !== 'blocked';
+  const chunkMinutes = getChunkMinutes(tier);
+  const estimatedChunks = requiresChunking ? Math.ceil(duration / (chunkMinutes * 60)) : 1;
 
   let reason: string | undefined;
-  if (durationHours > LONG_AUDIO_THRESHOLD_HOURS) {
-    reason = `Audio is ${durationHours.toFixed(1)} hours. Chunked processing activated (${estimatedChunks} chunks).`;
+  if (tier === 'blocked') {
+    reason = `Audio is ${durationHours.toFixed(1)} hours — exceeds maximum supported duration of ${MAX_SUPPORTED_HOURS} hours.`;
+  } else if (tier === 'enterprise') {
+    reason = `Audio is ${durationHours.toFixed(1)} hours. Enterprise Long Audio Mode activated (${estimatedChunks} chunks × ${chunkMinutes} min, sequential processing).`;
+  } else if (tier === 'long_audio') {
+    reason = `Audio is ${durationHours.toFixed(1)} hours. Long Audio Mode activated (${estimatedChunks} chunks × ${chunkMinutes} min).`;
   } else if (sizeBytes > LONG_AUDIO_THRESHOLD_BYTES) {
     reason = `File is ${(sizeBytes / (1024 * 1024 * 1024)).toFixed(1)} GB. Chunked processing activated.`;
   }
@@ -289,7 +319,8 @@ async function splitIntoChunks(filePath: string, analysis: AudioAnalysis): Promi
   const outputDir = path.join(os.tmpdir(), `recllm-chunks-${Date.now()}`);
   await fs.mkdir(outputDir, { recursive: true });
 
-  const chunkDurationSec = CHUNK_DURATION_MINUTES * 60;
+  const tier = getAudioTier(analysis.duration / 3600);
+  const chunkDurationSec = getChunkMinutes(tier) * 60;
   const totalDuration = analysis.duration;
   const numChunks = Math.ceil(totalDuration / chunkDurationSec);
 
@@ -438,11 +469,35 @@ export function registerLongAudioHandlers(): void {
     if (!ov.ok) return { ok: false, error: ov.error };
     try {
       const analysis = await analyzeAudio(v.data);
+      const durationHours = analysis.duration / 3600;
+      const tier = getAudioTier(durationHours);
+
+      // Block files exceeding 30 hours
+      if (tier === 'blocked') {
+        return { ok: false, error: `Audio duration (${durationHours.toFixed(1)}h) exceeds the maximum supported limit of ${MAX_SUPPORTED_HOURS} hours. Please split the file manually.` };
+      }
 
       if (!analysis.requiresChunking) {
         return { ok: true, requiresChunking: false, analysis };
       }
 
+      // Pre-flight: check disk space for enterprise mode
+      if (tier === 'enterprise') {
+        try {
+          const tmpDir = os.tmpdir();
+          const stats = fsSync.statfsSync ? fsSync.statfsSync(tmpDir) : null;
+          if (stats) {
+            const freeGB = (stats.bavail * stats.bsize) / (1024 * 1024 * 1024);
+            if (freeGB < MIN_DISK_SPACE_GB) {
+              return { ok: false, error: `Insufficient disk space. Enterprise Long Audio Mode requires at least ${MIN_DISK_SPACE_GB}GB free. Available: ${freeGB.toFixed(1)}GB.` };
+            }
+          }
+        } catch {
+          // statfsSync may not be available on all platforms — proceed anyway
+        }
+      }
+
+      const concurrency = getConcurrency(tier);
       const pipelineId = `pipeline_${Date.now()}`;
       const state: PipelineState = {
         id: pipelineId,
@@ -455,7 +510,7 @@ export function registerLongAudioHandlers(): void {
         progress: 10,
         currentChunk: 0,
         totalChunks: analysis.estimatedChunks || 1,
-        concurrency: ov.data?.concurrency || MAX_CONCURRENT_CHUNKS,
+        concurrency: ov.data?.concurrency || concurrency,
       };
 
       await savePipelineState(state);
