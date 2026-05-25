@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RecLLM</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+<style>
+[x-cloak] { display: none !important; }
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+.fade-in { animation: fadeIn 0.2s ease-in; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen" x-data="app()" x-cloak>
+
+<!-- Sidebar -->
+<div class="fixed inset-y-0 left-0 w-56 bg-white border-r border-gray-200 flex flex-col">
+  <div class="p-4 border-b border-gray-100">
+    <h1 class="text-lg font-bold text-gray-900">RecLLM</h1>
+    <p class="text-xs text-gray-500">Audio Intelligence</p>
+  </div>
+  <nav class="flex-1 p-2 space-y-0.5">
+    <template x-for="item in navItems" :key="item.id">
+      <button
+        @click="currentView = item.id"
+        :class="currentView === item.id ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'"
+        class="w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors"
+        x-text="item.label">
+      </button>
+    </template>
+  </nav>
+  <div class="p-3 border-t border-gray-100">
+    <div class="flex items-center gap-2">
+      <div class="w-2 h-2 rounded-full" :class="apiConnected ? 'bg-emerald-500' : 'bg-red-500'"></div>
+      <span class="text-xs text-gray-500" x-text="apiConnected ? 'API接続済み' : 'API未接続'"></span>
+    </div>
+  </div>
+</div>
+
+<!-- Main Content -->
+<div class="ml-56 min-h-screen">
+  <!-- Header -->
+  <header class="sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+    <div>
+      <h2 class="text-base font-semibold" x-text="navItems.find(n => n.id === currentView)?.label"></h2>
+      <p class="text-xs text-gray-500" x-text="navItems.find(n => n.id === currentView)?.sub"></p>
+    </div>
+    <div class="flex items-center gap-3">
+      <input type="text" placeholder="検索..." class="text-sm border border-gray-200 rounded-md px-3 py-1.5 w-48 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        x-model="searchQuery" @keyup.enter="doSearch()">
+    </div>
+  </header>
+
+  <!-- Dashboard -->
+  <div x-show="currentView === 'dashboard'" class="p-6 fade-in">
+    <div class="grid grid-cols-4 gap-4 mb-6">
+      <div class="bg-white rounded-lg border border-gray-200 p-4">
+        <div class="text-xs text-gray-500 mb-1">処理済みファイル</div>
+        <div class="text-2xl font-bold" x-text="stats.totalRecordings"></div>
+      </div>
+      <div class="bg-white rounded-lg border border-gray-200 p-4">
+        <div class="text-xs text-gray-500 mb-1">合計時間</div>
+        <div class="text-2xl font-bold" x-text="stats.totalHours + 'h'"></div>
+      </div>
+      <div class="bg-white rounded-lg border border-gray-200 p-4">
+        <div class="text-xs text-gray-500 mb-1">発話数</div>
+        <div class="text-2xl font-bold" x-text="stats.totalUtterances.toLocaleString()"></div>
+      </div>
+      <div class="bg-white rounded-lg border border-gray-200 p-4">
+        <div class="text-xs text-gray-500 mb-1">話者数</div>
+        <div class="text-2xl font-bold" x-text="stats.uniqueSpeakers"></div>
+      </div>
+    </div>
+
+    <!-- Recent Jobs -->
+    <div class="bg-white rounded-lg border border-gray-200 p-4">
+      <h3 class="text-sm font-semibold mb-3">最近のジョブ</h3>
+      <div x-show="recentJobs.length === 0" class="text-sm text-gray-400 py-4 text-center">
+        ジョブはまだありません。音声をアップロードしてください。
+      </div>
+      <div class="space-y-2">
+        <template x-for="job in recentJobs" :key="job.id">
+          <div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+            <div class="flex items-center gap-3">
+              <div class="w-2 h-2 rounded-full" :class="job.status === 'done' ? 'bg-emerald-500' : job.status === 'failed' ? 'bg-red-500' : 'bg-amber-500'"></div>
+              <span class="text-sm" x-text="job.recording_id"></span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs px-2 py-0.5 rounded-full"
+                :class="job.status === 'done' ? 'bg-emerald-50 text-emerald-700' : job.status === 'failed' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'"
+                x-text="job.status === 'done' ? '完了' : job.status === 'failed' ? '失敗' : '処理中'"></span>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload -->
+  <div x-show="currentView === 'upload'" class="p-6 fade-in">
+    <div class="bg-white rounded-lg border border-gray-200 p-6">
+      <div class="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-blue-400 transition-colors"
+        @dragover.prevent="dragOver = true" @dragleave="dragOver = false" @drop.prevent="handleDrop($event)"
+        :class="dragOver ? 'border-blue-400 bg-blue-50' : ''">
+        <div class="text-gray-400 mb-2">
+          <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+          </svg>
+        </div>
+        <p class="text-sm text-gray-600 mb-1">音声ファイルをドラッグ＆ドロップ</p>
+        <p class="text-xs text-gray-400">WAV · MP3 · M4A · FLAC · OGG — 最大30時間</p>
+        <button @click="selectFiles()" class="mt-4 px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors">
+          ファイルを選択
+        </button>
+      </div>
+
+      <!-- Queue -->
+      <div x-show="queue.length > 0" class="mt-6">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold">処理キュー (<span x-text="queue.length"></span>)</h3>
+          <div class="flex gap-2">
+            <button @click="startAll()" class="text-xs px-3 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700">すべて開始</button>
+            <button @click="clearDone()" class="text-xs px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">完了を削除</button>
+          </div>
+        </div>
+        <div class="space-y-1">
+          <template x-for="item in queue" :key="item.id">
+            <div class="flex items-center gap-3 py-2 px-3 bg-gray-50 rounded text-sm">
+              <div class="w-2 h-2 rounded-full" :class="item.status === 'done' ? 'bg-emerald-500' : item.status === 'failed' ? 'bg-red-500' : item.status === 'running' ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'"></div>
+              <span class="flex-1 truncate" x-text="item.fileName"></span>
+              <span class="text-xs text-gray-400" x-text="item.status === 'done' ? '完了' : item.status === 'failed' ? '失敗' : item.status === 'running' ? '処理中' : '待機中'"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transcripts -->
+  <div x-show="currentView === 'transcripts'" class="p-6 fade-in">
+    <div class="bg-white rounded-lg border border-gray-200">
+      <div class="p-4 border-b border-gray-100">
+        <input type="text" placeholder="文字起こしを検索..." class="text-sm border border-gray-200 rounded-md px-3 py-1.5 w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
+          x-model="transcriptSearch">
+      </div>
+      <div x-show="recordings.length === 0" class="p-8 text-center text-sm text-gray-400">
+        文字起こしはまだありません。
+      </div>
+      <div class="divide-y divide-gray-100">
+        <template x-for="rec in filteredRecordings" :key="rec.id">
+          <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors" @click="viewTranscript(rec.id)">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-sm font-medium" x-text="rec.original_file_name || rec.id"></div>
+                <div class="text-xs text-gray-400 mt-0.5" x-text="rec.created_at?.slice(0, 10) + ' · ' + (rec.language_code || 'auto')"></div>
+              </div>
+              <span class="text-xs px-2 py-0.5 rounded-full"
+                :class="rec.status === 'done' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-600'"
+                x-text="rec.status === 'done' ? '完了' : rec.status"></span>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div x-show="currentView === 'settings'" class="p-6 fade-in">
+    <div class="max-w-2xl space-y-6">
+      <!-- API Keys -->
+      <div class="bg-white rounded-lg border border-gray-200 p-5">
+        <h3 class="text-sm font-semibold mb-4">APIキー設定</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">AssemblyAI</label>
+            <input type="password" x-model="settings.assemblyaiKey" placeholder="APIキーを入力..."
+              class="w-full text-sm border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">Gemini</label>
+            <input type="password" x-model="settings.geminiKey" placeholder="APIキーを入力..."
+              class="w-full text-sm border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">OpenAI</label>
+            <input type="password" x-model="settings.openaiKey" placeholder="APIキーを入力..."
+              class="w-full text-sm border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500">
+          </div>
+          <button @click="saveSettings()" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">
+            設定を保存
+          </button>
+        </div>
+      </div>
+
+      <!-- Processing -->
+      <div class="bg-white rounded-lg border border-gray-200 p-5">
+        <h3 class="text-sm font-semibold mb-4">処理設定</h3>
+        <div class="space-y-3">
+          <label class="flex items-center gap-3">
+            <input type="checkbox" x-model="settings.noiseReduction" class="rounded">
+            <span class="text-sm">ノイズ除去を有効にする</span>
+          </label>
+          <label class="flex items-center gap-3">
+            <input type="checkbox" x-model="settings.speakerDetection" class="rounded">
+            <span class="text-sm">話者分離を有効にする</span>
+          </label>
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">デフォルト言語</label>
+            <select x-model="settings.language" class="text-sm border border-gray-200 rounded-md px-3 py-2">
+              <option value="auto">自動検出</option>
+              <option value="ja">日本語</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Search Results -->
+  <div x-show="currentView === 'search'" class="p-6 fade-in">
+    <div class="bg-white rounded-lg border border-gray-200 p-4">
+      <h3 class="text-sm font-semibold mb-3">検索結果: "<span x-text="searchQuery"></span>"</h3>
+      <div x-show="searchResults.length === 0" class="text-sm text-gray-400 py-4 text-center">
+        結果が見つかりません。
+      </div>
+      <div class="space-y-2">
+        <template x-for="result in searchResults" :key="result.recording_id + result.matched_text">
+          <div class="p-3 bg-gray-50 rounded">
+            <div class="text-xs text-gray-500" x-text="result.file_name"></div>
+            <div class="text-sm mt-1" x-text="result.matched_text"></div>
+            <div class="text-xs text-gray-400 mt-1" x-text="(result.speaker || '') + ' · ' + (result.date?.slice(0, 10) || '')"></div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function app() {
+  return {
+    currentView: 'dashboard',
+    searchQuery: '',
+    transcriptSearch: '',
+    dragOver: false,
+    apiConnected: false,
+    stats: { totalRecordings: 0, totalHours: 0, totalUtterances: 0, uniqueSpeakers: 0 },
+    recentJobs: [],
+    recordings: [],
+    queue: [],
+    searchResults: [],
+    settings: {
+      assemblyaiKey: '',
+      geminiKey: '',
+      openaiKey: '',
+      noiseReduction: false,
+      speakerDetection: true,
+      language: 'auto',
+    },
+    navItems: [
+      { id: 'dashboard', label: 'ダッシュボード', sub: '録音・処理・AI学習の概要' },
+      { id: 'upload', label: 'アップロード', sub: '音声ファイルの一括処理' },
+      { id: 'transcripts', label: '文字起こし', sub: '文字起こし結果の確認・編集' },
+      { id: 'search', label: '検索', sub: 'アーカイブ全文検索' },
+      { id: 'settings', label: '設定', sub: 'API・処理設定' },
+    ],
+
+    get filteredRecordings() {
+      if (!this.transcriptSearch) return this.recordings;
+      const q = this.transcriptSearch.toLowerCase();
+      return this.recordings.filter(r =>
+        (r.original_file_name || '').toLowerCase().includes(q) ||
+        (r.language_code || '').toLowerCase().includes(q)
+      );
+    },
+
+    async init() {
+      await this.loadDashboard();
+      await this.loadRecordings();
+      await this.checkApi();
+    },
+
+    async loadDashboard() {
+      try {
+        const resp = await fetch('/api/jobs/stats');
+        if (resp.ok) {
+          const data = await resp.json();
+          this.stats.totalRecordings = data.total || 0;
+        }
+      } catch {}
+      try {
+        const resp = await fetch('/api/jobs?limit=10');
+        if (resp.ok) {
+          const data = await resp.json();
+          this.recentJobs = data.jobs || [];
+        }
+      } catch {}
+    },
+
+    async loadRecordings() {
+      try {
+        const resp = await fetch('/api/recordings/');
+        if (resp.ok) {
+          const data = await resp.json();
+          this.recordings = data.recordings || [];
+          this.stats.totalRecordings = data.total || this.recordings.length;
+        }
+      } catch {}
+    },
+
+    async checkApi() {
+      try {
+        const resp = await fetch('/api/health');
+        this.apiConnected = resp.ok;
+      } catch {
+        this.apiConnected = false;
+      }
+    },
+
+    async doSearch() {
+      if (!this.searchQuery.trim()) return;
+      this.currentView = 'search';
+      try {
+        const resp = await fetch('/api/search/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: this.searchQuery }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          this.searchResults = data.results || [];
+        }
+      } catch {}
+    },
+
+    async saveSettings() {
+      try {
+        await fetch('/api/settings/api-keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            assemblyai: this.settings.assemblyaiKey,
+            gemini: this.settings.geminiKey,
+            openai: this.settings.openaiKey,
+          }),
+        });
+        alert('設定を保存しました');
+      } catch {}
+    },
+
+    selectFiles() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.multiple = true;
+      input.accept = '.mp3,.wav,.m4a,.flac,.ogg,.aac,.mp4';
+      input.onchange = (e) => this.addFiles(e.target.files);
+      input.click();
+    },
+
+    handleDrop(event) {
+      this.dragOver = false;
+      this.addFiles(event.dataTransfer.files);
+    },
+
+    async addFiles(files) {
+      for (const file of files) {
+        this.queue.push({
+          id: crypto.randomUUID(),
+          fileName: file.name,
+          status: 'queued',
+        });
+      }
+    },
+
+    startAll() {
+      // Trigger processing via API
+      this.queue.forEach(item => { if (item.status === 'queued') item.status = 'running'; });
+    },
+
+    clearDone() {
+      this.queue = this.queue.filter(item => item.status !== 'done');
+    },
+
+    viewTranscript(id) {
+      // Navigate to transcript detail (future)
+      console.log('View transcript:', id);
+    },
+  };
+}
+</script>
+</body>
+</html>
