@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import { historyJobSchema, idSchema, documentIdSchema, validateSchema } from './shared/schemas';
+import { getDb } from './database';
 
 const DATA_DIR = path.join(app.getPath('userData'), 'recllm-data');
 const HISTORY_FILE = path.join(DATA_DIR, 'history.json');
@@ -320,6 +321,52 @@ export function registerHistoryHandlers(): void {
         await writeSummary(safeId, summary);
       }
 
+      // Dual-write to SQLite (primary going forward)
+      try {
+        const db = getDb();
+        const insertRec = db.prepare(`
+          INSERT OR REPLACE INTO recordings (id, file_name, original_file_name, generated_file_name, file_path, file_extension, size_bytes, duration_seconds, status, language_code, speaker_count, created_at, completed_at, uploaded_at, processed_at, pdf_path)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        insertRec.run(
+          safeId, meta.fileName, meta.originalFileName || null, meta.generatedFileName || null,
+          meta.filePath, meta.fileExtension || null, meta.sizeBytes || 0, meta.duration || null,
+          meta.status, meta.languageCode || 'auto', meta.speakerCount || 0,
+          meta.createdAt, meta.completedAt, meta.uploadedAt || null, meta.processedAt || null, meta.pdfPath || null
+        );
+
+        if (transcript && transcript.utterances) {
+          const insertUtt = db.prepare(`
+            INSERT INTO utterances (recording_id, speaker, text, start_ms, end_ms, confidence, gender, age_range, pitch_hz)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          const insertMany = db.transaction((utts: any[]) => {
+            for (const u of utts) {
+              insertUtt.run(safeId, u.speaker, u.text, u.startMs, u.endMs, 1.0, u.gender || null, u.ageRange || null, u.pitchHz || null);
+            }
+          });
+          insertMany(transcript.utterances);
+        }
+
+        if (summary) {
+          const insertSum = db.prepare(`
+            INSERT OR REPLACE INTO summaries (recording_id, language, summary, point_notes, action_items, decisions, risks, generated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          insertSum.run(
+            safeId, summary.language || 'ja', summary.summary || '',
+            JSON.stringify(summary.pointNotes || []),
+            JSON.stringify(summary.actionItems || []),
+            JSON.stringify(summary.decisions || []),
+            JSON.stringify(summary.risks || []),
+            summary.generatedAt || new Date().toISOString()
+          );
+        }
+      } catch (dbErr) {
+        // SQLite write failure is non-critical — JSON is the fallback
+        console.warn('[database] dual-write failed:', dbErr instanceof Error ? dbErr.message : dbErr);
+      }
+
       return true;
     } catch {
       return false;
@@ -339,6 +386,12 @@ export function registerHistoryHandlers(): void {
       const sp = summaryPath(safeId);
       await fs.unlink(tp).catch(() => {});
       await fs.unlink(sp).catch(() => {});
+
+      // Also delete from SQLite
+      try {
+        const db = getDb();
+        db.prepare('DELETE FROM recordings WHERE id = ?').run(safeId);
+      } catch {}
 
       return true;
     } catch {
@@ -391,6 +444,57 @@ export function registerHistoryHandlers(): void {
       date?: string;
       language?: string;
     }> = [];
+
+    // Try FTS5 search first (fast path)
+    try {
+      const db = getDb();
+      const recCount = (db.prepare('SELECT COUNT(*) as cnt FROM recordings').get() as any)?.cnt || 0;
+      if (recCount > 0) {
+        const safeQuery = q.replace(/['"*()]/g, '').trim();
+        if (safeQuery) {
+          const ftsResults = db.prepare(`
+            SELECT si.recording_id, si.file_name, si.speaker, si.text,
+                   r.completed_at, r.language_code,
+                   u.start_ms
+            FROM search_index si
+            JOIN recordings r ON r.id = si.recording_id
+            LEFT JOIN utterances u ON u.recording_id = si.recording_id AND u.text = si.text
+            WHERE search_index MATCH ?
+            ORDER BY rank
+            LIMIT 100
+          `).all(`"${safeQuery}"`) as any[];
+
+          for (const row of ftsResults) {
+            if (filterData.dateFrom && row.completed_at && row.completed_at < filterData.dateFrom) continue;
+            if (filterData.dateTo && row.completed_at && row.completed_at > filterData.dateTo + 'T23:59:59') continue;
+            if (filterData.language && row.language_code && row.language_code !== filterData.language) continue;
+            if (filterData.speaker && row.speaker && !row.speaker.toLowerCase().includes(filterData.speaker.toLowerCase())) continue;
+
+            const idx = row.text.toLowerCase().indexOf(q);
+            const start = Math.max(0, idx - 40);
+            const end = Math.min(row.text.length, idx + q.length + 40);
+            let snippet = row.text.slice(start, end);
+            if (start > 0) snippet = '...' + snippet;
+            if (end < row.text.length) snippet += '...';
+
+            results.push({
+              fileId: row.recording_id,
+              fileName: row.file_name || row.recording_id,
+              matchedText: snippet,
+              matchField: 'Transcript',
+              speaker: row.speaker,
+              timestamp: row.start_ms ? msToTimestamp(row.start_ms) : undefined,
+              date: row.completed_at,
+              language: row.language_code,
+            });
+          }
+
+          if (results.length > 0) return { ok: true, results };
+        }
+      }
+    } catch {
+      // FTS5 failed — fall through to file-based search
+    }
 
     try {
       const metas = await readHistoryMeta();
