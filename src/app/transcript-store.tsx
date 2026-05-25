@@ -41,6 +41,18 @@ export interface HistoryJob {
   createdAt: string;
   completedAt: string;
   pdfPath?: string;
+  // Extended metadata
+  originalFileName?: string;
+  generatedFileName?: string;
+  displayName?: string;
+  fileExtension?: string;
+  duration?: number;
+  sourcePath?: string;
+  storagePath?: string;
+  transcriptId?: string;
+  jobId?: string;
+  uploadedAt?: string;
+  processedAt?: string;
 }
 
 interface TranscriptStore {

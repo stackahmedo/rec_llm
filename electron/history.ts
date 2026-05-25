@@ -30,6 +30,18 @@ interface HistoryMeta {
   createdAt: string;
   completedAt: string;
   pdfPath?: string;
+  // Extended metadata fields
+  originalFileName?: string;
+  generatedFileName?: string;
+  displayName?: string;
+  fileExtension?: string;
+  duration?: number;
+  sourcePath?: string;
+  storagePath?: string;
+  transcriptId?: string;
+  jobId?: string;
+  uploadedAt?: string;
+  processedAt?: string;
 }
 
 interface TranscriptData {
@@ -126,6 +138,44 @@ function msToTimestamp(ms: number): string {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
+/**
+ * Generate a filesystem-safe name with date/time prefix.
+ * Format: YYYYMMDD_HHMMSS_sanitized-original-name.ext
+ * Does NOT rename the user's source file — only for internal/export naming.
+ */
+function generateFileName(originalName: string, date?: Date): string {
+  const d = date || new Date();
+  const prefix = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}_${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}${String(d.getSeconds()).padStart(2, '0')}`;
+
+  const ext = path.extname(originalName);
+  const base = path.basename(originalName, ext);
+
+  // Sanitize: replace spaces with hyphens, remove unsafe chars, collapse multiple hyphens
+  const sanitized = base
+    .replace(/\s+/g, '-')
+    .replace(/[^\w\-　-鿿豈-﫿]/g, '') // keep alphanumeric, hyphens, CJK
+    .replace(/-{2,}/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase()
+    || 'audio';
+
+  return `${prefix}_${sanitized}${ext.toLowerCase()}`;
+}
+
+/**
+ * Ensure uniqueness by appending _2, _3, etc. if name already exists in the list.
+ */
+function ensureUniqueName(name: string, existingNames: string[]): string {
+  if (!existingNames.includes(name)) return name;
+  const ext = path.extname(name);
+  const base = name.slice(0, name.length - ext.length);
+  let counter = 2;
+  while (existingNames.includes(`${base}_${counter}${ext}`)) {
+    counter++;
+  }
+  return `${base}_${counter}${ext}`;
+}
+
 async function writeSummary(id: string, data: SummaryData): Promise<void> {
   await ensureDir(SUMMARIES_DIR);
   await fs.writeFile(summaryPath(id), JSON.stringify(data), 'utf-8');
@@ -159,6 +209,37 @@ export function registerHistoryHandlers(): void {
       const metas = await readHistoryMeta();
       const { transcript, summary, ...meta } = v.data;
       meta.id = safeId;
+
+      // Populate metadata fields if not already set
+      if (!meta.originalFileName) {
+        meta.originalFileName = meta.fileName;
+      }
+      if (!meta.generatedFileName) {
+        const existingNames = metas.map((m) => m.generatedFileName || '').filter(Boolean);
+        const generated = generateFileName(meta.originalFileName || meta.fileName, new Date(meta.completedAt || meta.createdAt));
+        meta.generatedFileName = ensureUniqueName(generated, existingNames);
+      }
+      if (!meta.displayName) {
+        meta.displayName = meta.generatedFileName;
+      }
+      if (!meta.fileExtension) {
+        meta.fileExtension = path.extname(meta.fileName).slice(1).toLowerCase();
+      }
+      if (!meta.uploadedAt) {
+        meta.uploadedAt = meta.createdAt;
+      }
+      if (!meta.processedAt) {
+        meta.processedAt = meta.completedAt;
+      }
+      if (!meta.sourcePath && meta.filePath) {
+        meta.sourcePath = meta.filePath;
+      }
+      if (!meta.jobId) {
+        meta.jobId = safeId;
+      }
+      if (!meta.transcriptId) {
+        meta.transcriptId = safeId;
+      }
 
       const idx = metas.findIndex((j) => j.id === safeId);
       if (idx >= 0) {

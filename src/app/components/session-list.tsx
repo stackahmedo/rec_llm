@@ -45,7 +45,8 @@ export function SessionList({ selectedId, onSelect }: SessionListProps) {
     const historyIds = new Set(history.map((h) => h.id));
     const fromHistory = history.map((h) => ({
       fileId: h.id,
-      fileName: h.fileName,
+      fileName: h.displayName || h.generatedFileName || h.fileName,
+      originalFileName: h.originalFileName || h.fileName,
       languageCode: h.languageCode,
       speakerCount: h.speakerCount,
       completedAt: h.completedAt,
@@ -57,6 +58,7 @@ export function SessionList({ selectedId, onSelect }: SessionListProps) {
       .map((t) => ({
         fileId: t.fileId,
         fileName: t.fileName,
+        originalFileName: t.fileName,
         languageCode: t.languageCode,
         speakerCount: new Set(t.utterances.map((u) => u.speaker)).size,
         completedAt: t.completedAt,
@@ -68,7 +70,10 @@ export function SessionList({ selectedId, onSelect }: SessionListProps) {
   const filtered = useMemo(() => {
     if (!search.trim()) return sessions;
     const q = search.toLowerCase();
-    return sessions.filter((s) => s.fileName.toLowerCase().includes(q));
+    return sessions.filter((s) =>
+      s.fileName.toLowerCase().includes(q) ||
+      s.originalFileName.toLowerCase().includes(q)
+    );
   }, [sessions, search]);
 
   if (sessions.length === 0) {

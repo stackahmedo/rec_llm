@@ -24,6 +24,18 @@ export const historyJobSchema = z.object({
   createdAt: z.string().min(1).max(100),
   completedAt: z.string().min(1).max(100),
   pdfPath: z.string().max(2000).optional(),
+  // Extended metadata
+  originalFileName: z.string().max(500).optional(),
+  generatedFileName: z.string().max(500).optional(),
+  displayName: z.string().max(500).optional(),
+  fileExtension: z.string().max(20).optional(),
+  duration: z.number().min(0).optional(),
+  sourcePath: z.string().max(2000).optional(),
+  storagePath: z.string().max(2000).optional(),
+  transcriptId: z.string().max(200).optional(),
+  jobId: z.string().max(200).optional(),
+  uploadedAt: z.string().max(100).optional(),
+  processedAt: z.string().max(100).optional(),
   transcript: z.object({
     fullText: z.string().max(50_000_000),
     utterances: z.array(utteranceSchema).max(100_000),
