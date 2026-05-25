@@ -11,7 +11,7 @@ def create_app(queue: JobQueue) -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(
         title="RecLLM",
-        version="0.2.0",
+        version="0.3.0",
         description="AI-powered audio transcription and document intelligence",
     )
 
