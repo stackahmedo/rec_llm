@@ -33,7 +33,7 @@ async def search_transcripts(params: SearchQuery):
             with get_cursor() as cur:
                 cur.execute("""
                     SELECT si.recording_id, si.file_name, si.speaker, si.text,
-                           r.completed_at, r.language_code, r.status
+                           r.processed_at, r.language_code, r.status
                     FROM search_index si
                     JOIN recordings r ON r.id = si.recording_id
                     WHERE search_index MATCH ?
@@ -44,9 +44,9 @@ async def search_transcripts(params: SearchQuery):
 
                 for row in rows:
                     # Apply filters
-                    if params.date_from and row["completed_at"] and row["completed_at"] < params.date_from:
+                    if params.date_from and row["processed_at"] and row["processed_at"] < params.date_from:
                         continue
-                    if params.date_to and row["completed_at"] and row["completed_at"] > params.date_to + "T23:59:59":
+                    if params.date_to and row["processed_at"] and row["processed_at"] > params.date_to + "T23:59:59":
                         continue
                     if params.language and row["language_code"] and row["language_code"] != params.language:
                         continue
@@ -70,7 +70,7 @@ async def search_transcripts(params: SearchQuery):
                         "speaker": row["speaker"],
                         "matched_text": snippet,
                         "match_field": "Transcript",
-                        "date": row["completed_at"],
+                        "date": row["processed_at"],
                         "language": row["language_code"],
                     })
 
@@ -83,7 +83,7 @@ async def search_transcripts(params: SearchQuery):
     with get_cursor() as cur:
         cur.execute("""
             SELECT u.recording_id, u.speaker, u.text, u.start_ms,
-                   r.original_file_name, r.completed_at, r.language_code
+                   r.original_file_name, r.processed_at, r.language_code
             FROM utterances u
             JOIN recordings r ON r.id = u.recording_id
             WHERE u.text LIKE ?
@@ -92,9 +92,9 @@ async def search_transcripts(params: SearchQuery):
         rows = cur.fetchall()
 
         for row in rows:
-            if params.date_from and row["completed_at"] and row["completed_at"] < params.date_from:
+            if params.date_from and row["processed_at"] and row["processed_at"] < params.date_from:
                 continue
-            if params.date_to and row["completed_at"] and row["completed_at"] > params.date_to + "T23:59:59":
+            if params.date_to and row["processed_at"] and row["processed_at"] > params.date_to + "T23:59:59":
                 continue
             if params.language and row["language_code"] and row["language_code"] != params.language:
                 continue
@@ -117,7 +117,7 @@ async def search_transcripts(params: SearchQuery):
                 "speaker": row["speaker"],
                 "matched_text": snippet,
                 "match_field": "Transcript",
-                "date": row["completed_at"],
+                "date": row["processed_at"],
                 "language": row["language_code"],
             })
 

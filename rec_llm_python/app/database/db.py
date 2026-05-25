@@ -5,7 +5,7 @@ from pathlib import Path
 from contextlib import contextmanager
 from typing import Generator
 
-from app.config import DB_PATH, ensure_dirs
+import app.config as config
 
 
 _connection: sqlite3.Connection | None = None
@@ -17,8 +17,8 @@ def get_db() -> sqlite3.Connection:
     if _connection is not None:
         return _connection
 
-    ensure_dirs()
-    _connection = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+    config.ensure_dirs()
+    _connection = sqlite3.connect(str(config.DB_PATH), check_same_thread=False)
     _connection.row_factory = sqlite3.Row
     _connection.execute("PRAGMA journal_mode = WAL")
     _connection.execute("PRAGMA synchronous = NORMAL")
