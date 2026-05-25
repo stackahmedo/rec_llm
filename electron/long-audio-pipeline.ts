@@ -182,6 +182,9 @@ async function cleanupPipeline(pipelineId: string) {
       try { await fs.rm(chunkDir, { recursive: true }); } catch {}
     }
   }
+  // Remove streaming merge directory
+  const mergeDir = getMergeDir(pipelineId);
+  try { await fs.rm(mergeDir, { recursive: true }); } catch {}
   // Remove recovery file
   const safeId = sanitizePipelineId(pipelineId);
   const statePath = path.join(getRecoveryDir(), `${safeId}.json`);
@@ -381,6 +384,7 @@ async function splitIntoChunks(filePath: string, analysis: AudioAnalysis): Promi
 
 // --- Phase 4: Transcript Merge ---
 
+// Legacy in-memory merge (kept for small pipelines < 10h)
 function mergeTranscripts(chunks: ChunkInfo[]): MergedTranscript {
   const allUtterances: MergedUtterance[] = [];
   let fullText = '';
@@ -420,6 +424,174 @@ function mergeTranscripts(chunks: ChunkInfo[]): MergedTranscript {
     speakerCount: speakers.size,
     chunkCount: completedChunks.length,
   };
+}
+
+// --- Streaming Merge (safe for 10–30h enterprise pipelines) ---
+
+function getMergeDir(pipelineId: string): string {
+  const safeId = sanitizePipelineId(pipelineId);
+  return path.join(getRecoveryDir(), `${safeId}_merge`);
+}
+
+function getMergeUtterancesPath(pipelineId: string): string {
+  return path.join(getMergeDir(pipelineId), 'utterances.jsonl');
+}
+
+function getMergeFullTextPath(pipelineId: string): string {
+  return path.join(getMergeDir(pipelineId), 'fulltext.txt');
+}
+
+function getMergeMetaPath(pipelineId: string): string {
+  return path.join(getMergeDir(pipelineId), 'meta.json');
+}
+
+/**
+ * Append a single chunk's utterances to the streaming merge file.
+ * Called immediately when a chunk completes — never accumulates in RAM.
+ * Writes JSONL format (one JSON object per line) for efficient streaming reads.
+ */
+async function appendChunkToMerge(pipelineId: string, chunk: ChunkInfo): Promise<void> {
+  const mergeDir = getMergeDir(pipelineId);
+  await fs.mkdir(mergeDir, { recursive: true });
+
+  const utterancesPath = getMergeUtterancesPath(pipelineId);
+  const fullTextPath = getMergeFullTextPath(pipelineId);
+  const offsetMs = chunk.startTime * 1000;
+
+  // Append utterances as JSONL (one per line)
+  let utteranceLines = '';
+  for (const u of chunk.utterances || []) {
+    const merged: MergedUtterance = {
+      speaker: u.speaker || 'Speaker',
+      text: u.text || '',
+      startMs: (u.start || u.startMs || 0) + offsetMs,
+      endMs: (u.end || u.endMs || 0) + offsetMs,
+      confidence: u.confidence || 1,
+      chunkIndex: chunk.index,
+    };
+    utteranceLines += JSON.stringify(merged) + '\n';
+  }
+  await fs.appendFile(utterancesPath, utteranceLines, 'utf-8');
+
+  // Append full text
+  if (chunk.utterances?.length) {
+    const chunkText = chunk.utterances.map((u: any) => u.text || '').join(' ') + ' ';
+    await fs.appendFile(fullTextPath, chunkText, 'utf-8');
+  }
+}
+
+/**
+ * Finalize the streaming merge: write metadata summary.
+ * Does NOT load all utterances into RAM.
+ */
+async function finalizeStreamingMerge(state: PipelineState): Promise<void> {
+  const mergeDir = getMergeDir(state.id);
+  await fs.mkdir(mergeDir, { recursive: true });
+
+  const utterancesPath = getMergeUtterancesPath(state.id);
+  const fullTextPath = getMergeFullTextPath(state.id);
+  const metaPath = getMergeMetaPath(state.id);
+
+  // Count utterances and collect speakers by streaming the JSONL file
+  let utteranceCount = 0;
+  const speakers = new Set<string>();
+  let totalDuration = 0;
+
+  try {
+    const content = await fs.readFile(utterancesPath, 'utf-8');
+    const lines = content.split('\n').filter((l) => l.trim());
+    utteranceCount = lines.length;
+
+    // Only parse first and last few lines + sample for speakers (avoid full parse)
+    const sampleSize = Math.min(lines.length, 500);
+    const step = Math.max(1, Math.floor(lines.length / sampleSize));
+    for (let i = 0; i < lines.length; i += step) {
+      try {
+        const u = JSON.parse(lines[i]);
+        speakers.add(u.speaker);
+        if (u.endMs > totalDuration) totalDuration = u.endMs;
+      } catch {}
+    }
+    // Always check last line for totalDuration
+    if (lines.length > 0) {
+      try {
+        const last = JSON.parse(lines[lines.length - 1]);
+        if (last.endMs > totalDuration) totalDuration = last.endMs;
+      } catch {}
+    }
+  } catch {
+    // File may not exist if all chunks failed
+  }
+
+  const completedChunks = state.chunks.filter((c) => c.status === 'done').length;
+  const lastChunk = state.chunks.filter((c) => c.status === 'done').sort((a, b) => b.index - a.index)[0];
+  if (lastChunk && lastChunk.endTime * 1000 > totalDuration) {
+    totalDuration = lastChunk.endTime * 1000;
+  }
+
+  const meta = {
+    pipelineId: state.id,
+    utteranceCount,
+    speakerCount: speakers.size,
+    speakers: [...speakers],
+    totalDurationMs: totalDuration,
+    chunkCount: completedChunks,
+    totalChunks: state.totalChunks,
+    failedChunks: state.chunks.filter((c) => c.status === 'failed').length,
+    mergedAt: new Date().toISOString(),
+  };
+
+  await fs.writeFile(metaPath, JSON.stringify(meta, null, 2), 'utf-8');
+}
+
+/**
+ * Read merged transcript from disk for the getMerged IPC handler.
+ * For enterprise pipelines, reads from JSONL file.
+ * Returns paginated results to avoid loading everything into renderer memory.
+ */
+async function readMergedFromDisk(pipelineId: string, offset: number = 0, limit: number = 5000): Promise<MergedTranscript | null> {
+  const utterancesPath = getMergeUtterancesPath(pipelineId);
+  const fullTextPath = getMergeFullTextPath(pipelineId);
+  const metaPath = getMergeMetaPath(pipelineId);
+
+  try {
+    const metaRaw = await fs.readFile(metaPath, 'utf-8');
+    const meta = JSON.parse(metaRaw);
+
+    // Read utterances with pagination
+    const content = await fs.readFile(utterancesPath, 'utf-8');
+    const lines = content.split('\n').filter((l) => l.trim());
+    const pageLines = lines.slice(offset, offset + limit);
+    const utterances: MergedUtterance[] = [];
+    for (const line of pageLines) {
+      try { utterances.push(JSON.parse(line)); } catch {}
+    }
+
+    // Read full text (truncated for safety)
+    let fullText = '';
+    try {
+      const textContent = await fs.readFile(fullTextPath, 'utf-8');
+      fullText = textContent.length > 100000 ? textContent.slice(0, 100000) + '...' : textContent;
+    } catch {}
+
+    return {
+      fullText: fullText.trim(),
+      utterances,
+      totalDuration: meta.totalDurationMs / 1000,
+      speakerCount: meta.speakerCount,
+      chunkCount: meta.chunkCount,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Determine if pipeline should use streaming merge (enterprise) or in-memory merge.
+ */
+function shouldUseStreamingMerge(state: PipelineState): boolean {
+  const durationHours = state.analysis.duration / 3600;
+  return durationHours >= ENTERPRISE_THRESHOLD_HOURS;
 }
 
 // --- Phase 3 & 6: Processing Queue with Progress ---
@@ -570,23 +742,41 @@ export function registerLongAudioHandlers(): void {
     savePipelineState(state);
     await writeLog('INFO', `Chunk ${cv.data + 1}/${state.totalChunks} completed`, `pipeline=${pv.data} utterances=${uv.data.length}`);
 
+    // Streaming merge: append chunk to disk immediately (enterprise mode)
+    if (shouldUseStreamingMerge(state)) {
+      await appendChunkToMerge(state.id, chunk);
+      // Free chunk utterances from RAM immediately after disk write
+      chunk.utterances = undefined;
+      await savePipelineState(state);
+    }
+
     // Check if all done
     const allDone = state.chunks.every((c) => c.status === 'done');
     if (allDone) {
       state.status = 'merging';
-      state.mergedTranscript = mergeTranscripts(state.chunks);
-      try {
-        const ffmpegPath = getFfmpegPath();
-        // Annotate merged utterances with simple gender/age heuristic
-        state.mergedTranscript = await annotateUtterancesWithGender(ffmpegPath, state.mergedTranscript, state.chunks);
-      } catch (err) {
-        const errMessage = err instanceof Error ? err.message : String(err);
-        console.warn('[gender-detection] annotation failed', errMessage);
+
+      if (shouldUseStreamingMerge(state)) {
+        // Enterprise mode: finalize streaming merge (no RAM accumulation)
+        await finalizeStreamingMerge(state);
+        // Read a summary page for the mergedTranscript field (limited utterances)
+        const diskResult = await readMergedFromDisk(state.id, 0, 2000);
+        state.mergedTranscript = diskResult || { fullText: '', utterances: [], totalDuration: 0, speakerCount: 0, chunkCount: 0 };
+      } else {
+        // Standard mode: in-memory merge (safe for < 10h)
+        state.mergedTranscript = mergeTranscripts(state.chunks);
+        try {
+          const ffmpegPath = getFfmpegPath();
+          state.mergedTranscript = await annotateUtterancesWithGender(ffmpegPath, state.mergedTranscript, state.chunks);
+        } catch (err) {
+          const errMessage = err instanceof Error ? err.message : String(err);
+          console.warn('[gender-detection] annotation failed', errMessage);
+        }
+        // Release chunk utterances to free memory
+        for (const c of state.chunks) {
+          c.utterances = undefined;
+        }
       }
-      // Release chunk utterances to free memory — merged transcript holds the data now
-      for (const c of state.chunks) {
-        c.utterances = undefined;
-      }
+
       state.status = 'done';
       state.completedAt = Date.now();
       state.progress = 100;
@@ -659,8 +849,19 @@ export function registerLongAudioHandlers(): void {
     if (!state) return { ok: false, error: 'Pipeline not found.' };
 
     if (state.status !== 'done') {
+      // For in-progress pipelines, try streaming merge file first
+      if (shouldUseStreamingMerge(state)) {
+        const diskResult = await readMergedFromDisk(v.data, 0, 2000);
+        if (diskResult) return { ok: true, partial: true, transcript: diskResult };
+      }
       const partial = mergeTranscripts(state.chunks);
       return { ok: true, partial: true, transcript: partial };
+    }
+
+    // For completed enterprise pipelines, read from disk
+    if (shouldUseStreamingMerge(state)) {
+      const diskResult = await readMergedFromDisk(v.data, 0, 5000);
+      if (diskResult) return { ok: true, partial: false, transcript: diskResult };
     }
 
     return { ok: true, partial: false, transcript: state.mergedTranscript };
