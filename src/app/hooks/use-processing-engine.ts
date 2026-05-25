@@ -198,12 +198,23 @@ export function useProcessingEngine() {
           : 0;
         const languageCode = result.languageCode || 'unknown';
 
+        // Enrich utterances with speaking speed
+        const enrichedUtterances = (result.utterances || []).map((u) => {
+          const durationSec = (u.endMs - u.startMs) / 1000;
+          const wordCount = u.text.trim().split(/\s+/).length;
+          const wpm = durationSec > 0 ? Math.round(wordCount / (durationSec / 60)) : 0;
+          let speedLabel: string = 'normal';
+          if (wpm > 0 && wpm < 120) speedLabel = 'slow';
+          else if (wpm >= 160) speedLabel = 'fast';
+          return { ...u, wordCount, wpm, speedLabel };
+        });
+
         addTranscript({
           fileId: file.id,
           fileName: file.fileName,
           fullText: result.fullText || '',
           languageCode,
-          utterances: result.utterances || [],
+          utterances: enrichedUtterances,
           completedAt: now,
         });
         const historyJob = {

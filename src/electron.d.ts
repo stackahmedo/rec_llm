@@ -209,6 +209,7 @@ interface ElectronAudio {
     recommendation?: AudioRecommendation;
   }>;
   compress: (filePath: string) => Promise<{ ok: boolean; error?: string; outputPath?: string; savedMB?: number }>;
+  denoise: (filePath: string) => Promise<{ ok: boolean; error?: string; outputPath?: string }>;
   split: (filePath: string, chunkMinutes?: number) => Promise<{ ok: boolean; error?: string; chunks?: string[] }>;
   ffmpegCheck: () => Promise<{ ok: boolean; ffmpegPath?: string; ffprobePath?: string; error?: string }>;
 }

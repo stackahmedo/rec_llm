@@ -55,6 +55,7 @@ export interface AudioMetadata {
   channels: number;
   sizeBytes: number;
   format: string;
+  recordingDate?: string; // ISO date string extracted from file metadata/filename
 }
 
 export interface PreprocessResult {
@@ -70,6 +71,58 @@ function execPromise(bin: string, args: string[]): Promise<string> {
       else resolve(stdout || stderr);
     });
   });
+}
+
+/**
+ * Detect recording date from multiple sources:
+ * 1. Filename patterns (YYYYMMDD, YYYY-MM-DD, DD_MM_YYYY, etc.)
+ * 2. File system creation/modification date
+ * 3. Audio metadata tags (ID3, RIFF INFO)
+ */
+function detectRecordingDate(filePath: string, ffprobeOutput?: any): string | undefined {
+  const fileName = path.basename(filePath);
+
+  // Pattern 1: YYYYMMDD (e.g., 20240315_meeting.mp3)
+  const p1 = fileName.match(/(?:^|[_\-\s])(\d{4})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?:[_\-\s.]|$)/);
+  if (p1) {
+    const d = new Date(`${p1[1]}-${p1[2]}-${p1[3]}`);
+    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+  }
+
+  // Pattern 2: YYYY-MM-DD or YYYY_MM_DD
+  const p2 = fileName.match(/(\d{4})[-_](0[1-9]|1[0-2])[-_](0[1-9]|[12]\d|3[01])/);
+  if (p2) {
+    const d = new Date(`${p2[1]}-${p2[2]}-${p2[3]}`);
+    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+  }
+
+  // Pattern 3: DD-MM-YYYY or DD_MM_YYYY
+  const p3 = fileName.match(/(0[1-9]|[12]\d|3[01])[-_](0[1-9]|1[0-2])[-_](\d{4})/);
+  if (p3) {
+    const d = new Date(`${p3[3]}-${p3[2]}-${p3[1]}`);
+    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+  }
+
+  // Pattern 4: Check ffprobe metadata tags (creation_time, date)
+  if (ffprobeOutput?.format?.tags) {
+    const tags = ffprobeOutput.format.tags;
+    const dateTag = tags.creation_time || tags.date || tags.ICRD || tags.IDIT;
+    if (dateTag) {
+      const d = new Date(dateTag);
+      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    }
+  }
+
+  // Pattern 5: File system birthtime (creation date)
+  try {
+    const stat = fs.statSync(filePath);
+    const birthtime = stat.birthtime;
+    if (birthtime && birthtime.getFullYear() > 1980) {
+      return birthtime.toISOString().split('T')[0];
+    }
+  } catch {}
+
+  return undefined;
 }
 
 async function getAudioMetadata(filePath: string): Promise<AudioMetadata> {
@@ -98,6 +151,7 @@ async function getAudioMetadata(filePath: string): Promise<AudioMetadata> {
     channels: audioStream.channels || 0,
     sizeBytes,
     format: format.format_name || path.extname(filePath).slice(1),
+    recordingDate: detectRecordingDate(filePath, data),
   };
 }
 
@@ -160,6 +214,35 @@ async function compressToM4A(filePath: string): Promise<string> {
 
   if (!fs.existsSync(outputPath)) {
     throw new Error('Compression failed: output file not created.');
+  }
+
+  return outputPath;
+}
+
+/**
+ * Apply noise reduction using FFmpeg's afftdn filter.
+ * Reduces background noise while preserving speech clarity.
+ * Output: mono 16kHz WAV (optimal for STT).
+ */
+async function denoiseAudio(filePath: string): Promise<string> {
+  const ffmpeg = getFfmpegPath();
+  const ext = path.extname(filePath);
+  const baseName = path.basename(filePath, ext);
+  const outputPath = path.join(os.tmpdir(), `${baseName}_denoised_${Date.now()}.wav`);
+
+  const args = [
+    '-i', filePath,
+    '-af', 'afftdn=nf=-25:tn=1,highpass=f=80,lowpass=f=8000',
+    '-ar', '16000',
+    '-ac', '1',
+    '-y',
+    outputPath,
+  ];
+
+  await execPromise(ffmpeg, args);
+
+  if (!fs.existsSync(outputPath)) {
+    throw new Error('Noise reduction failed: output file not created.');
   }
 
   return outputPath;
@@ -249,6 +332,21 @@ export function registerAudioPreprocessHandlers(): void {
       return { ok: true, chunks };
     } catch (err: any) {
       return { ok: false, error: err.message || 'Splitting failed.' };
+    }
+  });
+
+  ipcMain.handle('audio:denoise', async (_event, filePath: unknown): Promise<{
+    ok: boolean;
+    error?: string;
+    outputPath?: string;
+  }> => {
+    const v = validateSchema(filePathSchema, filePath);
+    if (!v.ok) return { ok: false, error: v.error };
+    try {
+      const outputPath = await denoiseAudio(v.data);
+      return { ok: true, outputPath };
+    } catch (err: any) {
+      return { ok: false, error: err.message || 'Noise reduction failed.' };
     }
   });
 

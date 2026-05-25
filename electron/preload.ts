@@ -120,6 +120,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('audio:metadata', filePath),
     compress: (filePath: string): Promise<{ ok: boolean; error?: string; outputPath?: string; savedMB?: number }> =>
       ipcRenderer.invoke('audio:compress', filePath),
+    denoise: (filePath: string): Promise<{ ok: boolean; error?: string; outputPath?: string }> =>
+      ipcRenderer.invoke('audio:denoise', filePath),
     split: (filePath: string, chunkMinutes?: number): Promise<{ ok: boolean; error?: string; chunks?: string[] }> =>
       ipcRenderer.invoke('audio:split', filePath, chunkMinutes),
     ffmpegCheck: (): Promise<{ ok: boolean; ffmpegPath?: string; ffprobePath?: string; error?: string }> =>
