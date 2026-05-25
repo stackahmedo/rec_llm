@@ -12,6 +12,7 @@ import {
 import { useTranscripts } from "../transcript-store";
 import { checkAllProviders, loadCachedStatus, getStatusDisplay, ApiStatusState, ProviderStatus } from "../api-status-service";
 import { notifyApiStatus } from "../notification-store";
+import { useT } from "../i18n";
 
 function formatBytes(b: number) {
   if (b < 1024) return `${b} B`;
@@ -43,6 +44,7 @@ interface DashboardStatusProps {
 }
 
 export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
+  const { t } = useT();
   const { history, summaries, transcripts, setActiveId } = useTranscripts();
   const [keyStatus, setKeyStatus] = useState<ApiKeyStatus>({ assemblyai: false, gemini: false, chatgpt: false, gemma: false });
   const [provider, setProvider] = useState<string>("gemini");
@@ -125,21 +127,21 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
 
   // Notifications
   const notifications: Array<{ type: "warning" | "error" | "info" | "success"; message: string }> = [];
-  if (!keyStatus.assemblyai) notifications.push({ type: "error", message: "AssemblyAI key not configured" });
-  if (!keyStatus.gemini && !keyStatus.chatgpt) notifications.push({ type: "warning", message: "No summary provider configured" });
-  if (ffmpegOk === false) notifications.push({ type: "error", message: "FFmpeg not found — reinstall RecLLM" });
-  if (failedJobs.length > 0) notifications.push({ type: "warning", message: `${failedJobs.length} failed job${failedJobs.length > 1 ? 's' : ''} need attention` });
-  if (storageStats && storageStats.totalSize > 500 * 1024 * 1024) notifications.push({ type: "info", message: `Storage: ${formatBytes(storageStats.totalSize)} used` });
-  if (todayDone > 0) notifications.push({ type: "success", message: `${todayDone} file${todayDone > 1 ? 's' : ''} completed today` });
+  if (!keyStatus.assemblyai) notifications.push({ type: "error", message: t("dashboard.assemblyKeyNotConfigured") });
+  if (!keyStatus.gemini && !keyStatus.chatgpt) notifications.push({ type: "warning", message: t("dashboard.summaryProviderNotConfigured") });
+  if (ffmpegOk === false) notifications.push({ type: "error", message: t("dashboard.ffmpegMissing") });
+  if (failedJobs.length > 0) notifications.push({ type: "warning", message: `${failedJobs.length} ${t("dashboard.failedJobsAttention")}` });
+  if (storageStats && storageStats.totalSize > 500 * 1024 * 1024) notifications.push({ type: "info", message: `${t("dashboard.storage")}: ${formatBytes(storageStats.totalSize)}` });
+  if (todayDone > 0) notifications.push({ type: "success", message: `${todayDone} ${t("dashboard.filesCompletedToday")}` });
 
   // Recommendations
   const recommendations: string[] = [];
-  if (!keyStatus.assemblyai) recommendations.push("Configure AssemblyAI key to start transcribing");
-  if (history.length > 0 && summaries.length === 0) recommendations.push("Generate AI summaries for completed transcripts");
-  if (failedJobs.length > 0) recommendations.push("Retry failed jobs or check API connection");
-  if (pendingExports > 3) recommendations.push("Export pending transcripts to PDF");
-  if (storageStats && storageStats.totalSize > 1024 * 1024 * 1024) recommendations.push("Clear cache to free disk space");
-  if (recommendations.length === 0) recommendations.push("All systems ready. Upload audio to begin.");
+  if (!keyStatus.assemblyai) recommendations.push(t("dashboard.configureAssemblyKey"));
+  if (history.length > 0 && summaries.length === 0) recommendations.push(t("dashboard.generateSummariesRec"));
+  if (failedJobs.length > 0) recommendations.push(t("dashboard.retryFailedRec"));
+  if (pendingExports > 3) recommendations.push(t("dashboard.exportPendingRec"));
+  if (storageStats && storageStats.totalSize > 1024 * 1024 * 1024) recommendations.push(t("dashboard.clearCacheRec"));
+  if (recommendations.length === 0) recommendations.push(t("dashboard.allReady"));
 
   function StatusDot({ active, label }: { active: boolean | "na"; label: string }) {
     const color = active === "na" ? "bg-gray-400" : active ? "bg-emerald-500" : "bg-red-500";
@@ -162,37 +164,37 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
         {/* Queue Status - wide */}
         <Card className="xl:col-span-2">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><Cpu className="size-4" />Processing Queue</CardTitle>
+            <CardTitle className="text-sm flex items-center gap-2"><Cpu className="size-4" />{t("dashboard.processingQueue")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-5 gap-3 text-center">
               <div className="p-2 rounded bg-muted/40">
                 <div className="text-xl font-semibold">0</div>
-                <div className="text-[10px] text-muted-foreground uppercase">Waiting</div>
+                <div className="text-[10px] text-muted-foreground uppercase">{t("dashboard.waiting")}</div>
               </div>
               <div className="p-2 rounded bg-blue-500/10">
                 <div className="text-xl font-semibold text-blue-600">0</div>
-                <div className="text-[10px] text-muted-foreground uppercase">Processing</div>
+                <div className="text-[10px] text-muted-foreground uppercase">{t("dashboard.processing")}</div>
               </div>
               <div className="p-2 rounded bg-indigo-500/10">
                 <div className="text-xl font-semibold text-indigo-600">0</div>
-                <div className="text-[10px] text-muted-foreground uppercase">Rendering</div>
+                <div className="text-[10px] text-muted-foreground uppercase">{t("dashboard.rendering")}</div>
               </div>
               <div className="p-2 rounded bg-emerald-500/10">
                 <div className="text-xl font-semibold text-emerald-600">{todayDone}</div>
-                <div className="text-[10px] text-muted-foreground uppercase">Completed</div>
+                <div className="text-[10px] text-muted-foreground uppercase">{t("dashboard.completed")}</div>
               </div>
               <div className="p-2 rounded bg-red-500/10">
                 <div className="text-xl font-semibold text-red-600">{todayFailed}</div>
-                <div className="text-[10px] text-muted-foreground uppercase">Failed</div>
+                <div className="text-[10px] text-muted-foreground uppercase">{t("dashboard.failed")}</div>
               </div>
             </div>
             {/* Progress bar for today */}
             {(todayDone + todayFailed) > 0 && (
               <div className="mt-3 space-y-1">
                 <div className="flex justify-between text-[10px] text-muted-foreground">
-                  <span>Today's throughput</span>
-                  <span>{todayDone}/{todayDone + todayFailed} successful</span>
+                  <span>{t("dashboard.today")}</span>
+                  <span>{todayDone}/{todayDone + todayFailed} {t("dashboard.completed").toLowerCase()}</span>
                 </div>
                 <Progress value={todayDone / Math.max(1, todayDone + todayFailed) * 100} className="h-1.5" />
               </div>
@@ -203,7 +205,7 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
         {/* Notifications */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><Bell className="size-4" />Notifications</CardTitle>
+            <CardTitle className="text-sm flex items-center gap-2"><Bell className="size-4" />{t("dashboard.notifications")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-1.5 max-h-[140px] overflow-auto">
@@ -232,7 +234,7 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Wifi className="size-4" />API Status
+              <Wifi className="size-4" />{t("dashboard.apiStatus")}
               <div className="flex-1" />
               <Button
                 type="button"
@@ -266,12 +268,12 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
                   <span className="text-xs">FFmpeg</span>
                   <div className="flex items-center gap-1.5">
                     <span className={`size-2 rounded-full ${ffmpegOk === null ? "bg-gray-400" : ffmpegOk ? "bg-emerald-500" : "bg-red-500"}`} />
-                    <span className="text-[10px] text-muted-foreground w-16">{ffmpegOk === null ? "Unknown" : ffmpegOk ? "Ready" : "Missing"}</span>
+                    <span className="text-[10px] text-muted-foreground w-16">{ffmpegOk === null ? "Unknown" : ffmpegOk ? t("dashboard.ready") : "Missing"}</span>
                   </div>
                 </div>
                 {apiStatus.lastFullCheck && (
                   <div className="text-[9px] text-muted-foreground pt-1 border-t mt-1">
-                    Checked {new Date(apiStatus.lastFullCheck).toLocaleTimeString()}
+                    {t("dashboard.checked")} {new Date(apiStatus.lastFullCheck).toLocaleTimeString()}
                   </div>
                 )}
                 {apiStatus.providers.some((p) => p.status === "missing_key") && (
@@ -282,12 +284,12 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
                     className="h-6 text-[10px] w-full mt-1"
                     onClick={() => onNavigate?.("settings")}
                   >
-                    <Settings className="size-3 mr-1" />Configure keys
+                    <Settings className="size-3 mr-1" />{t("dashboard.configureKeys")}
                   </Button>
                 )}
               </>
             ) : (
-              <div className="text-xs text-muted-foreground">Checking...</div>
+              <div className="text-xs text-muted-foreground">{t("common.loading")}</div>
             )}
           </CardContent>
         </Card>
@@ -295,17 +297,17 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
         {/* Today's Processing */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><Clock className="size-4" />Today</CardTitle>
+            <CardTitle className="text-sm flex items-center gap-2"><Clock className="size-4" />{t("dashboard.today")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>
                 <div className="text-xl font-semibold">{todayDone + todayFailed}</div>
-                <div className="text-[10px] text-muted-foreground">Files</div>
+                <div className="text-[10px] text-muted-foreground">{t("dashboard.files")}</div>
               </div>
               <div>
                 <div className="text-xl font-semibold">{formatBytes(todaySize)}</div>
-                <div className="text-[10px] text-muted-foreground">Size</div>
+                <div className="text-[10px] text-muted-foreground">{t("dashboard.size")}</div>
               </div>
             </div>
           </CardContent>
@@ -314,21 +316,21 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
         {/* Output Summary */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><Download className="size-4" />Output</CardTitle>
+            <CardTitle className="text-sm flex items-center gap-2"><Download className="size-4" />{t("dashboard.output")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-2 text-center text-sm">
               <div>
                 <div className="text-xl font-semibold">{pdfsGenerated}</div>
-                <div className="text-[10px] text-muted-foreground">PDFs</div>
+                <div className="text-[10px] text-muted-foreground">{t("dashboard.pdfs")}</div>
               </div>
               <div>
                 <div className="text-xl font-semibold">{summariesGenerated}</div>
-                <div className="text-[10px] text-muted-foreground">Summaries</div>
+                <div className="text-[10px] text-muted-foreground">{t("dashboard.summaries")}</div>
               </div>
               <div>
                 <div className="text-xl font-semibold">{pendingExports}</div>
-                <div className="text-[10px] text-muted-foreground">Pending</div>
+                <div className="text-[10px] text-muted-foreground">{t("dashboard.pending")}</div>
               </div>
             </div>
           </CardContent>
@@ -337,26 +339,26 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
         {/* Storage */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><Database className="size-4" />Storage</CardTitle>
+            <CardTitle className="text-sm flex items-center gap-2"><Database className="size-4" />{t("dashboard.storage")}</CardTitle>
           </CardHeader>
           <CardContent className="text-xs space-y-1.5">
             {storageStats ? (
               <>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total</span>
+                  <span className="text-muted-foreground">{t("dashboard.total")}</span>
                   <span className="font-mono">{formatBytes(storageStats.totalSize)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Transcripts</span>
+                  <span className="text-muted-foreground">{t("dashboard.transcripts")}</span>
                   <span className="font-mono">{storageStats.transcriptCount}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Summaries</span>
+                  <span className="text-muted-foreground">{t("dashboard.summaries")}</span>
                   <span className="font-mono">{storageStats.summaryCount}</span>
                 </div>
               </>
             ) : (
-              <div className="text-muted-foreground">Loading...</div>
+              <div className="text-muted-foreground">{t("common.loading")}</div>
             )}
           </CardContent>
         </Card>
@@ -367,11 +369,11 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
         {/* Recent Jobs */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><FileAudio className="size-4" />Recent Jobs</CardTitle>
+            <CardTitle className="text-sm flex items-center gap-2"><FileAudio className="size-4" />{t("dashboard.recentJobs")}</CardTitle>
           </CardHeader>
           <CardContent>
             {recentJobs.length === 0 ? (
-              <div className="text-muted-foreground text-xs">No jobs yet. Upload audio to get started.</div>
+              <div className="text-muted-foreground text-xs">{t("dashboard.noJobsYet")}</div>
             ) : (
               <div className="space-y-1.5">
                 {recentJobs.map((job) => (
@@ -386,7 +388,7 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
                         className="h-5 px-1.5 text-[10px] shrink-0"
                         onClick={() => { setActiveId(job.id); onNavigate("transcripts"); }}
                       >
-                        Open
+                        {t("common.open")}
                       </Button>
                     )}
                   </div>
@@ -399,7 +401,7 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
         {/* Smart Recommendations */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><Sparkles className="size-4" />Recommendations</CardTitle>
+            <CardTitle className="text-sm flex items-center gap-2"><Sparkles className="size-4" />{t("dashboard.recommendations")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-1.5">
@@ -416,7 +418,7 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
         {/* Quick Actions */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><Zap className="size-4" />Quick Actions</CardTitle>
+            <CardTitle className="text-sm flex items-center gap-2"><Zap className="size-4" />{t("dashboard.quickActions")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-2">
@@ -427,7 +429,7 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
                 className="h-8 text-xs justify-start"
                 onClick={() => onNavigate?.("upload")}
               >
-                <Upload className="size-3 mr-1.5" />Upload Audio
+                <Upload className="size-3 mr-1.5" />{t("dashboard.uploadAudio")}
               </Button>
               <Button
                 type="button"
@@ -436,7 +438,7 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
                 className="h-8 text-xs justify-start"
                 onClick={() => onNavigate?.("pdf")}
               >
-                <FileText className="size-3 mr-1.5" />Export PDF
+                <FileText className="size-3 mr-1.5" />{t("dashboard.exportPdf")}
               </Button>
               {transcripts.length > 0 && (
                 <Button
@@ -446,7 +448,7 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
                   className="h-8 text-xs justify-start"
                   onClick={() => { setActiveId(transcripts[0].fileId); onNavigate?.("transcripts"); }}
                 >
-                  <FileAudio className="size-3 mr-1.5" />Latest Transcript
+                  <FileAudio className="size-3 mr-1.5" />{t("dashboard.transcripts")}
                 </Button>
               )}
               {failedJobs.length > 0 && (
@@ -457,7 +459,7 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
                   className="h-8 text-xs justify-start text-amber-600"
                   onClick={() => onNavigate?.("upload")}
                 >
-                  <Play className="size-3 mr-1.5" />Retry Failed
+                  <Play className="size-3 mr-1.5" />{t("common.retry")}
                 </Button>
               )}
               <Button
@@ -467,7 +469,7 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
                 className="h-8 text-xs justify-start"
                 onClick={() => onNavigate?.("settings")}
               >
-                <Wifi className="size-3 mr-1.5" />API Settings
+                <Wifi className="size-3 mr-1.5" />{t("dashboard.apiSettings")}
               </Button>
               <Button
                 type="button"
@@ -476,7 +478,7 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
                 className="h-8 text-xs justify-start"
                 onClick={() => onNavigate?.("library")}
               >
-                <HardDrive className="size-3 mr-1.5" />File Library
+                <HardDrive className="size-3 mr-1.5" />{t("dashboard.fileLibrary")}
               </Button>
             </div>
           </CardContent>
@@ -490,7 +492,7 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
           {failedJobs.length > 0 && (
             <Card className="border-red-500/20">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2 text-red-600"><AlertTriangle className="size-4" />Errors</CardTitle>
+                <CardTitle className="text-sm flex items-center gap-2 text-red-600"><AlertTriangle className="size-4" />{t("dashboard.failed")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-1.5">
@@ -505,7 +507,7 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
                         className="h-5 px-1.5 text-[10px] shrink-0"
                         onClick={() => onNavigate?.("upload")}
                       >
-                        Retry
+                        {t("common.retry")}
                       </Button>
                     </div>
                   ))}
@@ -518,11 +520,11 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
           {!keyStatus.assemblyai && (
             <Card className="border-amber-500/20">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2 text-amber-600"><Zap className="size-4" />Setup Required</CardTitle>
+                <CardTitle className="text-sm flex items-center gap-2 text-amber-600"><Zap className="size-4" />{t("dashboard.setupRequired")}</CardTitle>
               </CardHeader>
               <CardContent className="text-xs space-y-2">
                 <div className="p-2 rounded bg-amber-500/10 text-amber-700">
-                  Configure API keys in Settings to enable transcription and AI analysis.
+                  {t("dashboard.configureApiKeysMessage")}
                 </div>
                 <Button
                   type="button"
@@ -531,7 +533,7 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
                   className="h-7 text-xs"
                   onClick={() => onNavigate?.("settings")}
                 >
-                  Open Settings
+                  {t("dashboard.openSettings")}
                 </Button>
               </CardContent>
             </Card>
