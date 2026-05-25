@@ -80,6 +80,8 @@ export function TranscriptWorkspace() {
 
   const active = selectedId ? transcripts.find((t) => t.fileId === selectedId) || null : null;
   const summary = selectedId ? summaries.find((s) => s.fileId === selectedId) || null : null;
+  const activeHistory = selectedId ? history.find((h) => h.id === selectedId) || null : null;
+  const exportName = activeHistory?.generatedFileName?.replace(/\.[^.]+$/, '') || active?.fileName?.replace(/\.[^.]+$/, '') || 'transcript';
   const speakerCount = active ? new Set(active.utterances.map((u) => u.speaker)).size : 0;
   const lastEnd = active ? active.utterances.reduce((max, u) => u.endMs > max ? u.endMs : max, 0) : 0;
   const speakers = useMemo(() => active ? [...new Set(active.utterances.map((u) => u.speaker))] : [], [active]);
@@ -235,7 +237,7 @@ export function TranscriptWorkspace() {
           <DropdownMenuContent align="end">
             <DropdownMenuItem className="text-[10px]" onClick={() => {
               if (!active || !window.electronAPI?.pdf) return;
-              window.electronAPI.pdf.exportReport({ fileName: active.fileName, processedAt: active.completedAt, languageCode: active.languageCode, utterances: active.utterances, summary: summary?.summary, pointNotes: summary?.pointNotes, actionItems: summary?.actionItems, decisions: summary?.decisions, risks: summary?.risks }).then((r) => { if (r.ok) toast.success(t("export.pdfExported")); });
+              window.electronAPI.pdf.exportReport({ fileName: exportName, processedAt: active.completedAt, languageCode: active.languageCode, utterances: active.utterances, summary: summary?.summary, pointNotes: summary?.pointNotes, actionItems: summary?.actionItems, decisions: summary?.decisions, risks: summary?.risks }).then((r) => { if (r.ok) toast.success(t("export.pdfExported")); });
             }}>{t("export.pdf")}</DropdownMenuItem>
             <DropdownMenuItem className="text-[10px]" onClick={() => {
               if (!active || !window.electronAPI?.export) return;
@@ -249,7 +251,7 @@ export function TranscriptWorkspace() {
                 const ts = `${h}:${m}:${s}`;
                 return `${ts} | ${u.speaker} | ${u.text}`;
               })];
-              window.electronAPI.export.saveTxt(active.fileName, lines.join("\n")).then((r) => { if (r?.ok) toast.success(t("export.txtExported")); });
+              window.electronAPI.export.saveTxt(exportName, lines.join("\n")).then((r) => { if (r?.ok) toast.success(t("export.txtExported")); });
             }}>{t("export.txt")}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
