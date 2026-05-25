@@ -75,6 +75,11 @@ def create_app(queue: JobQueue) -> FastAPI:
     async def health():
         return {"status": "ok", "version": "0.3.0"}
 
+    @app.get("/api/health/detailed")
+    async def health_detailed():
+        from app.health import get_system_health
+        return get_system_health()
+
     # Serve static UI files
     ui_dir = Path(__file__).parent / "ui" / "static"
     if ui_dir.exists():
