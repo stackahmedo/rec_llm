@@ -2,6 +2,20 @@
 
 All notable changes to RecLLM are documented here.
 
+## [0.3.2] - 2026-05-26
+
+### Added
+- Recording stats API — per-recording WPM, speech ratio, speaker breakdown
+- Database backup/restore utility — timestamped backups, cleanup, safety restore
+- Backup API — list, create, restore, cleanup endpoints
+- Web UI dark mode toggle — localStorage persistence, Tailwind class-based
+- Web UI toast notification system — success/error/info with auto-dismiss
+- Web UI keyboard shortcuts — Cmd+K search, 1-4 nav, Escape back
+- Web UI dashboard auto-refresh every 30s when active
+- Web UI toast notifications wired into upload + delete actions
+- OpenAPI schema export — 35 endpoints auto-documented
+- Database migration system — forward-only numbered migrations
+
 ## [0.3.1] - 2026-05-26
 
 ### Added
