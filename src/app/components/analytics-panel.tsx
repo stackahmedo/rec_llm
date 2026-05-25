@@ -1,86 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
-import { FileObservation } from "./file-observation";
-
-function GroupedBars({ data, keys, colors, names, height = 260 }: {
-  data: Record<string, any>[]; keys: string[]; colors: string[]; names: string[]; height?: number;
-}) {
-  const w = 600, padL = 40, padR = 12, padT = 14, padB = 28;
-  const innerW = w - padL - padR, innerH = height - padT - padB;
-  const max = Math.max(1, ...data.flatMap((d) => keys.map((k) => Number(d[k]) || 0)));
-  const groupW = innerW / data.length;
-  const barW = (groupW - 8) / keys.length;
-  const ticks = 4;
-  return (
-    <div className="w-full">
-      <svg viewBox={`0 0 ${w} ${height}`} className="w-full" preserveAspectRatio="none" style={{ height }}>
-        {Array.from({ length: ticks + 1 }).map((_, i) => {
-          const y = padT + (innerH * i) / ticks;
-          const val = Math.round((max * (ticks - i)) / ticks);
-          return (
-            <g key={`g${i}`}>
-              <line x1={padL} y1={y} x2={w - padR} y2={y} stroke="#e5e7eb" strokeDasharray="3 3" />
-              <text x={padL - 6} y={y + 4} textAnchor="end" fontSize="10" fill="#6b7280">{val}</text>
-            </g>
-          );
-        })}
-        {data.map((d, i) => {
-          const gx = padL + i * groupW + 4;
-          return (
-            <g key={`row-${i}`}>
-              {keys.map((k, j) => {
-                const v = Number(d[k]) || 0;
-                const h = (v / max) * innerH;
-                const x = gx + j * barW;
-                const y = padT + innerH - h;
-                return <rect key={`b-${i}-${j}`} x={x} y={y} width={barW - 2} height={h} fill={colors[j]} rx={3} />;
-              })}
-              <text x={gx + (groupW - 8) / 2} y={height - 8} textAnchor="middle" fontSize="11" fill="#6b7280">{d.label}</text>
-            </g>
-          );
-        })}
-      </svg>
-      <div className="flex justify-center gap-4 mt-1">
-        {names.map((n, i) => (
-          <div key={n} className="flex items-center gap-1.5 text-muted-foreground">
-            <span className="size-2.5 rounded-sm" style={{ background: colors[i] }} />{n}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function LineSpark({ data, height = 220, min = 60, max = 100 }: {
-  data: { label: string; value: number }[]; height?: number; min?: number; max?: number;
-}) {
-  const w = 600, padL = 40, padR = 12, padT = 14, padB = 28;
-  const innerW = w - padL - padR, innerH = height - padT - padB;
-  const stepX = innerW / Math.max(1, data.length - 1);
-  const yFor = (v: number) => padT + innerH - ((v - min) / (max - min)) * innerH;
-  const path = data.map((d, i) => `${i === 0 ? "M" : "L"} ${padL + i * stepX} ${yFor(d.value)}`).join(" ");
-  const ticks = 4;
-  return (
-    <svg viewBox={`0 0 ${w} ${height}`} className="w-full" preserveAspectRatio="none" style={{ height }}>
-      {Array.from({ length: ticks + 1 }).map((_, i) => {
-        const y = padT + (innerH * i) / ticks;
-        const val = Math.round(max - ((max - min) * i) / ticks);
-        return (
-          <g key={`g${i}`}>
-            <line x1={padL} y1={y} x2={w - padR} y2={y} stroke="#e5e7eb" strokeDasharray="3 3" />
-            <text x={padL - 6} y={y + 4} textAnchor="end" fontSize="10" fill="#6b7280">{val}</text>
-          </g>
-        );
-      })}
-      <path d={path} fill="none" stroke="#10b981" strokeWidth={3} />
-      {data.map((d, i) => (
-        <g key={d.label}>
-          <circle cx={padL + i * stepX} cy={yFor(d.value)} r={4} fill="#10b981" />
-          <text x={padL + i * stepX} y={height - 8} textAnchor="middle" fontSize="11" fill="#6b7280">{d.label}</text>
-        </g>
-      ))}
-    </svg>
-  );
-}
+import { useTranscripts } from "../transcript-store";
+import { useUploadJobs } from "../upload-job-store";
+import { useMemo } from "react";
 
 function Donut({ data, colors, size = 120 }: { data: { name: string; value: number }[]; colors: string[]; size?: number }) {
   const r = 36;
@@ -110,96 +31,208 @@ function Donut({ data, colors, size = 120 }: { data: { name: string; value: numb
   );
 }
 
-const weekly = [
-  { day: "Mon", hours: 18, corrections: 12 },
-  { day: "Tue", hours: 22, corrections: 9 },
-  { day: "Wed", hours: 14, corrections: 6 },
-  { day: "Thu", hours: 26, corrections: 14 },
-  { day: "Fri", hours: 24, corrections: 5 },
-  { day: "Sat", hours: 9, corrections: 2 },
-  { day: "Sun", hours: 6, corrections: 1 },
-];
+function StatBox({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
+  return (
+    <div className="rounded-lg border p-3 text-center">
+      <div className="text-2xl font-bold tabular-nums">{value}</div>
+      <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
+      {sub && <div className="text-[10px] text-muted-foreground/70 mt-0.5">{sub}</div>}
+    </div>
+  );
+}
 
-const classification = [
-  { name: "Male", value: 58 },
-  { name: "Female", value: 42 },
-];
-const pace = [
-  { name: "Slow", value: 35 },
-  { name: "Fast", value: 65 },
-];
-const ageGroup = [
-  { name: "Young", value: 28 },
-  { name: "Adult", value: 47 },
-  { name: "Older", value: 25 },
-];
-
-const colors = ["#3b82f6", "#f43f5e", "#f59e0b", "#10b981"];
-
-const accuracyTrend = [
-  { w: "W1", acc: 71 }, { w: "W2", acc: 75 }, { w: "W3", acc: 79 },
-  { w: "W4", acc: 83 }, { w: "W5", acc: 86 }, { w: "W6", acc: 89 }, { w: "W7", acc: 91 },
-];
+const colors = ["#3b82f6", "#f43f5e", "#f59e0b", "#10b981", "#8b5cf6"];
 
 export function AnalyticsPanel() {
+  const { transcripts, history } = useTranscripts();
+  const { jobs } = useUploadJobs();
+
+  const stats = useMemo(() => {
+    const completedJobs = history.filter((j: any) => j.status === 'done');
+    const failedJobs = jobs.filter((j) => j.stage === 'failed');
+
+    // Total duration from all completed transcripts
+    let totalDurationSec = 0;
+    let totalUtterances = 0;
+    let totalWords = 0;
+    const speakerSet = new Set<string>();
+    const speedCounts = { slow: 0, normal: 0, fast: 0 };
+
+    for (const t of transcripts) {
+      for (const u of t.utterances || []) {
+        totalUtterances++;
+        speakerSet.add(u.speaker);
+        const words = (u.text || '').split(/\s+/).length;
+        totalWords += words;
+        const durationSec = ((u.endMs || 0) - (u.startMs || 0)) / 1000;
+        totalDurationSec += durationSec;
+
+        // Speed classification
+        if (durationSec > 0) {
+          const wpm = Math.round(words / (durationSec / 60));
+          if (wpm < 120) speedCounts.slow++;
+          else if (wpm >= 160) speedCounts.fast++;
+          else speedCounts.normal++;
+        }
+      }
+    }
+
+    // Processing time stats
+    const processingTimes: number[] = [];
+    for (const j of completedJobs) {
+      if (j.createdAt && j.completedAt) {
+        const elapsed = new Date(j.completedAt).getTime() - new Date(j.createdAt).getTime();
+        if (elapsed > 0) processingTimes.push(elapsed / 1000);
+      }
+    }
+    const avgProcessingTimeSec = processingTimes.length > 0
+      ? processingTimes.reduce((a, b) => a + b, 0) / processingTimes.length
+      : 0;
+
+    // Speaker count per file
+    const speakerCounts: number[] = [];
+    for (const t of transcripts) {
+      const speakers = new Set((t.utterances || []).map((u) => u.speaker));
+      if (speakers.size > 0) speakerCounts.push(speakers.size);
+    }
+    const avgSpeakers = speakerCounts.length > 0
+      ? Math.round(speakerCounts.reduce((a, b) => a + b, 0) / speakerCounts.length * 10) / 10
+      : 0;
+
+    return {
+      totalFiles: completedJobs.length,
+      failedFiles: failedJobs.length,
+      pendingFiles: jobs.filter((j) => j.stage === 'queued').length,
+      totalDurationHours: Math.round(totalDurationSec / 3600 * 10) / 10,
+      totalUtterances,
+      totalWords,
+      uniqueSpeakers: speakerSet.size,
+      avgSpeakers,
+      avgProcessingTimeSec: Math.round(avgProcessingTimeSec),
+      speedCounts,
+      successRate: completedJobs.length + failedJobs.length > 0
+        ? Math.round(completedJobs.length / (completedJobs.length + failedJobs.length) * 100)
+        : 0,
+    };
+  }, [transcripts, history, jobs]);
+
+  const speedData = [
+    { name: "Slow (<120 wpm)", value: stats.speedCounts.slow },
+    { name: "Normal", value: stats.speedCounts.normal },
+    { name: "Fast (>160 wpm)", value: stats.speedCounts.fast },
+  ];
+
+  const statusData = [
+    { name: "Completed", value: stats.totalFiles },
+    { name: "Failed", value: stats.failedFiles },
+    { name: "Pending", value: stats.pendingFiles },
+  ];
+
+  const formatDuration = (hours: number) => {
+    if (hours < 1) return `${Math.round(hours * 60)} min`;
+    return `${hours} h`;
+  };
+
+  const formatTime = (sec: number) => {
+    if (sec < 60) return `${sec}s`;
+    if (sec < 3600) return `${Math.round(sec / 60)}m`;
+    return `${Math.round(sec / 3600 * 10) / 10}h`;
+  };
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-      <div className="lg:col-span-2"><FileObservation /></div>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Summary Stats */}
       <Card className="lg:col-span-2">
         <CardHeader>
-          <CardTitle>Processing Volume & Corrections</CardTitle>
-          <CardDescription>Hours of audio processed and human corrections (which train the model).</CardDescription>
+          <CardTitle>Processing Overview</CardTitle>
+          <CardDescription>Real-time statistics from your transcription history.</CardDescription>
         </CardHeader>
         <CardContent>
-          <GroupedBars
-            data={weekly.map((d) => ({ label: d.day, hours: d.hours, corrections: d.corrections }))}
-            keys={["hours", "corrections"]}
-            colors={["#3b82f6", "#f59e0b"]}
-            names={["Hours processed", "Corrections"]}
-          />
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+            <StatBox label="Files Processed" value={stats.totalFiles} />
+            <StatBox label="Total Duration" value={formatDuration(stats.totalDurationHours)} />
+            <StatBox label="Utterances" value={stats.totalUtterances.toLocaleString()} />
+            <StatBox label="Unique Speakers" value={stats.uniqueSpeakers} sub={`avg ${stats.avgSpeakers}/file`} />
+            <StatBox label="Success Rate" value={`${stats.successRate}%`} sub={`${stats.failedFiles} failed`} />
+            <StatBox label="Avg Processing" value={formatTime(stats.avgProcessingTimeSec)} sub="per file" />
+          </div>
         </CardContent>
       </Card>
 
+      {/* Job Status Distribution */}
       <Card>
         <CardHeader>
-          <CardTitle>Model Accuracy Trend</CardTitle>
-          <CardDescription>Learning curve from manual corrections.</CardDescription>
+          <CardTitle>Job Status</CardTitle>
+          <CardDescription>Current queue and history breakdown.</CardDescription>
         </CardHeader>
         <CardContent>
-          <LineSpark data={accuracyTrend.map((d) => ({ label: d.w, value: d.acc }))} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Speaker Classification</CardTitle>
-          <CardDescription>Distribution across the six attributes.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { title: "Gender", data: classification },
-              { title: "Pace", data: pace },
-              { title: "Age", data: ageGroup },
-            ].map((g) => (
-              <div key={g.title}>
-                <div className="text-center text-muted-foreground">{g.title}</div>
-                <div className="flex justify-center py-2">
-                  <Donut data={g.data} colors={colors} />
+          <div className="flex items-center gap-6">
+            <Donut data={statusData} colors={["#10b981", "#f43f5e", "#f59e0b"]} />
+            <div className="space-y-2 flex-1">
+              {statusData.map((d, i) => (
+                <div key={d.name} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="size-2.5 rounded-full" style={{ background: ["#10b981", "#f43f5e", "#f59e0b"][i] }} />
+                    <span>{d.name}</span>
+                  </div>
+                  <span className="font-medium tabular-nums">{d.value}</span>
                 </div>
-                <div className="space-y-1">
-                  {g.data.map((d, i) => (
-                    <div key={`${g.title}-${d.name}`} className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="size-2 rounded-full" style={{ background: colors[i] }} />
-                        {d.name}
-                      </div>
-                      <span className="text-muted-foreground tabular-nums">{d.value}%</span>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Speaking Speed Distribution */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Speaking Speed</CardTitle>
+          <CardDescription>Distribution of utterance speaking rates.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-6">
+            <Donut data={speedData} colors={["#3b82f6", "#10b981", "#f59e0b"]} />
+            <div className="space-y-2 flex-1">
+              {speedData.map((d, i) => {
+                const total = stats.speedCounts.slow + stats.speedCounts.normal + stats.speedCounts.fast;
+                const pct = total > 0 ? Math.round(d.value / total * 100) : 0;
+                return (
+                  <div key={d.name} className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="size-2.5 rounded-full" style={{ background: ["#3b82f6", "#10b981", "#f59e0b"][i] }} />
+                      <span>{d.name}</span>
                     </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+                    <span className="font-medium tabular-nums">{pct}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Word Stats */}
+      <Card className="lg:col-span-2">
+        <CardHeader>
+          <CardTitle>Content Statistics</CardTitle>
+          <CardDescription>Aggregate text metrics across all transcripts.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatBox label="Total Words" value={stats.totalWords.toLocaleString()} />
+            <StatBox
+              label="Avg Words/File"
+              value={stats.totalFiles > 0 ? Math.round(stats.totalWords / stats.totalFiles).toLocaleString() : '0'}
+            />
+            <StatBox
+              label="Avg Duration/File"
+              value={stats.totalFiles > 0 ? formatDuration(stats.totalDurationHours / stats.totalFiles) : '0'}
+            />
+            <StatBox
+              label="Total Characters"
+              value={stats.totalWords > 0 ? `${Math.round(stats.totalWords * 5.5 / 1000)}K` : '0'}
+              sub="estimated"
+            />
           </div>
         </CardContent>
       </Card>
