@@ -428,7 +428,6 @@ export function TranscriptWorkspace() {
               <div className="p-2 space-y-2">
                 <div className="flex items-center gap-1">
                   <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium flex-1">{t("ai.translation")}</span>
-                  <span className="text-[8px] bg-yellow-100 text-yellow-800 border border-yellow-300 rounded px-1 py-0.5 uppercase tracking-wider">Coming Soon</span>
                 </div>
                 <div className="grid grid-cols-3 gap-0.5">
                   {[{ code: "en", label: "English" }, { code: "ja", label: "日本語" }, { code: "zh", label: "中文" }, { code: "ko", label: "한국어" }, { code: "es", label: "Español" }, { code: "fr", label: "Français" }].map((lang) => (
@@ -439,13 +438,55 @@ export function TranscriptWorkspace() {
                 </div>
                 <Separator />
                 <div className="space-y-1">
-                  <button className="w-full h-6 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors">
+                  <button className="w-full h-6 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors" onClick={() => {
+                    if (!active || !window.electronAPI?.summarize?.chat) { toast.error("No transcript or AI provider"); return; }
+                    toast.info("Translating...", { duration: 2000 });
+                    const text = active.utterances.map((u) => `[${u.speaker}]: ${u.text}`).join('\n');
+                    window.electronAPI.summarize.chat(
+                      `Translate the following transcript to ${summaryLang}. Keep speaker labels unchanged. Output only the translated text.`,
+                      text
+                    ).then((r) => {
+                      if (r.ok && r.reply) {
+                        setChatMessages([{ role: "ai", text: r.reply, timestamp: Date.now() }]);
+                        setActiveTab("chat");
+                        toast.success("Translation complete");
+                      } else { toast.error(r.error || "Translation failed"); }
+                    });
+                  }}>
                     <Globe className="size-2.5" />{t("translation.full")}
                   </button>
-                  <button className="w-full h-6 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors">
+                  <button className="w-full h-6 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors" onClick={() => {
+                    if (!active || !window.electronAPI?.summarize?.chat) { toast.error("No transcript or AI provider"); return; }
+                    toast.info("Translating (bilingual)...", { duration: 2000 });
+                    const text = active.utterances.map((u) => `[${u.speaker}]: ${u.text}`).join('\n');
+                    window.electronAPI.summarize.chat(
+                      `Create a bilingual version of this transcript. For each line, show the original text followed by the ${summaryLang} translation on the next line. Keep speaker labels.`,
+                      text
+                    ).then((r) => {
+                      if (r.ok && r.reply) {
+                        setChatMessages([{ role: "ai", text: r.reply, timestamp: Date.now() }]);
+                        setActiveTab("chat");
+                        toast.success("Bilingual translation complete");
+                      } else { toast.error(r.error || "Translation failed"); }
+                    });
+                  }}>
                     <Languages className="size-2.5" />{t("translation.bilingual")}
                   </button>
-                  <button className="w-full h-6 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors">
+                  <button className="w-full h-6 rounded border text-[9px] flex items-center justify-center gap-1 hover:bg-primary/5 hover:border-primary/30 transition-colors" onClick={() => {
+                    if (!active || !window.electronAPI?.summarize?.chat) { toast.error("No transcript or AI provider"); return; }
+                    toast.info("Translating by speaker...", { duration: 2000 });
+                    const text = active.utterances.map((u) => `[${u.speaker}]: ${u.text}`).join('\n');
+                    window.electronAPI.summarize.chat(
+                      `Translate this transcript to ${summaryLang}, grouped by speaker. Show each speaker's contributions together with translations.`,
+                      text
+                    ).then((r) => {
+                      if (r.ok && r.reply) {
+                        setChatMessages([{ role: "ai", text: r.reply, timestamp: Date.now() }]);
+                        setActiveTab("chat");
+                        toast.success("Speaker translation complete");
+                      } else { toast.error(r.error || "Translation failed"); }
+                    });
+                  }}>
                     <Mic2 className="size-2.5" />{t("translation.bySpeaker")}
                   </button>
                 </div>
