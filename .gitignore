@@ -32,3 +32,6 @@ logs/
 models/
 *.gguf
 release/
+rec_llm_python/.venv/
+rec_llm_python/__pycache__/
+**/__pycache__/
