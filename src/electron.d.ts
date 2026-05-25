@@ -52,6 +52,16 @@ interface ElectronSummarize {
     error?: string;
     corrected?: Array<{ index: number; original: string; corrected: string }>;
   }>;
+  mapReduce: (texts: Array<{ id: string; fileName: string; text: string }>, language?: 'en' | 'ja') => Promise<{
+    ok: boolean;
+    error?: string;
+    summary?: string;
+    pointNotes?: string[];
+    actionItems?: string[];
+    decisions?: string[];
+    risks?: string[];
+    stats?: { totalChars: number; chunks: number; levels: number };
+  }>;
 }
 
 interface PdfHeaderConfig {

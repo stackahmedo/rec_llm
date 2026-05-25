@@ -2,6 +2,7 @@ import { ipcMain, net } from 'electron';
 import { getProvider, getProviderConfig, safeParseJson, ProviderError } from './providers';
 import { getAllApiKeys } from './credential-store';
 import { summarizeRequestSchema, validateSchema } from './shared/schemas';
+import { writeLog } from './history';
 
 const KNOWN_PROVIDERS = ['gemini', 'chatgpt', 'groq'];
 
@@ -544,6 +545,130 @@ OUTPUT:`;
 
       return { ok: true, corrected: allCorrected };
     } catch (err: any) {
+      return { ok: false, error: formatProviderError(err) };
+    }
+  });
+
+  // --- MapReduce Summarization for large batches (100+ files, 1M+ chars) ---
+  ipcMain.handle('summarize:mapReduce', async (_event, request: unknown): Promise<{
+    ok: boolean;
+    error?: string;
+    summary?: string;
+    pointNotes?: string[];
+    actionItems?: string[];
+    decisions?: string[];
+    risks?: string[];
+    stats?: { totalChars: number; chunks: number; levels: number };
+  }> => {
+    if (!request || typeof request !== 'object') return { ok: false, error: 'Invalid request' };
+    const data = request as {
+      texts: Array<{ id: string; fileName: string; text: string }>;
+      language?: 'en' | 'ja';
+    };
+    if (!data.texts || !Array.isArray(data.texts) || data.texts.length === 0) {
+      return { ok: false, error: 'No texts provided' };
+    }
+
+    const { apiKeys, models, preferences, openaiProvider } = await getSettings();
+    const provider = (preferences.summaryProvider as string) || 'gemini';
+    const apiKey = apiKeys[provider];
+    const model = models[provider] || (provider === 'gemini' ? 'gemini-2.5-flash' : 'gpt-4o');
+    const openaiBaseUrl = provider !== 'gemini'
+      ? (openaiProvider?.providerType === 'custom' ? openaiProvider.baseUrl : DEFAULT_OPENAI_BASES[provider])
+      : undefined;
+
+    const configError = validateProviderConfig(provider, apiKey, model, openaiBaseUrl);
+    if (configError) return { ok: false, error: configError };
+
+    const language = data.language || 'ja';
+    const totalChars = data.texts.reduce((sum, t) => sum + t.text.length, 0);
+    await writeLog('INFO', `MapReduce started`, `files=${data.texts.length} totalChars=${totalChars} language=${language}`);
+
+    try {
+      // Level 1: Summarize each file/text individually
+      const fileSummaries: ParsedChunk[] = [];
+
+      for (const item of data.texts) {
+        // Split large individual texts into chunks
+        const textChunks = chunkByText(item.text);
+
+        if (textChunks.length === 1) {
+          // Small text — single-pass summary
+          const prompt = buildChunkPrompt(textChunks[0], 0, 1, language);
+          try {
+            const raw = await callLLM(provider, apiKey, model, prompt, openaiBaseUrl);
+            const parsed = parseResponse(raw);
+            fileSummaries.push(parsed);
+          } catch (err: any) {
+            // Individual file failure — skip, don't stop batch
+            await writeLog('WARN', `MapReduce: file summary failed`, `file=${item.fileName} error=${err.message}`);
+            fileSummaries.push({ summary: `[Failed: ${item.fileName}]`, pointNotes: [], actionItems: [], decisions: [], risks: [] });
+          }
+        } else {
+          // Large text — summarize chunks then merge for this file
+          const chunkResults: ParsedChunk[] = [];
+          for (let i = 0; i < textChunks.length; i++) {
+            const prompt = buildChunkPrompt(textChunks[i], i, textChunks.length, language);
+            try {
+              const raw = await callLLM(provider, apiKey, model, prompt, openaiBaseUrl);
+              chunkResults.push(parseResponse(raw));
+            } catch {
+              chunkResults.push({ summary: '', pointNotes: [], actionItems: [], decisions: [], risks: [] });
+            }
+          }
+          // Merge chunk summaries for this file
+          if (chunkResults.length > 0) {
+            const mergePrompt = buildMergePrompt(chunkResults, language);
+            try {
+              const raw = await callLLM(provider, apiKey, model, mergePrompt, openaiBaseUrl);
+              fileSummaries.push(parseResponse(raw));
+            } catch {
+              // Fallback: use first chunk summary
+              fileSummaries.push(chunkResults[0]);
+            }
+          }
+        }
+      }
+
+      // Level 2: Merge file summaries into groups (if too many for one prompt)
+      const MAX_SUMMARIES_PER_MERGE = 15;
+      let currentLevel = fileSummaries;
+      let levels = 1;
+
+      while (currentLevel.length > MAX_SUMMARIES_PER_MERGE) {
+        levels++;
+        const nextLevel: ParsedChunk[] = [];
+
+        for (let i = 0; i < currentLevel.length; i += MAX_SUMMARIES_PER_MERGE) {
+          const batch = currentLevel.slice(i, i + MAX_SUMMARIES_PER_MERGE);
+          const mergePrompt = buildMergePrompt(batch, language);
+          try {
+            const raw = await callLLM(provider, apiKey, model, mergePrompt, openaiBaseUrl);
+            nextLevel.push(parseResponse(raw));
+          } catch {
+            // On failure, pass through first item of batch
+            nextLevel.push(batch[0]);
+          }
+        }
+
+        currentLevel = nextLevel;
+      }
+
+      // Level 3 (final): Merge remaining summaries into executive summary
+      levels++;
+      const finalPrompt = buildMergePrompt(currentLevel, language);
+      const finalRaw = await callLLM(provider, apiKey, model, finalPrompt, openaiBaseUrl);
+      const finalParsed = parseResponse(finalRaw);
+
+      await writeLog('INFO', `MapReduce completed`, `files=${data.texts.length} levels=${levels} totalChars=${totalChars}`);
+
+      return {
+        ok: true,
+        ...finalParsed,
+        stats: { totalChars, chunks: fileSummaries.length, levels },
+      };
+    } catch (err: any) {
+      await writeLog('ERROR', `MapReduce failed`, err.message);
       return { ok: false, error: formatProviderError(err) };
     }
   });

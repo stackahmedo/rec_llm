@@ -81,6 +81,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
       error?: string;
       corrected?: Array<{ index: number; original: string; corrected: string }>;
     }> => ipcRenderer.invoke('summarize:correctGrammar', { utterances }),
+    mapReduce: (texts: Array<{ id: string; fileName: string; text: string }>, language?: 'en' | 'ja'): Promise<{
+      ok: boolean;
+      error?: string;
+      summary?: string;
+      pointNotes?: string[];
+      actionItems?: string[];
+      decisions?: string[];
+      risks?: string[];
+      stats?: { totalChars: number; chunks: number; levels: number };
+    }> => ipcRenderer.invoke('summarize:mapReduce', { texts, language }),
   },
   pdf: {
     exportReport: (data: PdfExportData): Promise<{ ok: boolean; error?: string; filePath?: string }> =>
