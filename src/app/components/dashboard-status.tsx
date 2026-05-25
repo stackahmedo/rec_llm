@@ -44,7 +44,7 @@ interface DashboardStatusProps {
 }
 
 export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
-  const { t } = useT();
+  const { t, lang } = useT();
   const { history, summaries, transcripts, setActiveId } = useTranscripts();
   const [keyStatus, setKeyStatus] = useState<ApiKeyStatus>({ assemblyai: false, gemini: false, chatgpt: false, gemma: false });
   const [provider, setProvider] = useState<string>("gemini");
@@ -259,7 +259,7 @@ export function DashboardStatus({ onNavigate }: DashboardStatusProps) {
                       <span className="text-xs">{p.label}</span>
                       <div className="flex items-center gap-1.5">
                         <span className={`size-2 rounded-full ${display.bgColor}`} />
-                        <span className={`text-[10px] w-16 ${display.color}`}>{display.label}</span>
+                        <span className={`text-[10px] w-16 ${display.color}`}>{lang === 'ja' ? display.labelJa : display.label}</span>
                       </div>
                     </div>
                   );

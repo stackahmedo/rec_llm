@@ -117,15 +117,15 @@ export function AnalyticsPanel() {
   }, [transcripts, history, jobs]);
 
   const speedData = [
-    { name: "Slow (<120 wpm)", value: stats.speedCounts.slow },
-    { name: "Normal", value: stats.speedCounts.normal },
-    { name: "Fast (>160 wpm)", value: stats.speedCounts.fast },
+    { name: "遅い (<120 wpm)", value: stats.speedCounts.slow },
+    { name: "普通", value: stats.speedCounts.normal },
+    { name: "速い (>160 wpm)", value: stats.speedCounts.fast },
   ];
 
   const statusData = [
-    { name: "Completed", value: stats.totalFiles },
-    { name: "Failed", value: stats.failedFiles },
-    { name: "Pending", value: stats.pendingFiles },
+    { name: "完了", value: stats.totalFiles },
+    { name: "失敗", value: stats.failedFiles },
+    { name: "保留中", value: stats.pendingFiles },
   ];
 
   const formatDuration = (hours: number) => {
@@ -144,17 +144,17 @@ export function AnalyticsPanel() {
       {/* Summary Stats */}
       <Card className="lg:col-span-2">
         <CardHeader>
-          <CardTitle>Processing Overview</CardTitle>
-          <CardDescription>Real-time statistics from your transcription history.</CardDescription>
+          <CardTitle>処理概要</CardTitle>
+          <CardDescription>文字起こし履歴からのリアルタイム統計。</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-            <StatBox label="Files Processed" value={stats.totalFiles} />
-            <StatBox label="Total Duration" value={formatDuration(stats.totalDurationHours)} />
-            <StatBox label="Utterances" value={stats.totalUtterances.toLocaleString()} />
-            <StatBox label="Unique Speakers" value={stats.uniqueSpeakers} sub={`avg ${stats.avgSpeakers}/file`} />
-            <StatBox label="Success Rate" value={`${stats.successRate}%`} sub={`${stats.failedFiles} failed`} />
-            <StatBox label="Avg Processing" value={formatTime(stats.avgProcessingTimeSec)} sub="per file" />
+            <StatBox label="処理済みファイル" value={stats.totalFiles} />
+            <StatBox label="合計時間" value={formatDuration(stats.totalDurationHours)} />
+            <StatBox label="発話数" value={stats.totalUtterances.toLocaleString()} />
+            <StatBox label="話者数" value={stats.uniqueSpeakers} sub={`平均 ${stats.avgSpeakers}/ファイル`} />
+            <StatBox label="成功率" value={`${stats.successRate}%`} sub={`${stats.failedFiles} 失敗`} />
+            <StatBox label="平均処理時間" value={formatTime(stats.avgProcessingTimeSec)} sub="ファイルあたり" />
           </div>
         </CardContent>
       </Card>
@@ -162,8 +162,8 @@ export function AnalyticsPanel() {
       {/* Job Status Distribution */}
       <Card>
         <CardHeader>
-          <CardTitle>Job Status</CardTitle>
-          <CardDescription>Current queue and history breakdown.</CardDescription>
+          <CardTitle>ジョブステータス</CardTitle>
+          <CardDescription>キューと履歴の内訳。</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-6">
@@ -186,8 +186,8 @@ export function AnalyticsPanel() {
       {/* Speaking Speed Distribution */}
       <Card>
         <CardHeader>
-          <CardTitle>Speaking Speed</CardTitle>
-          <CardDescription>Distribution of utterance speaking rates.</CardDescription>
+          <CardTitle>発話速度</CardTitle>
+          <CardDescription>発話速度の分布。</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-6">
@@ -214,24 +214,24 @@ export function AnalyticsPanel() {
       {/* Word Stats */}
       <Card className="lg:col-span-2">
         <CardHeader>
-          <CardTitle>Content Statistics</CardTitle>
-          <CardDescription>Aggregate text metrics across all transcripts.</CardDescription>
+          <CardTitle>コンテンツ統計</CardTitle>
+          <CardDescription>全文字起こしのテキスト指標。</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatBox label="Total Words" value={stats.totalWords.toLocaleString()} />
+            <StatBox label="総単語数" value={stats.totalWords.toLocaleString()} />
             <StatBox
-              label="Avg Words/File"
+              label="平均単語数/ファイル"
               value={stats.totalFiles > 0 ? Math.round(stats.totalWords / stats.totalFiles).toLocaleString() : '0'}
             />
             <StatBox
-              label="Avg Duration/File"
+              label="平均時間/ファイル"
               value={stats.totalFiles > 0 ? formatDuration(stats.totalDurationHours / stats.totalFiles) : '0'}
             />
             <StatBox
-              label="Total Characters"
+              label="総文字数"
               value={stats.totalWords > 0 ? `${Math.round(stats.totalWords * 5.5 / 1000)}K` : '0'}
-              sub="estimated"
+              sub="推定"
             />
           </div>
         </CardContent>

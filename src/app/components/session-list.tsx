@@ -14,18 +14,18 @@ function getStatus(fileId: string, hasSummary: boolean, historyStatus?: string):
   return "ready";
 }
 
-const statusConfig: Record<SessionStatus, { label: string; color: string }> = {
-  ready: { label: "Ready", color: "text-emerald-600 border-emerald-300" },
-  summarized: { label: "Summarized", color: "text-blue-600 border-blue-300" },
-  exported: { label: "Exported", color: "text-purple-600 border-purple-300" },
-  failed: { label: "Failed", color: "text-red-600 border-red-300" },
+const statusConfig: Record<SessionStatus, { label: string; labelJa: string; color: string }> = {
+  ready: { label: "Ready", labelJa: "準備完了", color: "text-emerald-600 border-emerald-300" },
+  summarized: { label: "Summarized", labelJa: "要約済み", color: "text-blue-600 border-blue-300" },
+  exported: { label: "Exported", labelJa: "出力済み", color: "text-purple-600 border-purple-300" },
+  failed: { label: "Failed", labelJa: "失敗", color: "text-red-600 border-red-300" },
 };
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
   const diff = now.getTime() - d.getTime();
-  if (diff < 86400000) return "Today";
+  if (diff < 86400000) return "今日";
   if (diff < 172800000) return "Yesterday";
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
@@ -127,7 +127,7 @@ export function SessionList({ selectedId, onSelect }: SessionListProps) {
                 <span className="text-[11px] font-medium truncate flex-1">{session.fileName}</span>
               </div>
               <div className="flex items-center gap-1.5 mt-1 pl-[18px]">
-                <Badge variant="outline" className={`h-3.5 text-[8px] px-1 ${cfg.color}`}>{cfg.label}</Badge>
+                <Badge variant="outline" className={`h-3.5 text-[8px] px-1 ${cfg.color}`}>{cfg.labelJa}</Badge>
                 <span className="text-[9px] text-muted-foreground font-mono uppercase">{session.languageCode}</span>
                 <span className="text-[9px] text-muted-foreground font-mono">{session.speakerCount} spk</span>
               </div>

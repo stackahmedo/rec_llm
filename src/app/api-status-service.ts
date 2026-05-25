@@ -122,20 +122,20 @@ export async function checkAllProviders(): Promise<ApiStatusState> {
 }
 
 // Get display info for status codes
-export function getStatusDisplay(status: ApiStatusCode): { label: string; color: string; bgColor: string } {
+export function getStatusDisplay(status: ApiStatusCode): { label: string; labelJa: string; color: string; bgColor: string } {
   switch (status) {
     case "connected":
-      return { label: "Connected", color: "text-emerald-600", bgColor: "bg-emerald-500" };
+      return { label: "Connected", labelJa: "接続済み", color: "text-emerald-600", bgColor: "bg-emerald-500" };
     case "missing_key":
-      return { label: "No key", color: "text-red-600", bgColor: "bg-red-500" };
+      return { label: "No key", labelJa: "キーなし", color: "text-red-600", bgColor: "bg-red-500" };
     case "invalid_key":
-      return { label: "Invalid", color: "text-red-600", bgColor: "bg-red-500" };
+      return { label: "Invalid", labelJa: "無効", color: "text-red-600", bgColor: "bg-red-500" };
     case "connection_failed":
-      return { label: "Failed", color: "text-red-600", bgColor: "bg-red-500" };
+      return { label: "Failed", labelJa: "失敗", color: "text-red-600", bgColor: "bg-red-500" };
     case "checking":
-      return { label: "Checking", color: "text-amber-600", bgColor: "bg-amber-500" };
+      return { label: "Checking", labelJa: "確認中", color: "text-amber-600", bgColor: "bg-amber-500" };
     default:
-      return { label: "Unknown", color: "text-gray-500", bgColor: "bg-gray-400" };
+      return { label: "Unknown", labelJa: "不明", color: "text-gray-500", bgColor: "bg-gray-400" };
   }
 }
 
