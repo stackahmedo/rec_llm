@@ -12,6 +12,7 @@ import { registerAudioPreprocessHandlers } from './audio-preprocess';
 import { registerLongAudioHandlers } from './long-audio-pipeline';
 import { registerFolderWatcherHandlers } from './folder-watcher';
 import { migrateFromElectronStore } from './credential-store';
+import { getDb, migrateFromJson, closeDb } from './database';
 
 // Global error handlers — prevent silent crashes, log safely (no secrets/file contents)
 process.on('uncaughtException', (error) => {
@@ -41,6 +42,20 @@ registerExportHandlers();
 registerAudioPreprocessHandlers();
 registerLongAudioHandlers();
 registerFolderWatcherHandlers();
+
+// Initialize SQLite database and migrate legacy JSON data
+try {
+  getDb();
+  const migration = migrateFromJson();
+  if (migration.migrated > 0) {
+    console.log(`[database] Migrated ${migration.migrated} recordings from JSON to SQLite (${migration.errors} errors)`);
+  }
+} catch (err) {
+  console.error('[database] Failed to initialize:', err instanceof Error ? err.message : err);
+}
+
+// Close database on app quit
+app.on('will-quit', () => { closeDb(); });
 
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'm4a', 'mp4', 'aac', 'flac'];
 
