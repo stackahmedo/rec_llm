@@ -66,15 +66,42 @@ export async function analyzeUtteranceSegment(ffmpegPath: string, filePath: stri
     if (samples.length < sampleRate * 0.05) return null;
     const pitch = detectPitchAutoCorr(samples, sampleRate);
     if (!pitch) return null;
+
+    // Gender classification with confidence scoring
+    // Confidence is based on how far the pitch is from the ambiguous zone (130-170 Hz)
     let gender: 'male' | 'female' | 'unknown' = 'unknown';
-    if (pitch > 170) gender = 'female';
-    else if (pitch > 90) gender = 'male';
+    let genderConfidence = 0;
+
+    const MALE_CENTER = 110;      // Typical male fundamental frequency
+    const FEMALE_CENTER = 220;    // Typical female fundamental frequency
+    const AMBIGUOUS_LOW = 130;    // Start of ambiguous zone
+    const AMBIGUOUS_HIGH = 170;   // End of ambiguous zone
+    const CONFIDENCE_THRESHOLD = 0.5; // Below this, classify as "unknown"
+
+    if (pitch > AMBIGUOUS_HIGH) {
+      // Likely female
+      const distFromAmbiguous = pitch - AMBIGUOUS_HIGH;
+      genderConfidence = Math.min(1.0, 0.5 + distFromAmbiguous / 100);
+      gender = genderConfidence >= CONFIDENCE_THRESHOLD ? 'female' : 'unknown';
+    } else if (pitch < AMBIGUOUS_LOW) {
+      // Likely male
+      const distFromAmbiguous = AMBIGUOUS_LOW - pitch;
+      genderConfidence = Math.min(1.0, 0.5 + distFromAmbiguous / 60);
+      gender = genderConfidence >= CONFIDENCE_THRESHOLD ? 'male' : 'unknown';
+    } else {
+      // Ambiguous zone (130-170 Hz)
+      genderConfidence = 0.3; // Low confidence
+      gender = 'unknown';
+    }
+
+    // Age range estimation (unchanged logic, informational only)
     let ageRange: 'child' | 'young' | 'adult' | 'senior' | 'unknown' = 'unknown';
     if (pitch > 250) ageRange = 'child';
     else if (pitch > 180) ageRange = 'young';
     else if (pitch > 120) ageRange = 'adult';
     else ageRange = 'senior';
-    return { pitchHz: Math.round(pitch), gender, ageRange };
+
+    return { pitchHz: Math.round(pitch), gender, genderConfidence: Math.round(genderConfidence * 100) / 100, ageRange };
   } catch (err) {
     return null;
   }
@@ -85,20 +112,23 @@ export async function annotateUtterancesWithGender(ffmpegPath: string, merged: a
   for (const u of merged.utterances) {
     try {
       const chunk = chunks[u.chunkIndex];
-      if (!chunk || !chunk.filePath) { u.gender = 'unknown'; u.ageRange = 'unknown'; continue; }
+      if (!chunk || !chunk.filePath) { u.gender = 'unknown'; u.genderConfidence = 0; u.ageRange = 'unknown'; continue; }
       const relStart = Math.max(0, (u.startMs - (chunk.startTime * 1000)) / 1000);
       const duration = Math.max(0.2, (u.endMs - u.startMs) / 1000);
       const info = await analyzeUtteranceSegment(ffmpegPath, chunk.filePath, relStart, duration);
       if (info) {
         u.gender = info.gender;
+        u.genderConfidence = info.genderConfidence;
         u.ageRange = info.ageRange;
         u.pitchHz = info.pitchHz;
       } else {
         u.gender = 'unknown';
+        u.genderConfidence = 0;
         u.ageRange = 'unknown';
       }
     } catch {
       u.gender = 'unknown';
+      u.genderConfidence = 0;
       u.ageRange = 'unknown';
     }
   }
