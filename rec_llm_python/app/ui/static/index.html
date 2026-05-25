@@ -150,15 +150,28 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
       </div>
       <div class="divide-y divide-gray-100">
         <template x-for="rec in filteredRecordings" :key="rec.id">
-          <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors" @click="viewTranscript(rec.id)">
+          <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors group" @click="viewTranscript(rec.id)">
             <div class="flex items-center justify-between">
-              <div>
-                <div class="text-sm font-medium" x-text="rec.original_file_name || rec.id"></div>
-                <div class="text-xs text-gray-400 mt-0.5" x-text="rec.created_at?.slice(0, 10) + ' · ' + (rec.language_code || 'auto')"></div>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium truncate" x-text="rec.original_file_name || rec.id"></div>
+                <div class="text-xs text-gray-400 mt-0.5">
+                  <span x-text="rec.created_at?.slice(0, 10)"></span>
+                  <span class="mx-1">·</span>
+                  <span x-text="rec.language_code || 'auto'"></span>
+                  <span x-show="rec.duration_seconds" class="mx-1">·</span>
+                  <span x-show="rec.duration_seconds" x-text="formatDuration(rec.duration_seconds)"></span>
+                  <span x-show="rec.speaker_count" class="mx-1">·</span>
+                  <span x-show="rec.speaker_count" x-text="rec.speaker_count + ' 話者'"></span>
+                </div>
               </div>
-              <span class="text-xs px-2 py-0.5 rounded-full"
-                :class="rec.status === 'done' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-600'"
-                x-text="rec.status === 'done' ? '完了' : rec.status"></span>
+              <div class="flex items-center gap-2">
+                <span class="text-xs px-2 py-0.5 rounded-full"
+                  :class="rec.status === 'done' ? 'bg-emerald-50 text-emerald-700' : rec.status === 'failed' ? 'bg-red-50 text-red-700' : rec.status === 'processing' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'"
+                  x-text="rec.status === 'done' ? '完了' : rec.status === 'failed' ? '失敗' : rec.status === 'processing' ? '処理中' : '待機'"></span>
+                <button @click.stop="deleteRecording(rec.id)" class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all p-1" title="削除">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+              </div>
             </div>
           </div>
         </template>
@@ -476,6 +489,17 @@ function app() {
 
     clearDone() {
       this.queue = this.queue.filter(item => item.status !== 'done');
+    },
+
+    async deleteRecording(id) {
+      if (!confirm('この録音を削除しますか？')) return;
+      try {
+        const resp = await fetch(`/api/recordings/${id}`, { method: 'DELETE' });
+        if (resp.ok) {
+          this.recordings = this.recordings.filter(r => r.id !== id);
+          await this.loadDashboard();
+        }
+      } catch {}
     },
 
     async viewTranscript(id) {
