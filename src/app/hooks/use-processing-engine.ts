@@ -13,10 +13,14 @@ export function useProcessingEngine() {
   const { addTranscript, addHistoryJob } = useTranscripts();
   const processingRef = useRef(false);
 
-  // --- Long-audio chunk processing loop ---
+  // --- Long-audio chunk processing loop (supports parallel workers) ---
   const processLongAudio = useCallback(async (file: UploadJob, pipelineId: string, totalChunks: number) => {
     const api = window.electronAPI;
     if (!api?.longAudio || !api?.assemblyai) return;
+
+    // Get concurrency from pipeline status
+    const statusResult = await api.longAudio.status(pipelineId);
+    const concurrency = Math.min(Math.max(statusResult?.concurrency || 1, 1), 5);
 
     updateJob(file.id, {
       stage: "transcribing",
@@ -25,44 +29,82 @@ export function useProcessingEngine() {
       pipelineId,
       totalChunks,
       completedChunks: 0,
-      currentChunkLabel: `Chunk 1/${totalChunks}`,
+      currentChunkLabel: `Chunk 0/${totalChunks} (×${concurrency})`,
     });
 
     let completedCount = 0;
+    let activeWorkers = 0;
+    const RATE_LIMIT_DELAY_MS = 1500; // Delay between starting new uploads to avoid rate limits
 
-    // Process chunks sequentially
-    while (true) {
+    // Worker function: fetch next chunk, transcribe, report result
+    const processOneChunk = async (): Promise<boolean> => {
       const nextResult = await api.longAudio.nextChunk(pipelineId);
       if (!nextResult.ok || !nextResult.chunk) {
-        if (nextResult.allProcessed) break;
-        break; // Error
+        return false; // No more chunks to process
       }
 
       const chunk = nextResult.chunk;
-      updateJob(file.id, {
-        currentChunkLabel: `Chunk ${chunk.index + 1}/${totalChunks}`,
-        progress: Math.round(15 + (completedCount / totalChunks) * 70),
-      });
+      activeWorkers++;
 
-      // Transcribe this chunk via AssemblyAI
-      const transcribeResult = await api.assemblyai.transcribeFile(chunk.filePath, `${file.id}_chunk_${chunk.index}`);
+      try {
+        const transcribeResult = await api.assemblyai.transcribeFile(chunk.filePath, `${file.id}_chunk_${chunk.index}`);
 
-      if (transcribeResult.ok && transcribeResult.utterances) {
-        await api.longAudio.chunkDone(pipelineId, chunk.index, transcribeResult.utterances);
-        completedCount++;
-        updateJob(file.id, {
-          completedChunks: completedCount,
-          progress: Math.round(15 + (completedCount / totalChunks) * 70),
-        });
-      } else {
-        const chunkError = transcribeResult.error || "Chunk transcription failed";
-        const failResult = await api.longAudio.chunkFailed(pipelineId, chunk.index, chunkError);
-        if (failResult.ok && failResult.canRetry) {
-          // Will be retried on next loop iteration
-          continue;
+        if (transcribeResult.ok && transcribeResult.utterances) {
+          const doneResult = await api.longAudio.chunkDone(pipelineId, chunk.index, transcribeResult.utterances);
+          completedCount++;
+          updateJob(file.id, {
+            completedChunks: completedCount,
+            currentChunkLabel: `Chunk ${completedCount}/${totalChunks} (×${concurrency})`,
+            progress: Math.round(15 + (completedCount / totalChunks) * 70),
+          });
+          // Check if pipeline is fully done
+          if (doneResult?.allDone) return false;
+        } else {
+          const chunkError = transcribeResult.error || "Chunk transcription failed";
+          const failResult = await api.longAudio.chunkFailed(pipelineId, chunk.index, chunkError);
+          if (!failResult?.canRetry) {
+            // Permanently failed — count it and move on
+            completedCount++;
+            updateJob(file.id, {
+              completedChunks: completedCount,
+              progress: Math.round(15 + (completedCount / totalChunks) * 70),
+            });
+          }
+          // If canRetry, the chunk goes back to pending and will be picked up again
         }
-        // Chunk permanently failed — continue with remaining chunks
-        completedCount++;
+      } finally {
+        activeWorkers--;
+      }
+
+      return true; // More chunks may be available
+    };
+
+    // Parallel processing loop
+    if (concurrency <= 1) {
+      // Sequential mode (enterprise / safe default)
+      while (true) {
+        const hasMore = await processOneChunk();
+        if (!hasMore) break;
+      }
+    } else {
+      // Parallel mode: maintain N concurrent workers
+      let keepGoing = true;
+      while (keepGoing) {
+        // Fill up to concurrency limit
+        const promises: Promise<boolean>[] = [];
+        while (promises.length < concurrency && activeWorkers + promises.length < concurrency) {
+          promises.push(processOneChunk());
+          // Stagger starts to avoid rate-limit bursts
+          if (promises.length < concurrency) {
+            await new Promise((r) => setTimeout(r, RATE_LIMIT_DELAY_MS));
+          }
+        }
+
+        if (promises.length === 0) break;
+
+        // Wait for all current batch to complete
+        const results = await Promise.all(promises);
+        keepGoing = results.some((r) => r === true);
       }
     }
 

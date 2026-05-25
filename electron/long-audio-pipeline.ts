@@ -717,6 +717,7 @@ export function registerLongAudioHandlers(): void {
       currentChunk: state.chunks.filter((c) => c.status === 'done').length,
       totalChunks: state.totalChunks,
       estimatedRemaining: estimateRemainingTime(state),
+      concurrency: state.concurrency,
       chunks: state.chunks.map((c) => ({ id: c.id, index: c.index, status: c.status, error: c.error })),
     };
   });

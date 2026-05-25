@@ -284,7 +284,7 @@ interface RecoverablePipeline {
 interface ElectronLongAudio {
   analyze: (filePath: string) => Promise<{ ok: boolean; error?: string; analysis?: AudioAnalysis }>;
   start: (filePath: string, opts?: { concurrency?: number }) => Promise<{ ok: boolean; error?: string; requiresChunking?: boolean; pipelineId?: string; totalChunks?: number; analysis?: AudioAnalysis }>;
-  status: (pipelineId: string) => Promise<{ ok: boolean; error?: string; status?: string; progress?: number; currentChunk?: number; totalChunks?: number; estimatedRemaining?: number; chunks?: ChunkStatus[] }>;
+  status: (pipelineId: string) => Promise<{ ok: boolean; error?: string; status?: string; progress?: number; currentChunk?: number; totalChunks?: number; estimatedRemaining?: number; concurrency?: number; chunks?: ChunkStatus[] }>;
   nextChunk: (pipelineId: string) => Promise<{ ok: boolean; error?: string; chunk?: ChunkDetail | null; allProcessed?: boolean }>;
   chunkDone: (pipelineId: string, chunkIndex: number, utterances: Array<{ speaker?: string; text?: string; start?: number; end?: number; startMs?: number; endMs?: number; confidence?: number }>) => Promise<{ ok: boolean; error?: string; allDone?: boolean; progress?: number }>;
   chunkFailed: (pipelineId: string, chunkIndex: number, error: string) => Promise<{ ok: boolean; error?: string; canRetry?: boolean; retryCount?: number }>;
