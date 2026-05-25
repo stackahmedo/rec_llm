@@ -493,11 +493,14 @@ function app() {
             item.status = 'done';
             item.recordingId = data.id;
             item.progress = 100;
+            this.showToast(`${item.fileName} アップロード完了`, 'success');
           } else {
             item.status = 'failed';
+            this.showToast(`${item.fileName} アップロード失敗`, 'error');
           }
         } catch (e) {
           item.status = 'failed';
+          this.showToast(`${item.fileName} エラー`, 'error');
         }
       }
       await this.loadRecordings();
@@ -515,8 +518,13 @@ function app() {
         if (resp.ok) {
           this.recordings = this.recordings.filter(r => r.id !== id);
           await this.loadDashboard();
+          this.showToast('録音を削除しました', 'success');
+        } else {
+          this.showToast('削除に失敗しました', 'error');
         }
-      } catch {}
+      } catch {
+        this.showToast('削除エラー', 'error');
+      }
     },
 
     async viewTranscript(id) {
