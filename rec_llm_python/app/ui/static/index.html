@@ -228,12 +228,57 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
       </div>
       <div class="space-y-2">
         <template x-for="result in searchResults" :key="result.recording_id + result.matched_text">
-          <div class="p-3 bg-gray-50 rounded">
+          <div class="p-3 bg-gray-50 rounded cursor-pointer hover:bg-gray-100" @click="viewTranscript(result.recording_id)">
             <div class="text-xs text-gray-500" x-text="result.file_name"></div>
             <div class="text-sm mt-1" x-text="result.matched_text"></div>
             <div class="text-xs text-gray-400 mt-1" x-text="(result.speaker || '') + ' · ' + (result.date?.slice(0, 10) || '')"></div>
           </div>
         </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transcript Detail -->
+  <div x-show="currentView === 'transcript-detail'" class="p-6 fade-in">
+    <div class="mb-4 flex items-center justify-between">
+      <button @click="currentView = 'transcripts'" class="text-sm text-blue-600 hover:text-blue-800">← 一覧に戻る</button>
+      <div class="flex gap-2">
+        <button @click="exportTranscript('txt')" class="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">TXT出力</button>
+        <button @click="exportTranscript('pdf')" class="text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700">PDF出力</button>
+      </div>
+    </div>
+
+    <div x-show="currentRecording" class="space-y-4">
+      <!-- Recording Info -->
+      <div class="bg-white rounded-lg border border-gray-200 p-4">
+        <h3 class="text-sm font-semibold" x-text="currentRecording?.original_file_name"></h3>
+        <div class="flex gap-4 mt-2 text-xs text-gray-500">
+          <span x-text="currentRecording?.language_code || 'auto'"></span>
+          <span x-text="currentRecording?.speaker_count + ' 話者'"></span>
+          <span x-text="formatDuration(currentRecording?.duration_seconds)"></span>
+          <span x-text="currentRecording?.status === 'done' ? '完了' : currentRecording?.status"></span>
+        </div>
+      </div>
+
+      <!-- Utterances -->
+      <div class="bg-white rounded-lg border border-gray-200 divide-y divide-gray-50">
+        <template x-for="utt in currentUtterances" :key="utt.id">
+          <div class="px-4 py-2 hover:bg-gray-50 group">
+            <div class="flex items-start gap-3">
+              <span class="text-[10px] text-gray-400 font-mono mt-0.5 min-w-[52px]" x-text="msToTime(utt.start_ms)"></span>
+              <div class="flex-1">
+                <span class="text-xs font-semibold text-gray-600" x-text="utt.speaker + ':'"></span>
+                <span class="text-sm text-gray-800 ml-1" x-text="utt.corrected_text || utt.text"></span>
+              </div>
+              <span class="text-[9px] px-1.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                :class="utt.speed_label === 'fast' ? 'bg-red-50 text-red-600' : utt.speed_label === 'slow' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-500'"
+                x-text="utt.wpm ? utt.wpm + ' WPM' : ''"></span>
+            </div>
+          </div>
+        </template>
+        <div x-show="currentUtterances.length === 0" class="p-8 text-center text-sm text-gray-400">
+          文字起こしデータがありません。
+        </div>
       </div>
     </div>
   </div>
@@ -252,6 +297,8 @@ function app() {
     recordings: [],
     queue: [],
     searchResults: [],
+    currentRecording: null,
+    currentUtterances: [],
     settings: {
       assemblyaiKey: '',
       geminiKey: '',
@@ -409,9 +456,50 @@ function app() {
       this.queue = this.queue.filter(item => item.status !== 'done');
     },
 
-    viewTranscript(id) {
-      // Navigate to transcript detail (future)
-      console.log('View transcript:', id);
+    async viewTranscript(id) {
+      this.currentView = 'transcript-detail';
+      try {
+        const resp = await fetch(`/api/recordings/${id}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          this.currentRecording = data.recording;
+          this.currentUtterances = data.utterances || [];
+        }
+      } catch {}
+    },
+
+    async exportTranscript(type) {
+      if (!this.currentRecording) return;
+      try {
+        const resp = await fetch('/api/exports/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recording_id: this.currentRecording.id,
+            export_type: type,
+          }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          alert(`エクスポート完了: ${data.filePath}`);
+        }
+      } catch {}
+    },
+
+    formatDuration(sec) {
+      if (!sec) return '';
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    },
+
+    msToTime(ms) {
+      if (!ms) return '00:00:00';
+      const total = Math.floor(ms / 1000);
+      const h = Math.floor(total / 3600);
+      const m = Math.floor((total % 3600) / 60);
+      const s = total % 60;
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
     },
   };
 }
