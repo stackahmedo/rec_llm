@@ -93,6 +93,16 @@ interface PdfExportData {
   risks?: string[];
   utterances?: Array<{ speaker: string; startMs: number; endMs: number; text: string }>;
   config?: PdfExportConfig;
+  // Extended metadata for export
+  metadata?: {
+    recordingDate?: string;
+    originalFileName?: string;
+    duration?: number;        // seconds
+    speakerCount?: number;
+    noiseReduction?: boolean;
+    modelProvider?: string;
+    modelName?: string;
+  };
 }
 
 // --- Utilities ---
@@ -211,6 +221,23 @@ function buildHtml(data: PdfExportData): string {
     const metaLines: string[] = [];
     if (config.header.showFileName) metaLines.push(`<div class="meta-line"><span class="meta-label">${labels.file}</span><span class="meta-value">${escapeHtml(data.fileName)}</span></div>`);
     if (config.header.showDate) metaLines.push(`<div class="meta-line"><span class="meta-label">${labels.processed}</span><span class="meta-value">${escapeHtml(data.processedAt.slice(0, 10))}</span></div>`);
+
+    // Extended metadata block
+    if (data.metadata) {
+      const m = data.metadata;
+      if (m.originalFileName) metaLines.push(`<div class="meta-line"><span class="meta-label">Original File</span><span class="meta-value">${escapeHtml(m.originalFileName)}</span></div>`);
+      if (m.recordingDate) metaLines.push(`<div class="meta-line"><span class="meta-label">Recording Date</span><span class="meta-value">${escapeHtml(m.recordingDate)}</span></div>`);
+      if (m.duration && m.duration > 0) {
+        const h = Math.floor(m.duration / 3600);
+        const min = Math.floor((m.duration % 3600) / 60);
+        const durStr = h > 0 ? `${h}h ${min}m` : `${min}m`;
+        metaLines.push(`<div class="meta-line"><span class="meta-label">Duration</span><span class="meta-value">${durStr}</span></div>`);
+      }
+      if (m.speakerCount && m.speakerCount > 0) metaLines.push(`<div class="meta-line"><span class="meta-label">Speakers</span><span class="meta-value">${m.speakerCount}</span></div>`);
+      if (data.languageCode) metaLines.push(`<div class="meta-line"><span class="meta-label">Language</span><span class="meta-value">${escapeHtml(data.languageCode)}</span></div>`);
+      if (m.noiseReduction) metaLines.push(`<div class="meta-line"><span class="meta-label">Noise Reduction</span><span class="meta-value">Applied</span></div>`);
+      if (m.modelProvider) metaLines.push(`<div class="meta-line"><span class="meta-label">AI Provider</span><span class="meta-value">${escapeHtml(m.modelProvider)}${m.modelName ? ' / ' + escapeHtml(m.modelName) : ''}</span></div>`);
+    }
 
     sections.push(`
       <div class="meta-compact">
