@@ -87,7 +87,8 @@ def create_app(queue: JobQueue) -> FastAPI:
         return get_system_health()
 
     # Serve static UI files
-    ui_dir = Path(__file__).parent / "ui" / "static"
+    from app.runtime import get_static_dir
+    ui_dir = get_static_dir()
     if ui_dir.exists():
         app.mount("/", StaticFiles(directory=str(ui_dir), html=True), name="ui")
 

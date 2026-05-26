@@ -1,10 +1,11 @@
 """RecLLM Python Core — FFmpeg Runner"""
 
 import subprocess
-import shutil
 import json
 from pathlib import Path
 from dataclasses import dataclass
+
+from app.runtime import get_ffmpeg_path, get_ffprobe_path
 
 
 @dataclass
@@ -19,27 +20,13 @@ class AudioMetadata:
 
 
 def find_ffmpeg() -> str:
-    """Find FFmpeg binary path."""
-    # Check bundled location first (PyInstaller)
-    bundled = Path(__file__).parent.parent.parent / "ffmpeg.exe"
-    if bundled.exists():
-        return str(bundled)
-    # Fall back to system PATH
-    path = shutil.which("ffmpeg")
-    if path:
-        return path
-    raise FileNotFoundError("FFmpeg not found. Install FFmpeg or place ffmpeg.exe in the app directory.")
+    """Find FFmpeg binary path using the runtime resolver."""
+    return get_ffmpeg_path()
 
 
 def find_ffprobe() -> str:
-    """Find FFprobe binary path."""
-    bundled = Path(__file__).parent.parent.parent / "ffprobe.exe"
-    if bundled.exists():
-        return str(bundled)
-    path = shutil.which("ffprobe")
-    if path:
-        return path
-    raise FileNotFoundError("FFprobe not found.")
+    """Find FFprobe binary path using the runtime resolver."""
+    return get_ffprobe_path()
 
 
 def get_audio_metadata(file_path: str | Path) -> AudioMetadata:

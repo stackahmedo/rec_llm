@@ -1,11 +1,21 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""RecLLM — PyInstaller spec for Windows EXE build.
+"""RecLLM — PyInstaller spec for standalone Windows client build.
 
-Build command (run on Windows):
+Prerequisites (BUILD machine only — not needed on client PC):
+    1. Python 3.11+
+    2. pip install pyinstaller pywebview uvicorn fastapi httpx python-multipart pydantic
+    3. Place FFmpeg binaries in ffmpeg/ folder:
+       - ffmpeg/ffmpeg.exe
+       - ffmpeg/ffprobe.exe
+       (Download from https://www.gyan.dev/ffmpeg/builds/ — "essentials" build)
+
+Build command:
     pyinstaller recllm.spec --clean
 
-Requirements:
-    pip install pyinstaller pywebview uvicorn fastapi httpx
+Output:
+    dist/RecLLM.exe (single-file, ~80-120MB)
+
+Client receives ONLY RecLLM.exe — no Python, no FFmpeg install needed.
 """
 
 import sys
@@ -13,15 +23,28 @@ from pathlib import Path
 
 block_cipher = None
 
+# Verify FFmpeg binaries exist before building
+ffmpeg_dir = Path('ffmpeg')
+if not (ffmpeg_dir / 'ffmpeg.exe').exists():
+    print("ERROR: ffmpeg/ffmpeg.exe not found!")
+    print("Download FFmpeg and place ffmpeg.exe + ffprobe.exe in the ffmpeg/ folder.")
+    print("Download: https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip")
+    sys.exit(1)
+
 a = Analysis(
     ['start.py'],
     pathex=['.'],
-    binaries=[],
+    binaries=[
+        # Bundle FFmpeg binaries inside the EXE
+        ('ffmpeg/ffmpeg.exe', 'ffmpeg'),
+        ('ffmpeg/ffprobe.exe', 'ffmpeg'),
+    ],
     datas=[
+        # Bundle static UI files
         ('app/ui/static', 'app/ui/static'),
     ],
     hiddenimports=[
-        # Uvicorn internals (not auto-detected)
+        # Uvicorn internals (not auto-detected by PyInstaller)
         'uvicorn',
         'uvicorn.logging',
         'uvicorn.loops',
@@ -41,16 +64,27 @@ a = Analysis(
         'starlette.routing',
         'starlette.middleware',
         'starlette.middleware.cors',
+        'starlette.responses',
+        'starlette.staticfiles',
+        'starlette.websockets',
         # HTTP client
         'httpx',
         'httpx._transports',
         'httpx._transports.default',
         'httpcore',
-        # Desktop (optional)
+        # Multipart (file uploads)
+        'multipart',
+        'python_multipart',
+        # Desktop window
         'webview',
         # Database
         'sqlite3',
-        # App modules
+        # Pydantic
+        'pydantic',
+        'pydantic_settings',
+        # App modules (ensure all are collected)
+        'app.runtime',
+        'app.config',
         'app.desktop',
         'app.health',
         'app.database.db',
@@ -60,14 +94,31 @@ a = Analysis(
         'app.core.worker',
         'app.audio.ffmpeg_runner',
         'app.audio.duration_detector',
+        'app.ai.clients',
         'app.ai.clients.assemblyai_client',
         'app.ai.clients.openai_client',
         'app.ai.clients.gemini_client',
+        'app.api',
+        'app.api.routes_recordings',
+        'app.api.routes_jobs',
+        'app.api.routes_search',
+        'app.api.routes_settings',
+        'app.api.routes_analytics',
+        'app.api.routes_exports',
+        'app.api.routes_watcher',
+        'app.api.routes_ai',
+        'app.api.routes_speakers',
+        'app.api.routes_batch',
+        'app.api.routes_recording_stats',
+        'app.api.routes_timeline',
+        'app.api.routes_backup',
+        'app.api.routes_progress',
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
+        # Exclude unnecessary large packages
         'tkinter',
         'matplotlib',
         'numpy',
@@ -75,6 +126,9 @@ a = Analysis(
         'scipy',
         'PIL',
         'pytest',
+        'IPython',
+        'notebook',
+        'setuptools',
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
