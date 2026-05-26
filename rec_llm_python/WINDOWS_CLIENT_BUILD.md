@@ -120,3 +120,40 @@ When code changes:
 3. Deliver new `dist/RecLLM.exe`
 
 FFmpeg binaries rarely need updating — only re-download if there's a specific codec issue.
+
+## Automated Build (GitHub Actions)
+
+A GitHub Actions workflow builds `RecLLM.exe` automatically.
+
+### How to Trigger
+
+1. **Automatic**: Push any change to `rec_llm_python/` on the `master` branch
+2. **Manual**: Go to GitHub → Actions → "Windows Client Build" → "Run workflow"
+
+### Where to Download the Artifact
+
+1. Go to GitHub → Actions → latest "Windows Client Build" run
+2. Scroll to "Artifacts" section at the bottom
+3. Download `RecLLM-Windows-Test-Build` (contains `RecLLM.exe`)
+4. Artifacts are retained for 14 days
+
+### What the Workflow Does
+
+1. Checks out code on a Windows runner
+2. Installs Python 3.11 + all dependencies
+3. Downloads FFmpeg essentials automatically
+4. Runs Python tests (excluding integration tests that need real audio)
+5. Builds `RecLLM.exe` via PyInstaller
+6. Uploads the EXE as a build artifact
+
+### What Still Needs Manual Testing After Download
+
+The GitHub Actions build produces the EXE, but these must be verified on a clean Windows PC:
+
+- App launches and shows the UI window
+- FFmpeg works from inside the bundled EXE
+- File upload and audio processing work end-to-end
+- Settings persist between sessions
+- Exports save to the correct location
+
+See `CLEAN_WINDOWS_TEST_CHECKLIST.md` for the full test procedure.

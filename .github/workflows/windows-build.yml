@@ -1,0 +1,95 @@
+name: Windows Client Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: 'Build mode'
+        required: false
+        default: 'onefile'
+        type: choice
+        options:
+          - onefile
+          - onefolder
+  push:
+    branches: [master]
+    paths:
+      - 'rec_llm_python/**'
+      - '.github/workflows/windows-build.yml'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: rec_llm_python
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'rec_llm_python/pyproject.toml'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pyinstaller pywebview
+
+      - name: Download FFmpeg
+        run: |
+          mkdir ffmpeg
+          $ffmpegUrl = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+          $zipPath = "ffmpeg-essentials.zip"
+          Write-Host "Downloading FFmpeg..."
+          Invoke-WebRequest -Uri $ffmpegUrl -OutFile $zipPath -UseBasicParsing
+          Write-Host "Extracting FFmpeg..."
+          Expand-Archive -Path $zipPath -DestinationPath "ffmpeg-extract" -Force
+          # Find the bin directory inside the extracted folder
+          $binDir = Get-ChildItem -Path "ffmpeg-extract" -Recurse -Directory -Filter "bin" | Select-Object -First 1
+          Copy-Item "$($binDir.FullName)\ffmpeg.exe" "ffmpeg\ffmpeg.exe"
+          Copy-Item "$($binDir.FullName)\ffprobe.exe" "ffmpeg\ffprobe.exe"
+          # Verify
+          Write-Host "FFmpeg binaries:"
+          Get-ChildItem ffmpeg\
+          .\ffmpeg\ffmpeg.exe -version | Select-Object -First 1
+        shell: pwsh
+
+      - name: Run Python tests
+        run: |
+          pip install pytest pytest-asyncio
+          python -m pytest tests/ -v --tb=short -x
+        env:
+          # Skip integration tests that need real audio generation on CI
+          PYTEST_ADDOPTS: "--ignore=tests/test_pipeline_integration.py"
+
+      - name: Build Windows EXE
+        run: |
+          pyinstaller recllm.spec --clean --noconfirm
+          Write-Host "Build complete. Output:"
+          Get-ChildItem dist\
+          $exeSize = (Get-Item "dist\RecLLM.exe").Length / 1MB
+          Write-Host "RecLLM.exe size: $([math]::Round($exeSize, 1)) MB"
+        shell: pwsh
+
+      - name: Verify EXE exists
+        run: |
+          if (!(Test-Path "dist\RecLLM.exe")) {
+            Write-Error "RecLLM.exe not found in dist/"
+            exit 1
+          }
+          Write-Host "RecLLM.exe verified."
+        shell: pwsh
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RecLLM-Windows-Test-Build
+          path: rec_llm_python/dist/RecLLM.exe
+          retention-days: 14
+          if-no-files-found: error
