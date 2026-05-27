@@ -1,5 +1,6 @@
 """RecLLM Python Core — FastAPI Application Factory"""
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -14,10 +15,38 @@ logger = logging.getLogger(__name__)
 
 def create_app(queue: JobQueue) -> FastAPI:
     """Create and configure the FastAPI application."""
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        from app.api.routes_progress import broadcast_progress
+        from app.core.worker import transcription_worker
+        import asyncio
+
+        # Register job handlers
+        from app.core.job_queue import JobType
+        if JobType.TRANSCRIBE not in queue._handlers:
+            queue.register_handler(JobType.TRANSCRIBE, transcription_worker)
+
+        def _on_progress(job_id, progress, status):
+            status_str = status.value if status else None
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(broadcast_progress(job_id, progress, status_str))
+            except RuntimeError:
+                pass
+
+        queue.on_progress(_on_progress)
+        await queue.start()
+        logger.info("Job queue started")
+        yield
+        await queue.stop()
+        logger.info("Job queue stopped")
+
     app = FastAPI(
         title="RecLLM",
         version="0.3.2",
         description="AI-powered audio transcription and document intelligence",
+        lifespan=lifespan,
     )
 
     # CORS middleware (allow pywebview and local dev)
@@ -60,6 +89,7 @@ def create_app(queue: JobQueue) -> FastAPI:
     from app.api.routes_recording_stats import router as recording_stats_router
     from app.api.routes_backup import router as backup_router
     from app.api.routes_timeline import router as timeline_router
+    from app.api.routes_diagnostics import router as diagnostics_router
 
     app.include_router(recordings_router, prefix="/api/recordings", tags=["recordings"])
     app.include_router(jobs_router, prefix="/api/jobs", tags=["jobs"])
@@ -75,6 +105,7 @@ def create_app(queue: JobQueue) -> FastAPI:
     app.include_router(timeline_router, prefix="/api/recordings", tags=["timeline"])
     app.include_router(backup_router, prefix="/api/backup", tags=["backup"])
     app.include_router(progress_router, tags=["progress"])
+    app.include_router(diagnostics_router, prefix="/api", tags=["diagnostics"])
 
     # Health check
     @app.get("/api/health")

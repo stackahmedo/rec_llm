@@ -43,10 +43,7 @@ async def start_app():
     if recovered > 0:
         logger.info("Recovered %d orphaned jobs", recovered)
 
-    # Start queue processor
-    await queue.start()
-
-    # Start FastAPI server
+    # Start FastAPI server (lifespan handles queue start/stop)
     try:
         import uvicorn
         from app.api import create_app
@@ -58,7 +55,6 @@ async def start_app():
     except KeyboardInterrupt:
         pass
     finally:
-        await queue.stop()
         close_db()
         logger.info("RecLLM shutdown complete.")
 

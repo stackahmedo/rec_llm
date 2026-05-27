@@ -5,13 +5,14 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Form
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Request
 from pydantic import BaseModel
 
 from app.config import RECORDINGS_DIR, AUDIO_EXTENSIONS, ensure_dirs
 from app.database.db import get_cursor
 from app.audio.ffmpeg_runner import get_audio_metadata
 from app.audio.duration_detector import get_tier_recommendation
+from app.core.job_queue import JobType
 
 router = APIRouter()
 
@@ -111,7 +112,7 @@ async def import_file(file_path: str):
 
 
 @router.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(request: Request, file: UploadFile = File(...)):
     """Upload an audio file via multipart form data."""
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
@@ -145,8 +146,12 @@ async def upload_file(file: UploadFile = File(...)):
                duration_seconds, language_code, status, imported_at, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (recording_id, file.filename, str(save_path), ext, len(content),
-             meta.duration_seconds, "auto", "pending", now, now),
+             meta.duration_seconds, "auto", "processing", now, now),
         )
+
+    # Auto-create transcription job
+    queue = request.app.state.queue
+    job_id = queue.create_job(recording_id, JobType.TRANSCRIBE)
 
     return {
         "id": recording_id,
@@ -156,6 +161,7 @@ async def upload_file(file: UploadFile = File(...)):
         "tier": recommendation.tier.value,
         "recommendation": recommendation.reason,
         "total_chunks": recommendation.total_chunks,
+        "job_id": job_id,
     }
 
 

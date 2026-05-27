@@ -10,6 +10,7 @@ router = APIRouter()
 
 
 @router.get("/")
+@router.get("")
 async def list_jobs(status: str | None = None, limit: int = 50):
     """List jobs with optional status filter."""
     with get_cursor() as cur:

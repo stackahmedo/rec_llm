@@ -6,9 +6,7 @@
 <title>RecLLM</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
-  tailwind.config = {
-    darkMode: 'class',
-  }
+  tailwind.config = { darkMode: 'class' }
 </script>
 <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 <style>
@@ -17,13 +15,14 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
 .fade-in { animation: fadeIn 0.2s ease-in; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 .toast-enter { animation: slideIn 0.3s ease-out; }
-.toast-leave { animation: slideOut 0.3s ease-in forwards; }
 @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-@keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+.log-line { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px; line-height: 1.6; }
+.log-error { color: #dc2626; background: #fef2f2; }
+.log-warning { color: #d97706; background: #fffbeb; }
+.progress-bar { transition: width 0.3s ease; }
 </style>
 </head>
-<body class="bg-gray-50 text-gray-900 min-h-screen" x-data="app()" x-cloak
-  @keydown.window="handleKeyboard($event)">
+<body class="bg-gray-50 text-gray-900 min-h-screen" x-data="app()" x-cloak @keydown.window="handleKeyboard($event)">
 
 <!-- Sidebar -->
 <div class="fixed inset-y-0 left-0 w-56 bg-white border-r border-gray-200 flex flex-col">
@@ -33,18 +32,16 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
   </div>
   <nav class="flex-1 p-2 space-y-0.5">
     <template x-for="item in navItems" :key="item.id">
-      <button
-        @click="currentView = item.id"
+      <button @click="currentView = item.id"
         :class="currentView === item.id ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'"
         class="w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors"
-        x-text="item.label">
-      </button>
+        x-text="item.label"></button>
     </template>
   </nav>
   <div class="p-3 border-t border-gray-100">
     <div class="flex items-center gap-2">
       <div class="w-2 h-2 rounded-full" :class="apiConnected ? 'bg-emerald-500' : 'bg-red-500'"></div>
-      <span class="text-xs text-gray-500" x-text="apiConnected ? 'API接続済み' : 'API未接続'"></span>
+      <span class="text-xs text-gray-500" x-text="apiConnected ? t('apiConnected') : t('apiDisconnected')"></span>
     </div>
   </div>
 </div>
@@ -58,11 +55,11 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
       <p class="text-xs text-gray-500" x-text="navItems.find(n => n.id === currentView)?.sub"></p>
     </div>
     <div class="flex items-center gap-3">
-      <button @click="toggleDarkMode()" class="p-1.5 rounded-md hover:bg-gray-100 text-gray-500" title="ダークモード切替">
+      <button @click="toggleDarkMode()" class="p-1.5 rounded-md hover:bg-gray-100 text-gray-500" :title="t('darkModeToggle')">
         <svg x-show="!darkMode" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
         <svg x-show="darkMode" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
       </button>
-      <input type="text" placeholder="検索... (⌘K)" class="text-sm border border-gray-200 rounded-md px-3 py-1.5 w-48 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      <input type="text" :placeholder="t('searchPlaceholder')" class="text-sm border border-gray-200 rounded-md px-3 py-1.5 w-48 focus:outline-none focus:ring-1 focus:ring-blue-500"
         x-model="searchQuery" @keyup.enter="doSearch()">
     </div>
   </header>
@@ -71,29 +68,25 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
   <div x-show="currentView === 'dashboard'" class="p-6 fade-in">
     <div class="grid grid-cols-4 gap-4 mb-6">
       <div class="bg-white rounded-lg border border-gray-200 p-4">
-        <div class="text-xs text-gray-500 mb-1">処理済みファイル</div>
+        <div class="text-xs text-gray-500 mb-1" x-text="t('totalFiles')"></div>
         <div class="text-2xl font-bold" x-text="stats.totalRecordings"></div>
       </div>
       <div class="bg-white rounded-lg border border-gray-200 p-4">
-        <div class="text-xs text-gray-500 mb-1">合計時間</div>
+        <div class="text-xs text-gray-500 mb-1" x-text="t('totalHours')"></div>
         <div class="text-2xl font-bold" x-text="stats.totalHours + 'h'"></div>
       </div>
       <div class="bg-white rounded-lg border border-gray-200 p-4">
-        <div class="text-xs text-gray-500 mb-1">発話数</div>
+        <div class="text-xs text-gray-500 mb-1" x-text="t('utterances')"></div>
         <div class="text-2xl font-bold" x-text="stats.totalUtterances.toLocaleString()"></div>
       </div>
       <div class="bg-white rounded-lg border border-gray-200 p-4">
-        <div class="text-xs text-gray-500 mb-1">話者数</div>
+        <div class="text-xs text-gray-500 mb-1" x-text="t('speakers')"></div>
         <div class="text-2xl font-bold" x-text="stats.uniqueSpeakers"></div>
       </div>
     </div>
-
-    <!-- Recent Jobs -->
     <div class="bg-white rounded-lg border border-gray-200 p-4">
-      <h3 class="text-sm font-semibold mb-3">最近のジョブ</h3>
-      <div x-show="recentJobs.length === 0" class="text-sm text-gray-400 py-4 text-center">
-        ジョブはまだありません。音声をアップロードしてください。
-      </div>
+      <h3 class="text-sm font-semibold mb-3" x-text="t('recentJobs')"></h3>
+      <div x-show="recentJobs.length === 0" class="text-sm text-gray-400 py-4 text-center" x-text="t('noJobsYet')"></div>
       <div class="space-y-2">
         <template x-for="job in recentJobs" :key="job.id">
           <div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
@@ -101,11 +94,9 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
               <div class="w-2 h-2 rounded-full" :class="job.status === 'done' ? 'bg-emerald-500' : job.status === 'failed' ? 'bg-red-500' : 'bg-amber-500'"></div>
               <span class="text-sm" x-text="job.recording_id"></span>
             </div>
-            <div class="flex items-center gap-2">
-              <span class="text-xs px-2 py-0.5 rounded-full"
-                :class="job.status === 'done' ? 'bg-emerald-50 text-emerald-700' : job.status === 'failed' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'"
-                x-text="job.status === 'done' ? '完了' : job.status === 'failed' ? '失敗' : '処理中'"></span>
-            </div>
+            <span class="text-xs px-2 py-0.5 rounded-full"
+              :class="job.status === 'done' ? 'bg-emerald-50 text-emerald-700' : job.status === 'failed' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'"
+              x-text="job.status === 'done' ? t('completed') : job.status === 'failed' ? t('failed') : t('processing')"></span>
           </div>
         </template>
       </div>
@@ -123,28 +114,39 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
           </svg>
         </div>
-        <p class="text-sm text-gray-600 mb-1">音声ファイルをドラッグ＆ドロップ</p>
-        <p class="text-xs text-gray-400">WAV · MP3 · M4A · FLAC · OGG — 最大30時間</p>
-        <button @click="selectFiles()" class="mt-4 px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors">
-          ファイルを選択
-        </button>
+        <p class="text-sm text-gray-600 mb-1" x-text="t('dragDrop')"></p>
+        <p class="text-xs text-gray-400" x-text="t('fileFormats')"></p>
+        <button @click="selectFiles()" class="mt-4 px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors" x-text="t('selectFiles')"></button>
       </div>
 
       <!-- Queue -->
       <div x-show="queue.length > 0" class="mt-6">
         <div class="flex items-center justify-between mb-3">
-          <h3 class="text-sm font-semibold">処理キュー (<span x-text="queue.length"></span>)</h3>
+          <h3 class="text-sm font-semibold" x-text="t('processingQueue') + ' (' + queue.length + ')'"></h3>
           <div class="flex gap-2">
-            <button @click="startAll()" class="text-xs px-3 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700">すべて開始</button>
-            <button @click="clearDone()" class="text-xs px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">完了を削除</button>
+            <button @click="startAll()" class="text-xs px-3 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700" x-text="t('startAll')"></button>
+            <button @click="clearDone()" class="text-xs px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300" x-text="t('clearDone')"></button>
           </div>
         </div>
-        <div class="space-y-1">
+        <div class="space-y-2">
           <template x-for="item in queue" :key="item.id">
-            <div class="flex items-center gap-3 py-2 px-3 bg-gray-50 rounded text-sm">
-              <div class="w-2 h-2 rounded-full" :class="item.status === 'done' ? 'bg-emerald-500' : item.status === 'failed' ? 'bg-red-500' : item.status === 'running' ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'"></div>
-              <span class="flex-1 truncate" x-text="item.fileName"></span>
-              <span class="text-xs text-gray-400" x-text="item.status === 'done' ? '完了' : item.status === 'failed' ? '失敗' : item.status === 'running' ? '処理中' : '待機中'"></span>
+            <div class="bg-gray-50 rounded-lg p-3 relative overflow-hidden">
+              <div class="flex items-center gap-3">
+                <div class="w-2 h-2 rounded-full shrink-0" :class="item.status === 'done' ? 'bg-emerald-500' : item.status === 'failed' ? 'bg-red-500' : item.status === 'running' ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'"></div>
+                <span class="flex-1 text-sm truncate" x-text="item.fileName"></span>
+                <span x-show="item.status === 'running'" class="text-xs text-blue-600" x-text="(item.progress || 0) + '%'"></span>
+                <span class="text-xs px-2 py-0.5 rounded-full"
+                  :class="item.status === 'done' ? 'bg-emerald-50 text-emerald-700' : item.status === 'failed' ? 'bg-red-50 text-red-700' : item.status === 'running' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'"
+                  x-text="item.step || (item.status === 'done' ? t('completed') : item.status === 'failed' ? t('failed') : item.status === 'running' ? t('processing') : t('waiting'))"></span>
+                <button x-show="item.status === 'failed'" @click="retryQueueItem(item)" class="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded hover:bg-amber-200" x-text="t('retry')"></button>
+                <button @click="removeQueueItem(item)" class="text-gray-400 hover:text-red-500 p-1" :title="t('remove')">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              </div>
+              <div x-show="item.status === 'running'" class="mt-2 h-1 bg-gray-200 rounded-full overflow-hidden">
+                <div class="h-full bg-blue-500 progress-bar rounded-full" :style="'width:' + (item.progress || 0) + '%'"></div>
+              </div>
+              <div x-show="item.status === 'failed' && item.error" class="mt-2 text-xs text-red-600" x-text="item.error"></div>
             </div>
           </template>
         </div>
@@ -156,36 +158,41 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
   <div x-show="currentView === 'transcripts'" class="p-6 fade-in">
     <div class="bg-white rounded-lg border border-gray-200">
       <div class="p-4 border-b border-gray-100">
-        <input type="text" placeholder="文字起こしを検索..." class="text-sm border border-gray-200 rounded-md px-3 py-1.5 w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
-          x-model="transcriptSearch">
+        <input type="text" :placeholder="t('searchTranscripts')" class="text-sm border border-gray-200 rounded-md px-3 py-1.5 w-full focus:outline-none focus:ring-1 focus:ring-blue-500" x-model="transcriptSearch">
       </div>
-      <div x-show="recordings.length === 0" class="p-8 text-center text-sm text-gray-400">
-        文字起こしはまだありません。
+      <div x-show="recordings.length === 0" class="p-12 text-center">
+        <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <p class="text-sm text-gray-400" x-text="t('noTranscripts')"></p>
       </div>
-      <div class="divide-y divide-gray-100">
+      <!-- Table header -->
+      <div x-show="recordings.length > 0" class="grid grid-cols-12 gap-2 px-4 py-2 border-b border-gray-100 text-xs text-gray-500 font-medium">
+        <div class="col-span-4" x-text="t('fileName')"></div>
+        <div class="col-span-1" x-text="t('duration')"></div>
+        <div class="col-span-1" x-text="t('language')"></div>
+        <div class="col-span-1" x-text="t('speakersCol')"></div>
+        <div class="col-span-2" x-text="t('date')"></div>
+        <div class="col-span-1" x-text="t('status')"></div>
+        <div class="col-span-2" x-text="t('actions')"></div>
+      </div>
+      <div class="divide-y divide-gray-50">
         <template x-for="rec in filteredRecordings" :key="rec.id">
-          <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors group" @click="viewTranscript(rec.id)">
-            <div class="flex items-center justify-between">
-              <div class="flex-1 min-w-0">
-                <div class="text-sm font-medium truncate" x-text="rec.original_file_name || rec.id"></div>
-                <div class="text-xs text-gray-400 mt-0.5">
-                  <span x-text="rec.created_at?.slice(0, 10)"></span>
-                  <span class="mx-1">·</span>
-                  <span x-text="rec.language_code || 'auto'"></span>
-                  <span x-show="rec.duration_seconds" class="mx-1">·</span>
-                  <span x-show="rec.duration_seconds" x-text="formatDuration(rec.duration_seconds)"></span>
-                  <span x-show="rec.speaker_count" class="mx-1">·</span>
-                  <span x-show="rec.speaker_count" x-text="rec.speaker_count + ' 話者'"></span>
-                </div>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="text-xs px-2 py-0.5 rounded-full"
-                  :class="rec.status === 'done' ? 'bg-emerald-50 text-emerald-700' : rec.status === 'failed' ? 'bg-red-50 text-red-700' : rec.status === 'processing' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'"
-                  x-text="rec.status === 'done' ? '完了' : rec.status === 'failed' ? '失敗' : rec.status === 'processing' ? '処理中' : '待機'"></span>
-                <button @click.stop="deleteRecording(rec.id)" class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all p-1" title="削除">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                </button>
-              </div>
+          <div class="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors group items-center" @click="viewTranscript(rec.id)">
+            <div class="col-span-4 text-sm font-medium truncate" x-text="rec.original_file_name || rec.id"></div>
+            <div class="col-span-1 text-xs text-gray-500" x-text="formatDuration(rec.duration_seconds)"></div>
+            <div class="col-span-1 text-xs text-gray-500" x-text="rec.language_code || 'auto'"></div>
+            <div class="col-span-1 text-xs text-gray-500" x-text="rec.speaker_count || '-'"></div>
+            <div class="col-span-2 text-xs text-gray-500" x-text="rec.created_at?.slice(0, 10)"></div>
+            <div class="col-span-1">
+              <span class="text-xs px-2 py-0.5 rounded-full"
+                :class="rec.status === 'done' ? 'bg-emerald-50 text-emerald-700' : rec.status === 'failed' ? 'bg-red-50 text-red-700' : rec.status === 'processing' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'"
+                x-text="rec.status === 'done' ? t('completed') : rec.status === 'failed' ? t('failed') : rec.status === 'processing' ? t('processing') : t('waiting')"></span>
+            </div>
+            <div class="col-span-2 flex items-center gap-1">
+              <button @click.stop="viewTranscript(rec.id)" class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-gray-200" x-text="t('open')"></button>
+              <button @click.stop="exportSingle(rec.id, 'pdf')" class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">PDF</button>
+              <button @click.stop="deleteRecording(rec.id)" class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 p-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              </button>
             </div>
           </div>
         </template>
@@ -193,74 +200,320 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
     </div>
   </div>
 
+
   <!-- Settings -->
   <div x-show="currentView === 'settings'" class="p-6 fade-in">
-    <div class="max-w-2xl space-y-6">
-      <!-- API Keys -->
-      <div class="bg-white rounded-lg border border-gray-200 p-5">
-        <h3 class="text-sm font-semibold mb-4">APIキー設定</h3>
-        <div class="space-y-4">
-          <div>
-            <label class="text-xs text-gray-500 block mb-1">AssemblyAI</label>
-            <input type="password" x-model="settings.assemblyaiKey" placeholder="APIキーを入力..."
-              class="w-full text-sm border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500">
-          </div>
-          <div>
-            <label class="text-xs text-gray-500 block mb-1">Gemini</label>
-            <input type="password" x-model="settings.geminiKey" placeholder="APIキーを入力..."
-              class="w-full text-sm border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500">
-          </div>
-          <div>
-            <label class="text-xs text-gray-500 block mb-1">OpenAI</label>
-            <input type="password" x-model="settings.openaiKey" placeholder="APIキーを入力..."
-              class="w-full text-sm border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500">
-          </div>
-          <button @click="saveSettings()" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">
-            設定を保存
-          </button>
-        </div>
+    <div class="flex gap-6">
+      <!-- Settings sidebar -->
+      <div class="w-44 shrink-0">
+        <nav class="space-y-1">
+          <template x-for="tab in settingsTabs" :key="tab.id">
+            <button @click="settingsTab = tab.id; if(tab.id === 'developer') loadDiagnostics()"
+              :class="settingsTab === tab.id ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-50'"
+              class="w-full text-left px-3 py-2 rounded-md text-sm transition-colors"
+              x-text="tab.label"></button>
+          </template>
+        </nav>
       </div>
+      <!-- Settings content -->
+      <div class="flex-1 max-w-2xl space-y-5">
 
-      <!-- Processing -->
-      <div class="bg-white rounded-lg border border-gray-200 p-5">
-        <h3 class="text-sm font-semibold mb-4">処理設定</h3>
-        <div class="space-y-3">
-          <label class="flex items-center gap-3">
-            <input type="checkbox" x-model="settings.noiseReduction" class="rounded">
-            <span class="text-sm">ノイズ除去を有効にする</span>
-          </label>
-          <label class="flex items-center gap-3">
-            <input type="checkbox" x-model="settings.speakerDetection" class="rounded">
-            <span class="text-sm">話者分離を有効にする</span>
-          </label>
-          <div>
-            <label class="text-xs text-gray-500 block mb-1">デフォルト言語</label>
-            <select x-model="settings.language" class="text-sm border border-gray-200 rounded-md px-3 py-2">
-              <option value="auto">自動検出</option>
+        <!-- General -->
+        <div x-show="settingsTab === 'general'" class="space-y-5">
+          <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold mb-1" x-text="t('displayLanguage')"></h3>
+            <p class="text-xs text-gray-400 mb-3" x-text="t('displayLanguageHelp')"></p>
+            <select x-model="lang" @change="setLanguage(lang)" class="text-sm border border-gray-200 rounded-md px-3 py-2">
               <option value="ja">日本語</option>
               <option value="en">English</option>
             </select>
           </div>
+          <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold mb-1" x-text="t('theme')"></h3>
+            <p class="text-xs text-gray-400 mb-3" x-text="t('themeHelp')"></p>
+            <select x-model="themeMode" @change="applyTheme()" class="text-sm border border-gray-200 rounded-md px-3 py-2">
+              <option value="light" x-text="t('themeLight')"></option>
+              <option value="dark" x-text="t('themeDark')"></option>
+              <option value="system" x-text="t('themeSystem')"></option>
+            </select>
+          </div>
         </div>
+
+        <!-- AI Providers -->
+        <div x-show="settingsTab === 'providers'" class="space-y-5">
+          <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold mb-1" x-text="t('aiProviders')"></h3>
+            <p class="text-xs text-gray-400 mb-4" x-text="t('aiProvidersHelp')"></p>
+            <div class="space-y-4">
+              <template x-for="prov in ['assemblyai', 'gemini', 'openai']" :key="prov">
+                <div class="border border-gray-100 rounded-lg p-4">
+                  <div class="flex items-center justify-between mb-2">
+                    <label class="text-sm font-medium" x-text="prov === 'assemblyai' ? 'AssemblyAI' : prov === 'gemini' ? 'Gemini' : 'OpenAI'"></label>
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs px-2 py-0.5 rounded-full"
+                        :class="providerStatus[prov] === 'ok' ? 'bg-emerald-50 text-emerald-700' : providerStatus[prov] === 'error' ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-500'"
+                        x-text="providerStatus[prov] === 'ok' ? t('connected') : providerStatus[prov] === 'error' ? t('invalid') : t('missing')"></span>
+                    </div>
+                  </div>
+                  <div class="flex gap-2">
+                    <input :type="showKeys[prov] ? 'text' : 'password'"
+                      x-model="settings[prov + 'Key']" :placeholder="t('enterApiKey')"
+                      class="flex-1 text-sm border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                    <button @click="showKeys[prov] = !showKeys[prov]" class="px-2 text-gray-400 hover:text-gray-600" :title="showKeys[prov] ? 'Hide' : 'Show'">
+                      <svg x-show="!showKeys[prov]" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                      <svg x-show="showKeys[prov]" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
+                    </button>
+                    <button @click="testProvider(prov)" :disabled="providerTesting[prov]"
+                      class="text-xs px-3 py-2 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50"
+                      x-text="providerTesting[prov] ? t('testing') : t('testConnection')"></button>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <button @click="saveSettings()" class="mt-4 px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700" x-text="t('saveSettings')"></button>
+          </div>
+        </div>
+
+        <!-- Processing -->
+        <div x-show="settingsTab === 'processing'" class="space-y-5">
+          <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold mb-4" x-text="t('processingSettings')"></h3>
+            <div class="space-y-4">
+              <label class="flex items-center gap-3">
+                <input type="checkbox" x-model="settings.noiseReduction" class="rounded border-gray-300">
+                <div>
+                  <span class="text-sm" x-text="t('noiseReduction')"></span>
+                  <p class="text-xs text-gray-400" x-text="t('noiseReductionHelp')"></p>
+                </div>
+              </label>
+              <label class="flex items-center gap-3">
+                <input type="checkbox" x-model="settings.speakerDetection" class="rounded border-gray-300">
+                <div>
+                  <span class="text-sm" x-text="t('speakerDetection')"></span>
+                  <p class="text-xs text-gray-400" x-text="t('speakerDetectionHelp')"></p>
+                </div>
+              </label>
+              <label class="flex items-center gap-3">
+                <input type="checkbox" x-model="settings.autoStartQueue" class="rounded border-gray-300">
+                <div>
+                  <span class="text-sm" x-text="t('autoStartQueue')"></span>
+                  <p class="text-xs text-gray-400" x-text="t('autoStartQueueHelp')"></p>
+                </div>
+              </label>
+              <label class="flex items-center gap-3">
+                <input type="checkbox" x-model="settings.keepOriginalFile" class="rounded border-gray-300">
+                <div>
+                  <span class="text-sm" x-text="t('keepOriginalFile')"></span>
+                </div>
+              </label>
+              <div>
+                <label class="text-xs text-gray-500 block mb-1" x-text="t('defaultLanguage')"></label>
+                <select x-model="settings.language" class="text-sm border border-gray-200 rounded-md px-3 py-2">
+                  <option value="auto" x-text="t('autoDetect')"></option>
+                  <option value="ja">日本語</option>
+                  <option value="en">English</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs text-gray-500 block mb-1" x-text="t('maxParallelJobs')"></label>
+                <select x-model="settings.maxParallelJobs" class="text-sm border border-gray-200 rounded-md px-3 py-2">
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                </select>
+              </div>
+            </div>
+            <button @click="saveProcessingSettings()" class="mt-4 px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700" x-text="t('saveSettings')"></button>
+          </div>
+        </div>
+
+        <!-- Export -->
+        <div x-show="settingsTab === 'export'" class="space-y-5">
+          <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold mb-4" x-text="t('exportSettings')"></h3>
+            <div class="space-y-3">
+              <div>
+                <label class="text-xs text-gray-500 block mb-1" x-text="t('pdfLanguage')"></label>
+                <select x-model="exportSettings.pdfLanguage" class="text-sm border border-gray-200 rounded-md px-3 py-2">
+                  <option value="ja">日本語</option>
+                  <option value="en">English</option>
+                </select>
+              </div>
+              <label class="flex items-center gap-3">
+                <input type="checkbox" x-model="exportSettings.includeSummary" class="rounded border-gray-300">
+                <span class="text-sm" x-text="t('includeSummary')"></span>
+              </label>
+              <label class="flex items-center gap-3">
+                <input type="checkbox" x-model="exportSettings.includeTranscript" class="rounded border-gray-300">
+                <span class="text-sm" x-text="t('includeTranscript')"></span>
+              </label>
+              <label class="flex items-center gap-3">
+                <input type="checkbox" x-model="exportSettings.includeTimestamps" class="rounded border-gray-300">
+                <span class="text-sm" x-text="t('includeTimestamps')"></span>
+              </label>
+              <label class="flex items-center gap-3">
+                <input type="checkbox" x-model="exportSettings.includeSpeakerLabels" class="rounded border-gray-300">
+                <span class="text-sm" x-text="t('includeSpeakerLabels')"></span>
+              </label>
+              <label class="flex items-center gap-3">
+                <input type="checkbox" x-model="exportSettings.includeKeyPoints" class="rounded border-gray-300">
+                <span class="text-sm" x-text="t('includeKeyPoints')"></span>
+              </label>
+              <label class="flex items-center gap-3">
+                <input type="checkbox" x-model="exportSettings.includeActionItems" class="rounded border-gray-300">
+                <span class="text-sm" x-text="t('includeActionItems')"></span>
+              </label>
+            </div>
+            <button @click="saveExportSettings()" class="mt-4 px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700" x-text="t('saveSettings')"></button>
+          </div>
+        </div>
+
+        <!-- Storage -->
+        <div x-show="settingsTab === 'storage'" class="space-y-5">
+          <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold mb-4" x-text="t('storageInfo')"></h3>
+            <div class="space-y-3 text-sm">
+              <div class="flex justify-between py-2 border-b border-gray-50">
+                <span class="text-gray-500" x-text="t('dbLocation')"></span>
+                <span class="text-gray-700 font-mono text-xs" x-text="diagnostics?.database?.path || '-'"></span>
+              </div>
+              <div class="flex justify-between py-2 border-b border-gray-50">
+                <span class="text-gray-500" x-text="t('dbSize')"></span>
+                <span class="text-gray-700" x-text="(diagnostics?.database?.size_mb || 0) + ' MB'"></span>
+              </div>
+              <div class="flex justify-between py-2 border-b border-gray-50">
+                <span class="text-gray-500" x-text="t('audioStorage')"></span>
+                <span class="text-gray-700" x-text="(diagnostics?.storage?.recordings_size_mb || 0) + ' MB'"></span>
+              </div>
+              <div class="flex justify-between py-2 border-b border-gray-50">
+                <span class="text-gray-500" x-text="t('cacheSize')"></span>
+                <span class="text-gray-700" x-text="(diagnostics?.storage?.cache_size_mb || 0) + ' MB'"></span>
+              </div>
+              <div class="flex justify-between py-2">
+                <span class="text-gray-500" x-text="t('diskFree')"></span>
+                <span class="text-gray-700" x-text="(diagnostics?.storage?.disk_free_gb || 0) + ' GB'"></span>
+              </div>
+            </div>
+            <div class="mt-4 flex gap-2">
+              <button @click="clearCache()" class="text-xs px-3 py-2 bg-red-50 text-red-700 rounded-md hover:bg-red-100" x-text="t('clearCache')"></button>
+              <button @click="openDataFolder()" class="text-xs px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200" x-text="t('openDataFolder')"></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Developer -->
+        <div x-show="settingsTab === 'developer'" class="space-y-5">
+          <!-- System Info -->
+          <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-sm font-semibold" x-text="t('systemInfo')"></h3>
+              <button @click="loadDiagnostics()" class="text-xs px-3 py-1.5 bg-gray-100 rounded hover:bg-gray-200" x-text="t('refreshDiagnostics')"></button>
+            </div>
+            <div x-show="diagLoading" class="text-sm text-gray-400 py-4 text-center">Loading...</div>
+            <div x-show="!diagLoading && diagnostics" class="grid grid-cols-2 gap-3">
+              <div class="p-3 bg-gray-50 rounded-lg">
+                <div class="text-xs text-gray-500" x-text="t('appVersion')"></div>
+                <div class="text-sm font-medium mt-0.5" x-text="diagnostics?.app_version"></div>
+              </div>
+              <div class="p-3 bg-gray-50 rounded-lg">
+                <div class="text-xs text-gray-500">Python</div>
+                <div class="text-sm font-medium mt-0.5" x-text="diagnostics?.python_version"></div>
+              </div>
+              <div class="p-3 bg-gray-50 rounded-lg">
+                <div class="text-xs text-gray-500">FFmpeg</div>
+                <div class="text-sm font-medium mt-0.5" :class="diagnostics?.ffmpeg?.detected ? 'text-emerald-700' : 'text-red-600'"
+                  x-text="diagnostics?.ffmpeg?.detected ? '✓ ' + (diagnostics?.ffmpeg?.path || '') : '✗ Not found'"></div>
+              </div>
+              <div class="p-3 bg-gray-50 rounded-lg">
+                <div class="text-xs text-gray-500" x-text="t('dbStatus')"></div>
+                <div class="text-sm font-medium mt-0.5" :class="diagnostics?.database?.connected ? 'text-emerald-700' : 'text-red-600'"
+                  x-text="diagnostics?.database?.connected ? '✓ Connected' : '✗ Error'"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Health Check -->
+          <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-sm font-semibold" x-text="t('healthCheck')"></h3>
+              <button @click="runHealthCheck()" :disabled="healthLoading"
+                class="text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                x-text="healthLoading ? t('testing') : t('runHealthCheck')"></button>
+            </div>
+            <div x-show="healthResults" class="space-y-1">
+              <template x-for="r in healthResults" :key="r.check">
+                <div class="flex items-center gap-2 py-1.5 text-sm">
+                  <span class="w-4 text-center" x-text="r.status === 'ok' ? '✓' : r.status === 'warning' ? '⚠' : '✗'"
+                    :class="r.status === 'ok' ? 'text-emerald-600' : r.status === 'warning' ? 'text-amber-600' : 'text-red-600'"></span>
+                  <span class="font-medium w-32" x-text="r.check"></span>
+                  <span class="text-xs text-gray-500 truncate" x-text="r.detail"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Log Viewer -->
+          <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-semibold" x-text="t('logViewer')"></h3>
+              <div class="flex items-center gap-2">
+                <select x-model="logLevel" @change="loadLogs()" class="text-xs border border-gray-200 rounded px-2 py-1">
+                  <option value="all" x-text="t('filterAll')"></option>
+                  <option value="info" x-text="t('filterInfo')"></option>
+                  <option value="warning" x-text="t('filterWarning')"></option>
+                  <option value="error" x-text="t('filterError')"></option>
+                </select>
+                <button @click="loadLogs()" class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">↻</button>
+                <button @click="copyDebugReport()" class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-gray-200" x-text="t('copyDebugReport')"></button>
+              </div>
+            </div>
+            <div class="bg-gray-900 rounded-lg p-3 max-h-64 overflow-y-auto">
+              <div x-show="logLines.length === 0" class="text-xs text-gray-500 text-center py-4" x-text="t('noLogs')"></div>
+              <template x-for="(line, idx) in logLines" :key="idx">
+                <div class="log-line px-2 py-0.5 rounded"
+                  :class="line.includes('[ERROR]') ? 'text-red-400 bg-red-950/30' : line.includes('[WARNING]') ? 'text-amber-400 bg-amber-950/20' : 'text-gray-300'"
+                  x-text="line"></div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Recent Errors -->
+          <div x-show="diagnostics?.last_errors?.length > 0" class="bg-white rounded-lg border border-red-200 p-5">
+            <h3 class="text-sm font-semibold text-red-700 mb-3" x-text="t('recentErrors')"></h3>
+            <div class="space-y-1">
+              <template x-for="(err, idx) in diagnostics?.last_errors || []" :key="idx">
+                <div class="text-xs text-red-600 font-mono p-2 bg-red-50 rounded" x-text="err"></div>
+              </template>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
 
-  <!-- Search Results -->
+  <!-- Search -->
   <div x-show="currentView === 'search'" class="p-6 fade-in">
     <div class="bg-white rounded-lg border border-gray-200 p-4">
-      <h3 class="text-sm font-semibold mb-3">検索結果: "<span x-text="searchQuery"></span>"</h3>
-      <div x-show="searchResults.length === 0" class="text-sm text-gray-400 py-4 text-center">
-        結果が見つかりません。
+      <!-- Empty state when no search performed -->
+      <div x-show="!searchPerformed" class="py-12 text-center">
+        <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <p class="text-sm text-gray-500" x-text="t('searchHint')"></p>
       </div>
-      <div class="space-y-2">
-        <template x-for="result in searchResults" :key="result.recording_id + result.matched_text">
-          <div class="p-3 bg-gray-50 rounded cursor-pointer hover:bg-gray-100" @click="viewTranscript(result.recording_id)">
-            <div class="text-xs text-gray-500" x-text="result.file_name"></div>
-            <div class="text-sm mt-1" x-text="result.matched_text"></div>
-            <div class="text-xs text-gray-400 mt-1" x-text="(result.speaker || '') + ' · ' + (result.date?.slice(0, 10) || '')"></div>
-          </div>
-        </template>
+      <!-- Results -->
+      <div x-show="searchPerformed">
+        <h3 class="text-sm font-semibold mb-3" x-text="t('searchResults') + ': "' + searchQuery + '"'"></h3>
+        <div x-show="searchResults.length === 0" class="text-sm text-gray-400 py-4 text-center" x-text="t('noResults')"></div>
+        <div class="space-y-2">
+          <template x-for="result in searchResults" :key="result.recording_id + result.matched_text">
+            <div class="p-3 bg-gray-50 rounded cursor-pointer hover:bg-gray-100" @click="viewTranscript(result.recording_id)">
+              <div class="text-xs text-gray-500" x-text="result.file_name"></div>
+              <div class="text-sm mt-1" x-text="result.matched_text"></div>
+              <div class="text-xs text-gray-400 mt-1" x-text="(result.speaker || '') + ' · ' + (result.date?.slice(0, 10) || '')"></div>
+            </div>
+          </template>
+        </div>
       </div>
     </div>
   </div>
@@ -268,27 +521,23 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
   <!-- Transcript Detail -->
   <div x-show="currentView === 'transcript-detail'" class="p-6 fade-in">
     <div class="mb-4 flex items-center justify-between">
-      <button @click="currentView = 'transcripts'" class="text-sm text-blue-600 hover:text-blue-800">← 一覧に戻る</button>
+      <button @click="currentView = 'transcripts'" class="text-sm text-blue-600 hover:text-blue-800" x-text="t('backToList')"></button>
       <div class="flex gap-2">
-        <button @click="copyTranscript()" class="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">コピー</button>
-        <button @click="exportTranscript('txt')" class="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">TXT出力</button>
-        <button @click="exportTranscript('pdf')" class="text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700">PDF出力</button>
+        <button @click="copyTranscript()" class="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded hover:bg-gray-200" x-text="t('copy')"></button>
+        <button @click="exportTranscript('txt')" class="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded hover:bg-gray-200" x-text="t('exportTxt')"></button>
+        <button @click="exportTranscript('pdf')" class="text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700" x-text="t('exportPdf')"></button>
       </div>
     </div>
-
     <div x-show="currentRecording" class="space-y-4">
-      <!-- Recording Info -->
       <div class="bg-white rounded-lg border border-gray-200 p-4">
         <h3 class="text-sm font-semibold" x-text="currentRecording?.original_file_name"></h3>
         <div class="flex gap-4 mt-2 text-xs text-gray-500">
           <span x-text="currentRecording?.language_code || 'auto'"></span>
-          <span x-text="currentRecording?.speaker_count + ' 話者'"></span>
+          <span x-text="currentRecording?.speaker_count + ' ' + t('speakerCount')"></span>
           <span x-text="formatDuration(currentRecording?.duration_seconds)"></span>
-          <span x-text="currentRecording?.status === 'done' ? '完了' : currentRecording?.status"></span>
+          <span x-text="currentRecording?.status === 'done' ? t('completed') : currentRecording?.status"></span>
         </div>
       </div>
-
-      <!-- Utterances -->
       <div class="bg-white rounded-lg border border-gray-200 divide-y divide-gray-50">
         <template x-for="utt in currentUtterances" :key="utt.id">
           <div class="px-4 py-2 hover:bg-gray-50 group">
@@ -304,9 +553,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
             </div>
           </div>
         </template>
-        <div x-show="currentUtterances.length === 0" class="p-8 text-center text-sm text-gray-400">
-          文字起こしデータがありません。
-        </div>
+        <div x-show="currentUtterances.length === 0" class="p-8 text-center text-sm text-gray-400" x-text="t('noTranscriptData')"></div>
       </div>
     </div>
   </div>
@@ -323,15 +570,132 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
   </template>
 </div>
 
+
 <script>
+const I18N = {
+  ja: {
+    dashboard: 'ダッシュボード', dashboardSub: '録音・処理・AI学習の概要',
+    upload: 'アップロード', uploadSub: '音声ファイルの一括処理',
+    transcripts: '文字起こし', transcriptsSub: '文字起こし結果の確認・編集',
+    search: '検索', searchSub: 'アーカイブ全文検索',
+    settings: '設定', settingsSub: 'API・処理・開発者設定',
+    apiConnected: 'API接続済み', apiDisconnected: 'API未接続',
+    totalFiles: '処理済みファイル', totalHours: '合計時間', utterances: '発話数', speakers: '話者数',
+    recentJobs: '最近のジョブ', noJobsYet: 'ジョブはまだありません。音声をアップロードしてください。',
+    completed: '完了', failed: '失敗', processing: '処理中', waiting: '待機中',
+    dragDrop: '音声ファイルをドラッグ＆ドロップ', fileFormats: 'WAV · MP3 · M4A · FLAC · OGG — 最大30時間',
+    selectFiles: 'ファイルを選択', processingQueue: '処理キュー',
+    startAll: 'すべて開始', clearDone: '完了を削除',
+    searchTranscripts: '文字起こしを検索...', noTranscripts: '文字起こしはまだありません。アップロードして処理を開始してください。',
+    speakerCount: '話者', deleteConfirm: 'この録音を削除しますか？',
+    apiKeys: 'APIキー設定', enterApiKey: 'APIキーを入力...',
+    saveSettings: '設定を保存', savedOk: '設定を保存しました',
+    processingSettings: '処理設定', noiseReduction: 'ノイズ除去',
+    noiseReductionHelp: '背景ノイズを自動的に除去します',
+    speakerDetection: '話者分離',
+    speakerDetectionHelp: '複数の話者を自動的に識別します',
+    defaultLanguage: 'デフォルト言語', autoDetect: '自動検出',
+    searchResults: '検索結果', noResults: '結果が見つかりません。',
+    backToList: '← 一覧に戻る', copy: 'コピー', exportTxt: 'TXT出力', exportPdf: 'PDF出力',
+    noTranscriptData: '文字起こしデータがありません。',
+    uploadComplete: 'アップロード完了', uploadFailed: 'アップロード失敗',
+    delete: '削除', deleted: '録音を削除しました', deleteFailed: '削除に失敗しました', deleteError: '削除エラー',
+    copySuccess: 'クリップボードにコピーしました', copyFailed: 'コピーに失敗しました',
+    exportComplete: 'エクスポート完了', darkModeToggle: 'ダークモード切替',
+    searchPlaceholder: '検索... (⌘K)',
+    displayLanguage: '表示言語', displayLanguageHelp: 'アプリの表示言語を選択します',
+    theme: 'テーマ', themeHelp: 'アプリの外観を選択します',
+    themeLight: 'ライト', themeDark: 'ダーク', themeSystem: 'システム設定に従う',
+    general: '一般', aiProviders: 'AIプロバイダー', processing: '処理',
+    export: 'エクスポート', storage: 'ストレージ', developer: '開発者',
+    aiProvidersHelp: '文字起こしと分析に使用するAPIキーを設定します',
+    testConnection: '接続テスト', testing: 'テスト中...', connected: '接続済み', invalid: '無効', missing: '未設定',
+    autoStartQueue: 'キュー自動開始', autoStartQueueHelp: 'アップロード後に自動的に処理を開始します',
+    keepOriginalFile: '元ファイルを保持', maxParallelJobs: '最大並列ジョブ数',
+    exportSettings: 'エクスポート設定', pdfLanguage: 'PDF言語',
+    includeSummary: '要約を含める', includeTranscript: '文字起こしを含める',
+    includeTimestamps: 'タイムスタンプを含める', includeSpeakerLabels: '話者ラベルを含める',
+    includeKeyPoints: 'キーポイントを含める', includeActionItems: 'アクションアイテムを含める',
+    storageInfo: 'ストレージ情報', dbLocation: 'データベース', dbSize: 'DBサイズ',
+    audioStorage: '音声ストレージ', cacheSize: 'キャッシュサイズ', diskFree: '空きディスク',
+    clearCache: 'キャッシュ削除', openDataFolder: 'データフォルダを開く',
+    systemInfo: 'システム情報', appVersion: 'アプリバージョン', dbStatus: 'DB状態',
+    refreshDiagnostics: '更新', healthCheck: 'ヘルスチェック', runHealthCheck: 'チェック実行',
+    logViewer: 'ログビューア', filterAll: 'すべて', filterInfo: '情報', filterWarning: '警告', filterError: 'エラー',
+    noLogs: 'ログがありません', copyDebugReport: 'デバッグレポートをコピー', recentErrors: '最近のエラー',
+    searchHint: '上の検索バーにキーワードを入力してEnterを押してください',
+    retry: 'リトライ', remove: '削除',
+    fileName: 'ファイル名', duration: '長さ', language: '言語', speakersCol: '話者', date: '日付', status: '状態', actions: '操作', open: '開く',
+  },
+  en: {
+    dashboard: 'Dashboard', dashboardSub: 'Recordings, processing, and AI overview',
+    upload: 'Upload', uploadSub: 'Batch audio file processing',
+    transcripts: 'Transcripts', transcriptsSub: 'View and edit transcriptions',
+    search: 'Search', searchSub: 'Full-text archive search',
+    settings: 'Settings', settingsSub: 'API, processing, and developer settings',
+    apiConnected: 'API Connected', apiDisconnected: 'API Disconnected',
+    totalFiles: 'Processed Files', totalHours: 'Total Hours', utterances: 'Utterances', speakers: 'Speakers',
+    recentJobs: 'Recent Jobs', noJobsYet: 'No jobs yet. Upload audio to get started.',
+    completed: 'Completed', failed: 'Failed', processing: 'Processing', waiting: 'Waiting',
+    dragDrop: 'Drag and drop audio files here', fileFormats: 'WAV · MP3 · M4A · FLAC · OGG — up to 30 hours',
+    selectFiles: 'Select Files', processingQueue: 'Processing Queue',
+    startAll: 'Start All', clearDone: 'Clear Done',
+    searchTranscripts: 'Search transcripts...', noTranscripts: 'No transcripts yet. Upload audio to start processing.',
+    speakerCount: 'speakers', deleteConfirm: 'Delete this recording?',
+    apiKeys: 'API Keys', enterApiKey: 'Enter API key...',
+    saveSettings: 'Save Settings', savedOk: 'Settings saved',
+    processingSettings: 'Processing Settings', noiseReduction: 'Noise Reduction',
+    noiseReductionHelp: 'Automatically remove background noise',
+    speakerDetection: 'Speaker Diarization',
+    speakerDetectionHelp: 'Automatically identify multiple speakers',
+    defaultLanguage: 'Default Language', autoDetect: 'Auto-detect',
+    searchResults: 'Search Results', noResults: 'No results found.',
+    backToList: '← Back to list', copy: 'Copy', exportTxt: 'Export TXT', exportPdf: 'Export PDF',
+    noTranscriptData: 'No transcript data available.',
+    uploadComplete: 'Upload complete', uploadFailed: 'Upload failed',
+    delete: 'Delete', deleted: 'Recording deleted', deleteFailed: 'Delete failed', deleteError: 'Delete error',
+    copySuccess: 'Copied to clipboard', copyFailed: 'Copy failed',
+    exportComplete: 'Export complete', darkModeToggle: 'Toggle dark mode',
+    searchPlaceholder: 'Search... (⌘K)',
+    displayLanguage: 'Display Language', displayLanguageHelp: 'Choose the app display language',
+    theme: 'Theme', themeHelp: 'Choose the app appearance',
+    themeLight: 'Light', themeDark: 'Dark', themeSystem: 'Follow system',
+    general: 'General', aiProviders: 'AI Providers', processing: 'Processing',
+    export: 'Export', storage: 'Storage', developer: 'Developer',
+    aiProvidersHelp: 'Configure API keys for transcription and analysis',
+    testConnection: 'Test', testing: 'Testing...', connected: 'Connected', invalid: 'Invalid', missing: 'Not set',
+    autoStartQueue: 'Auto-start queue', autoStartQueueHelp: 'Automatically start processing after upload',
+    keepOriginalFile: 'Keep original file', maxParallelJobs: 'Max parallel jobs',
+    exportSettings: 'Export Settings', pdfLanguage: 'PDF Language',
+    includeSummary: 'Include summary', includeTranscript: 'Include transcript',
+    includeTimestamps: 'Include timestamps', includeSpeakerLabels: 'Include speaker labels',
+    includeKeyPoints: 'Include key points', includeActionItems: 'Include action items',
+    storageInfo: 'Storage Information', dbLocation: 'Database', dbSize: 'DB Size',
+    audioStorage: 'Audio Storage', cacheSize: 'Cache Size', diskFree: 'Disk Free',
+    clearCache: 'Clear Cache', openDataFolder: 'Open Data Folder',
+    systemInfo: 'System Information', appVersion: 'App Version', dbStatus: 'DB Status',
+    refreshDiagnostics: 'Refresh', healthCheck: 'Health Check', runHealthCheck: 'Run Check',
+    logViewer: 'Log Viewer', filterAll: 'All', filterInfo: 'Info', filterWarning: 'Warning', filterError: 'Error',
+    noLogs: 'No log entries', copyDebugReport: 'Copy Debug Report', recentErrors: 'Recent Errors',
+    searchHint: 'Type a keyword in the search bar above and press Enter',
+    retry: 'Retry', remove: 'Remove',
+    fileName: 'File Name', duration: 'Duration', language: 'Language', speakersCol: 'Speakers', date: 'Date', status: 'Status', actions: 'Actions', open: 'Open',
+  },
+};
+
 function app() {
   return {
     currentView: 'dashboard',
     searchQuery: '',
+    searchPerformed: false,
     transcriptSearch: '',
     dragOver: false,
     darkMode: localStorage.getItem('darkMode') === 'true',
+    themeMode: localStorage.getItem('themeMode') || 'light',
+    lang: localStorage.getItem('recllm_lang') || 'ja',
     apiConnected: false,
+    wsConnected: false,
+    _pollInterval: null,
     stats: { totalRecordings: 0, totalHours: 0, totalUtterances: 0, uniqueSpeakers: 0 },
     recentJobs: [],
     recordings: [],
@@ -340,6 +704,17 @@ function app() {
     currentRecording: null,
     currentUtterances: [],
     toasts: [],
+    settingsTab: 'general',
+    diagnostics: null,
+    diagLoading: false,
+    logLines: [],
+    logLevel: 'all',
+    logLoading: false,
+    healthResults: null,
+    healthLoading: false,
+    providerStatus: { assemblyai: null, gemini: null, openai: null },
+    providerTesting: { assemblyai: false, gemini: false, openai: false },
+    showKeys: { assemblyai: false, gemini: false, openai: false },
     settings: {
       assemblyaiKey: '',
       geminiKey: '',
@@ -347,14 +722,42 @@ function app() {
       noiseReduction: false,
       speakerDetection: true,
       language: 'auto',
+      autoStartQueue: true,
+      keepOriginalFile: true,
+      maxParallelJobs: '2',
     },
-    navItems: [
-      { id: 'dashboard', label: 'ダッシュボード', sub: '録音・処理・AI学習の概要' },
-      { id: 'upload', label: 'アップロード', sub: '音声ファイルの一括処理' },
-      { id: 'transcripts', label: '文字起こし', sub: '文字起こし結果の確認・編集' },
-      { id: 'search', label: '検索', sub: 'アーカイブ全文検索' },
-      { id: 'settings', label: '設定', sub: 'API・処理設定' },
-    ],
+    exportSettings: {
+      includeSummary: true,
+      includeTranscript: true,
+      includeTimestamps: true,
+      includeSpeakerLabels: true,
+      includeKeyPoints: false,
+      includeActionItems: false,
+      pdfLanguage: 'ja',
+    },
+
+    t(key) { return I18N[this.lang]?.[key] || I18N.en[key] || key; },
+
+    get navItems() {
+      return [
+        { id: 'dashboard', label: this.t('dashboard'), sub: this.t('dashboardSub') },
+        { id: 'upload', label: this.t('upload'), sub: this.t('uploadSub') },
+        { id: 'transcripts', label: this.t('transcripts'), sub: this.t('transcriptsSub') },
+        { id: 'search', label: this.t('search'), sub: this.t('searchSub') },
+        { id: 'settings', label: this.t('settings'), sub: this.t('settingsSub') },
+      ];
+    },
+
+    get settingsTabs() {
+      return [
+        { id: 'general', label: this.t('general') },
+        { id: 'providers', label: this.t('aiProviders') },
+        { id: 'processing', label: this.t('processing') },
+        { id: 'export', label: this.t('export') },
+        { id: 'storage', label: this.t('storage') },
+        { id: 'developer', label: this.t('developer') },
+      ];
+    },
 
     get filteredRecordings() {
       if (!this.transcriptSearch) return this.recordings;
@@ -366,35 +769,81 @@ function app() {
     },
 
     async init() {
+      try {
+        const resp = await fetch('/api/settings/display_language');
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.value && (data.value === 'ja' || data.value === 'en')) {
+            this.lang = data.value;
+            localStorage.setItem('recllm_lang', data.value);
+          }
+        }
+      } catch {}
+      document.documentElement.lang = this.lang;
+      this.applyTheme();
       await this.loadDashboard();
       await this.loadRecordings();
       await this.checkApi();
       this.connectWebSocket();
-      // Auto-refresh dashboard every 30s
       setInterval(() => {
         if (this.currentView === 'dashboard') this.loadDashboard();
       }, 30000);
     },
 
+    applyTheme() {
+      localStorage.setItem('themeMode', this.themeMode);
+      if (this.themeMode === 'dark') {
+        document.documentElement.classList.add('dark');
+        this.darkMode = true;
+      } else if (this.themeMode === 'light') {
+        document.documentElement.classList.remove('dark');
+        this.darkMode = false;
+      } else {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.classList.toggle('dark', prefersDark);
+        this.darkMode = prefersDark;
+      }
+    },
+
     connectWebSocket() {
       try {
         const ws = new WebSocket(`ws://${location.host}/ws/progress`);
+        ws.onopen = () => {
+          this.wsConnected = true;
+          if (this._pollInterval) { clearInterval(this._pollInterval); this._pollInterval = null; }
+        };
         ws.onmessage = (event) => {
           const msg = JSON.parse(event.data);
           if (msg.type === 'progress') {
-            // Update queue item progress
             const item = this.queue.find(q => q.jobId === msg.jobId);
             if (item) {
               item.progress = msg.progress;
               if (msg.status === 'done') { item.status = 'done'; this.loadRecordings(); }
               if (msg.status === 'failed') item.status = 'failed';
             }
-            // Refresh dashboard
             this.loadDashboard();
           }
         };
-        ws.onclose = () => { setTimeout(() => this.connectWebSocket(), 5000); };
-      } catch {}
+        ws.onclose = () => {
+          this.wsConnected = false;
+          this.startPolling();
+          setTimeout(() => this.connectWebSocket(), 5000);
+        };
+        ws.onerror = () => { this.wsConnected = false; ws.close(); };
+      } catch {
+        this.wsConnected = false;
+        this.startPolling();
+        setTimeout(() => this.connectWebSocket(), 5000);
+      }
+    },
+
+    startPolling() {
+      if (this._pollInterval) return;
+      this._pollInterval = setInterval(async () => {
+        await this.loadDashboard();
+        const hasRunning = this.queue.some(q => q.status === 'running');
+        if (hasRunning) await this.loadRecordings();
+      }, 3000);
     },
 
     async loadDashboard() {
@@ -432,14 +881,13 @@ function app() {
       try {
         const resp = await fetch('/api/health');
         this.apiConnected = resp.ok;
-      } catch {
-        this.apiConnected = false;
-      }
+      } catch { this.apiConnected = false; }
     },
 
     async doSearch() {
       if (!this.searchQuery.trim()) return;
       this.currentView = 'search';
+      this.searchPerformed = true;
       try {
         const resp = await fetch('/api/search/', {
           method: 'POST',
@@ -464,8 +912,138 @@ function app() {
             openai: this.settings.openaiKey,
           }),
         });
-        alert('設定を保存しました');
+        this.showToast(this.t('savedOk'), 'success');
       } catch {}
+    },
+
+    async saveProcessingSettings() {
+      try {
+        await fetch('/api/settings/', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: 'preferences', value: JSON.stringify({
+            noise_reduction: this.settings.noiseReduction,
+            speaker_detection: this.settings.speakerDetection,
+            language_code: this.settings.language,
+            auto_start_queue: this.settings.autoStartQueue,
+            keep_original_file: this.settings.keepOriginalFile,
+            max_parallel_jobs: parseInt(this.settings.maxParallelJobs),
+          })}),
+        });
+        this.showToast(this.t('savedOk'), 'success');
+      } catch {}
+    },
+
+    async saveExportSettings() {
+      try {
+        await fetch('/api/settings/', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: 'export_settings', value: JSON.stringify(this.exportSettings) }),
+        });
+        this.showToast(this.t('savedOk'), 'success');
+      } catch {}
+    },
+
+    async testProvider(name) {
+      this.providerTesting[name] = true;
+      try {
+        const resp = await fetch('/api/settings/test-provider', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: name }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          this.providerStatus[name] = data.status;
+          this.showToast(`${name}: ${data.message}`, data.status === 'ok' ? 'success' : 'error');
+        }
+      } catch {
+        this.providerStatus[name] = 'error';
+      }
+      this.providerTesting[name] = false;
+    },
+
+    async loadDiagnostics() {
+      this.diagLoading = true;
+      try {
+        const resp = await fetch('/api/diagnostics');
+        if (resp.ok) this.diagnostics = await resp.json();
+      } catch {}
+      this.diagLoading = false;
+      this.loadLogs();
+    },
+
+    async loadLogs() {
+      this.logLoading = true;
+      try {
+        const level = this.logLevel === 'all' ? '' : this.logLevel;
+        const resp = await fetch(`/api/logs?limit=100${level ? '&level=' + level : ''}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          this.logLines = data.lines || [];
+        }
+      } catch {}
+      this.logLoading = false;
+    },
+
+    async runHealthCheck() {
+      this.healthLoading = true;
+      try {
+        const resp = await fetch('/api/diagnostics/run', { method: 'POST' });
+        if (resp.ok) {
+          const data = await resp.json();
+          this.healthResults = data.results || [];
+        }
+      } catch {}
+      this.healthLoading = false;
+    },
+
+    async copyDebugReport() {
+      const d = this.diagnostics || {};
+      const report = [
+        `RecLLM Debug Report`,
+        `Generated: ${new Date().toISOString()}`,
+        `---`,
+        `App Version: ${d.app_version || 'unknown'}`,
+        `Python: ${d.python_version || 'unknown'}`,
+        `Platform: ${d.platform || 'unknown'} (${d.architecture || ''})`,
+        `FFmpeg: ${d.ffmpeg?.detected ? d.ffmpeg.path : 'NOT FOUND'}`,
+        `Database: ${d.database?.connected ? 'Connected' : 'Error'}`,
+        `DB Size: ${d.database?.size_mb || 0} MB`,
+        `Recordings: ${d.database?.recordings || 0}`,
+        `Utterances: ${d.database?.utterances || 0}`,
+        `Jobs Total: ${d.database?.jobs_total || 0}`,
+        `Jobs Active: ${d.database?.jobs_active || 0}`,
+        `Jobs Failed: ${d.database?.jobs_failed || 0}`,
+        `Disk Free: ${d.storage?.disk_free_gb || 0} GB`,
+        `API Keys: AssemblyAI=${d.api_keys?.assemblyai || 'missing'}, Gemini=${d.api_keys?.gemini || 'missing'}, OpenAI=${d.api_keys?.openai || 'missing'}`,
+        `---`,
+        `Recent Errors:`,
+        ...(d.last_errors || []),
+      ].join('\n');
+      try {
+        await navigator.clipboard.writeText(report);
+        this.showToast(this.t('copySuccess'), 'success');
+      } catch {
+        this.showToast(this.t('copyFailed'), 'error');
+      }
+    },
+
+    async clearCache() {
+      try {
+        const resp = await fetch('/api/storage/clear-cache', { method: 'POST' });
+        if (resp.ok) {
+          const data = await resp.json();
+          this.showToast(`Cache cleared (${data.cleared_files} files)`, 'success');
+          this.loadDiagnostics();
+        }
+      } catch {}
+    },
+
+    openDataFolder() {
+      const path = this.diagnostics?.storage?.data_dir || '';
+      this.showToast(`Data folder: ${path}`, 'info');
     },
 
     selectFiles() {
@@ -482,16 +1060,17 @@ function app() {
       this.addFiles(event.dataTransfer.files);
     },
 
-    async addFiles(files) {
+    addFiles(files) {
       for (const file of files) {
-        const item = {
+        this.queue.push({
           id: crypto.randomUUID(),
           fileName: file.name,
           file: file,
           status: 'queued',
           progress: 0,
-        };
-        this.queue.push(item);
+          step: null,
+          error: null,
+        });
       }
     },
 
@@ -499,27 +1078,47 @@ function app() {
       for (const item of this.queue) {
         if (item.status !== 'queued') continue;
         item.status = 'running';
+        item.step = this.t('upload');
+        item.progress = 10;
         try {
           const formData = new FormData();
           formData.append('file', item.file);
+          item.step = this.t('processing');
+          item.progress = 30;
           const resp = await fetch('/api/recordings/upload', { method: 'POST', body: formData });
           if (resp.ok) {
             const data = await resp.json();
             item.status = 'done';
             item.recordingId = data.id;
+            item.jobId = data.job_id;
             item.progress = 100;
-            this.showToast(`${item.fileName} アップロード完了`, 'success');
+            item.step = this.t('completed');
+            this.showToast(`${item.fileName} ${this.t('uploadComplete')}`, 'success');
           } else {
+            const err = await resp.text();
             item.status = 'failed';
-            this.showToast(`${item.fileName} アップロード失敗`, 'error');
+            item.error = err || this.t('uploadFailed');
+            this.showToast(`${item.fileName} ${this.t('uploadFailed')}`, 'error');
           }
         } catch (e) {
           item.status = 'failed';
-          this.showToast(`${item.fileName} エラー`, 'error');
+          item.error = e.message || this.t('uploadFailed');
+          this.showToast(`${item.fileName} ${this.t('uploadFailed')}`, 'error');
         }
       }
       await this.loadRecordings();
       await this.loadDashboard();
+    },
+
+    retryQueueItem(item) {
+      item.status = 'queued';
+      item.progress = 0;
+      item.step = null;
+      item.error = null;
+    },
+
+    removeQueueItem(item) {
+      this.queue = this.queue.filter(q => q.id !== item.id);
     },
 
     clearDone() {
@@ -527,19 +1126,15 @@ function app() {
     },
 
     async deleteRecording(id) {
-      if (!confirm('この録音を削除しますか？')) return;
+      if (!confirm(this.t('deleteConfirm'))) return;
       try {
         const resp = await fetch(`/api/recordings/${id}`, { method: 'DELETE' });
         if (resp.ok) {
           this.recordings = this.recordings.filter(r => r.id !== id);
           await this.loadDashboard();
-          this.showToast('録音を削除しました', 'success');
-        } else {
-          this.showToast('削除に失敗しました', 'error');
-        }
-      } catch {
-        this.showToast('削除エラー', 'error');
-      }
+          this.showToast(this.t('deleted'), 'success');
+        } else { this.showToast(this.t('deleteFailed'), 'error'); }
+      } catch { this.showToast(this.t('deleteError'), 'error'); }
     },
 
     async viewTranscript(id) {
@@ -554,6 +1149,17 @@ function app() {
       } catch {}
     },
 
+    async exportSingle(id, type) {
+      try {
+        const resp = await fetch('/api/exports/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recording_id: id, export_type: type }),
+        });
+        if (resp.ok) this.showToast(this.t('exportComplete'), 'success');
+      } catch {}
+    },
+
     async copyTranscript() {
       if (!this.currentUtterances.length) return;
       const text = this.currentUtterances.map(u =>
@@ -561,10 +1167,8 @@ function app() {
       ).join('\n');
       try {
         await navigator.clipboard.writeText(text);
-        this.showToast('クリップボードにコピーしました', 'success');
-      } catch {
-        this.showToast('コピーに失敗しました', 'error');
-      }
+        this.showToast(this.t('copySuccess'), 'success');
+      } catch { this.showToast(this.t('copyFailed'), 'error'); }
     },
 
     async exportTranscript(type) {
@@ -573,20 +1177,17 @@ function app() {
         const resp = await fetch('/api/exports/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            recording_id: this.currentRecording.id,
-            export_type: type,
-          }),
+          body: JSON.stringify({ recording_id: this.currentRecording.id, export_type: type }),
         });
         if (resp.ok) {
           const data = await resp.json();
-          alert(`エクスポート完了: ${data.filePath}`);
+          this.showToast(`${this.t('exportComplete')}: ${data.filePath || ''}`, 'success');
         }
       } catch {}
     },
 
     formatDuration(sec) {
-      if (!sec) return '';
+      if (!sec) return '-';
       const h = Math.floor(sec / 3600);
       const m = Math.floor((sec % 3600) / 60);
       return h > 0 ? `${h}h ${m}m` : `${m}m`;
@@ -602,23 +1203,14 @@ function app() {
     },
 
     handleKeyboard(event) {
-      // Skip if typing in an input
-      if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') return;
-
-      // Cmd/Ctrl + K: Focus search
+      if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' || event.target.tagName === 'SELECT') return;
       if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
         event.preventDefault();
-        document.querySelector('input[placeholder="検索..."]')?.focus();
+        document.querySelector('header input[type="text"]')?.focus();
         return;
       }
-
-      // Number keys for navigation
       const navMap = { '1': 'dashboard', '2': 'upload', '3': 'transcripts', '4': 'settings' };
-      if (navMap[event.key] && !event.metaKey && !event.ctrlKey) {
-        this.currentView = navMap[event.key];
-      }
-
-      // Escape: back to dashboard
+      if (navMap[event.key] && !event.metaKey && !event.ctrlKey) this.currentView = navMap[event.key];
       if (event.key === 'Escape') {
         if (this.currentView === 'transcript-detail') this.currentView = 'transcripts';
         else if (this.currentView === 'search') this.currentView = 'dashboard';
@@ -636,9 +1228,19 @@ function app() {
     },
 
     toggleDarkMode() {
-      this.darkMode = !this.darkMode;
-      localStorage.setItem('darkMode', this.darkMode);
-      document.documentElement.classList.toggle('dark', this.darkMode);
+      this.themeMode = this.darkMode ? 'light' : 'dark';
+      this.applyTheme();
+    },
+
+    setLanguage(newLang) {
+      this.lang = newLang;
+      localStorage.setItem('recllm_lang', newLang);
+      document.documentElement.lang = newLang;
+      fetch('/api/settings/', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'display_language', value: newLang }),
+      }).catch(() => {});
     },
   };
 }
