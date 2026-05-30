@@ -4,6 +4,7 @@
 Prerequisites (BUILD machine only — not needed on client PC):
     1. Python 3.11+
     2. pip install pyinstaller pywebview uvicorn fastapi httpx python-multipart pydantic
+       numpy scipy soundfile
     3. Place FFmpeg binaries in ffmpeg/ folder:
        - ffmpeg/ffmpeg.exe
        - ffmpeg/ffprobe.exe
@@ -13,7 +14,7 @@ Build command:
     pyinstaller recllm.spec --clean
 
 Output:
-    dist/RecLLM.exe (single-file, ~80-120MB)
+    dist/RecLLM.exe (single-file, ~180-220MB with Speaker Intelligence)
 
 Client receives ONLY RecLLM.exe — no Python, no FFmpeg install needed.
 """
@@ -82,11 +83,17 @@ a = Analysis(
         # Pydantic
         'pydantic',
         'pydantic_settings',
+        # Audio analysis (Speaker Intelligence)
+        'numpy',
+        'scipy',
+        'scipy.signal',
+        'soundfile',
         # App modules (ensure all are collected)
         'app.runtime',
         'app.config',
         'app.desktop',
         'app.health',
+        'app.middleware',
         'app.database.db',
         'app.database.migrations',
         'app.database.backup',
@@ -113,17 +120,22 @@ a = Analysis(
         'app.api.routes_timeline',
         'app.api.routes_backup',
         'app.api.routes_progress',
+        'app.api.routes_diagnostics',
+        'app.api.routes_speaker_analysis',
+        # Speaker Intelligence services
+        'app.schemas.speaker_analysis',
+        'app.services.speaker_intelligence',
+        'app.services.voice_features',
+        'app.services.overlap_detection',
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        # Exclude unnecessary large packages
+        # Exclude unnecessary packages (NOT numpy/scipy — needed for Speaker Intelligence)
         'tkinter',
         'matplotlib',
-        'numpy',
         'pandas',
-        'scipy',
         'PIL',
         'pytest',
         'IPython',

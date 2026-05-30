@@ -10,13 +10,26 @@
 </script>
 <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 <style>
+:root {
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+}
+html[data-font="system"] { font-size: 100%; }
+html[data-font="small"] { font-size: 87.5%; }
+html[data-font="medium"] { font-size: 100%; }
+html[data-font="large"] { font-size: 112.5%; }
+html[data-font="xlarge"] { font-size: 125%; }
 [x-cloak] { display: none !important; }
-body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; font-size: var(--font-size-base); }
 .fade-in { animation: fadeIn 0.2s ease-in; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 .toast-enter { animation: slideIn 0.3s ease-out; }
 @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-.log-line { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px; line-height: 1.6; }
+.log-line { font-family: 'SF Mono', 'Fira Code', monospace; font-size: var(--font-size-xs); line-height: 1.6; }
 .log-error { color: #dc2626; background: #fef2f2; }
 .log-warning { color: #d97706; background: #fffbeb; }
 .progress-bar { transition: width 0.3s ease; }
@@ -229,6 +242,20 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
             </select>
           </div>
           <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold mb-1" x-text="t('fontSize')"></h3>
+            <p class="text-xs text-gray-400 mb-3" x-text="t('fontSizeHelp')"></p>
+            <select x-model="fontSizeMode" @change="applyFontSize()" class="text-sm border border-gray-200 rounded-md px-3 py-2">
+              <option value="system" x-text="t('fontSystem')"></option>
+              <option value="small" x-text="t('fontSmall')"></option>
+              <option value="medium" x-text="t('fontMedium')"></option>
+              <option value="large" x-text="t('fontLarge')"></option>
+              <option value="xlarge" x-text="t('fontXLarge')"></option>
+            </select>
+            <div class="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+              <p class="text-gray-600" x-text="t('fontPreview')"></p>
+            </div>
+          </div>
+          <div class="bg-white rounded-lg border border-gray-200 p-5">
             <h3 class="text-sm font-semibold mb-1" x-text="t('theme')"></h3>
             <p class="text-xs text-gray-400 mb-3" x-text="t('themeHelp')"></p>
             <select x-model="themeMode" @change="applyTheme()" class="text-sm border border-gray-200 rounded-md px-3 py-2">
@@ -325,6 +352,41 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
               </div>
             </div>
             <button @click="saveProcessingSettings()" class="mt-4 px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700" x-text="t('saveSettings')"></button>
+          </div>
+          <!-- Speaker Intelligence -->
+          <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold mb-4" x-text="t('speakerIntelligence')"></h3>
+            <div class="space-y-3">
+              <label class="flex items-center gap-3">
+                <input type="checkbox" x-model="settings.enableSpeakerIntelligence" class="rounded border-gray-300">
+                <span class="text-sm" x-text="t('enableSpeakerIntelligence')"></span>
+              </label>
+              <label class="flex items-center gap-3 pl-6">
+                <input type="checkbox" x-model="settings.enableVoiceType" :disabled="!settings.enableSpeakerIntelligence" class="rounded border-gray-300">
+                <span class="text-sm" :class="!settings.enableSpeakerIntelligence ? 'text-gray-400' : ''" x-text="t('enableVoiceType')"></span>
+              </label>
+              <label class="flex items-center gap-3 pl-6">
+                <input type="checkbox" x-model="settings.enableVoiceCharacteristics" :disabled="!settings.enableSpeakerIntelligence" class="rounded border-gray-300">
+                <span class="text-sm" :class="!settings.enableSpeakerIntelligence ? 'text-gray-400' : ''" x-text="t('enableVoiceCharacteristics')"></span>
+              </label>
+              <label class="flex items-center gap-3 pl-6">
+                <input type="checkbox" x-model="settings.enableSpeedAnalysis" :disabled="!settings.enableSpeakerIntelligence" class="rounded border-gray-300">
+                <span class="text-sm" :class="!settings.enableSpeakerIntelligence ? 'text-gray-400' : ''" x-text="t('enableSpeedAnalysis')"></span>
+              </label>
+              <label class="flex items-center gap-3 pl-6">
+                <input type="checkbox" x-model="settings.enableOverlapDetection" :disabled="!settings.enableSpeakerIntelligence" class="rounded border-gray-300">
+                <span class="text-sm" :class="!settings.enableSpeakerIntelligence ? 'text-gray-400' : ''" x-text="t('enableOverlapDetection')"></span>
+              </label>
+              <div class="pl-6">
+                <label class="text-xs text-gray-500 block mb-1" x-text="t('maxSpeakers')"></label>
+                <select x-model="settings.maxSpeakers" :disabled="!settings.enableSpeakerIntelligence" class="text-sm border border-gray-200 rounded-md px-3 py-2">
+                  <option value="2">2</option>
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="15">15</option>
+                </select>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -538,6 +600,62 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
           <span x-text="currentRecording?.status === 'done' ? t('completed') : currentRecording?.status"></span>
         </div>
       </div>
+
+      <!-- Speaker Analysis Panel -->
+      <div class="bg-white rounded-lg border border-gray-200 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold" x-text="t('speakerIntelligence')"></h3>
+          <button @click="runSpeakerAnalysis()" :disabled="speakerAnalysisLoading"
+            class="text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+            x-text="speakerAnalysisLoading ? t('analyzing') : t('analyzeSpeakers')"></button>
+        </div>
+        <div x-show="!speakerAnalysis" class="text-sm text-gray-400 py-2" x-text="t('noAnalysis')"></div>
+        <div x-show="speakerAnalysis" class="space-y-3">
+          <!-- Speaker Cards -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <template x-for="(vp, idx) in (speakerAnalysis?.voice_profiles || [])" :key="vp.speaker_id">
+              <div class="border border-gray-100 rounded-lg p-3">
+                <div class="flex items-center gap-2 mb-2">
+                  <div class="w-3 h-3 rounded-full" :style="'background:' + ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#84cc16','#f97316','#6366f1'][idx % 10]"></div>
+                  <span class="text-sm font-medium" x-text="vp.speaker_id"></span>
+                  <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600" x-text="t(vp.estimated_voice_type)"></span>
+                </div>
+                <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <div class="flex justify-between"><span class="text-gray-500" x-text="t('pitchRange')"></span><span x-text="t(vp.pitch_range)"></span></div>
+                  <div class="flex justify-between"><span class="text-gray-500" x-text="t('voiceTexture')"></span><span x-text="t(vp.voice_texture)"></span></div>
+                  <div class="flex justify-between"><span class="text-gray-500" x-text="t('loudness')"></span><span x-text="t(vp.loudness_level)"></span></div>
+                  <div class="flex justify-between"><span class="text-gray-500" x-text="t('clarity')"></span><span x-text="Math.round(vp.clarity_score * 100) + '%'"></span></div>
+                  <template x-if="speakerAnalysis?.speed_profiles">
+                    <template x-for="sp in speakerAnalysis.speed_profiles.filter(s => s.speaker_id === vp.speaker_id)" :key="sp.speaker_id + '_speed'">
+                      <div class="col-span-2 grid grid-cols-2 gap-x-4 gap-y-1">
+                        <div class="flex justify-between"><span class="text-gray-500" x-text="t('speakingSpeed')"></span><span x-text="t(sp.speaking_speed)"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-500" x-text="t('talkPercentage')"></span><span x-text="sp.talk_percentage + '%'"></span></div>
+                        <div x-show="sp.words_per_minute > 0" class="flex justify-between"><span class="text-gray-500" x-text="t('wpm')"></span><span x-text="sp.words_per_minute"></span></div>
+                        <div x-show="sp.characters_per_minute > 0" class="flex justify-between"><span class="text-gray-500" x-text="t('cpm')"></span><span x-text="sp.characters_per_minute"></span></div>
+                      </div>
+                    </template>
+                  </template>
+                  <div class="flex justify-between"><span class="text-gray-500" x-text="t('confidence')"></span><span x-text="Math.round(vp.confidence * 100) + '%'"></span></div>
+                </div>
+              </div>
+            </template>
+          </div>
+          <!-- Overlap Warnings -->
+          <div x-show="speakerAnalysis?.overlaps?.length > 0" class="space-y-1">
+            <template x-for="(ov, idx) in (speakerAnalysis?.overlaps || [])" :key="'ov_' + idx">
+              <div class="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
+                <span>⚠</span>
+                <span x-text="msToTime(ov.start_ms) + ' — ' + msToTime(ov.end_ms)"></span>
+                <span x-text="ov.involved_speakers.join(' + ')"></span>
+                <span class="text-amber-600" x-text="'(' + t('overlapWarning') + ')'"></span>
+              </div>
+            </template>
+          </div>
+          <!-- Note -->
+          <p class="text-[10px] text-gray-400 italic" x-text="t('voiceTypeNote')"></p>
+        </div>
+      </div>
+
       <div class="bg-white rounded-lg border border-gray-200 divide-y divide-gray-50">
         <template x-for="utt in currentUtterances" :key="utt.id">
           <div class="px-4 py-2 hover:bg-gray-50 group">
@@ -606,6 +724,21 @@ const I18N = {
     displayLanguage: '表示言語', displayLanguageHelp: 'アプリの表示言語を選択します',
     theme: 'テーマ', themeHelp: 'アプリの外観を選択します',
     themeLight: 'ライト', themeDark: 'ダーク', themeSystem: 'システム設定に従う',
+    fontSize: 'フォントサイズ', fontSizeHelp: 'システムデフォルトはOSまたはブラウザのテキスト拡大設定に従います',
+    fontSystem: 'システムデフォルト', fontSmall: '小', fontMedium: '中', fontLarge: '大', fontXLarge: '特大',
+    fontPreview: 'これはアプリ内のテキスト表示サンプルです。',
+    speakerIntelligence: '話者インテリジェンス', enableSpeakerIntelligence: '話者分析を有効にする',
+    enableVoiceType: '推定音声タイプを有効にする', enableVoiceCharacteristics: '音声特性検出を有効にする',
+    enableSpeedAnalysis: '発話速度分析を有効にする', enableOverlapDetection: 'オーバーラップ検出を有効にする',
+    maxSpeakers: '最大話者数', analyzeSpeakers: '話者分析を実行', analyzing: '分析中...',
+    voiceType: '推定音声タイプ', masculine: '男性的', feminine: '女性的', unknown: '不明',
+    pitchRange: '音高', voiceTexture: '音声質感', loudness: '音量', clarity: '明瞭度',
+    speakingSpeed: '発話速度', talkPercentage: '発話割合', confidence: '信頼度',
+    low: '低い', medium: '中', high: '高い', clear: 'クリア', husky: 'ハスキー', rough: '粗い',
+    soft: 'ソフト', loud: '大きい', slow: '遅い', normal: '普通', fast: '速い',
+    overlapDetected: 'オーバーラップ検出', overlapWarning: '同時発話のため文字起こし精度が低い可能性があります',
+    noAnalysis: '話者分析はまだ実行されていません。', wpm: 'WPM', cpm: 'CPM',
+    voiceTypeNote: '音声タイプは音響特性に基づく推定であり、実際の性別を表すものではありません。',
     general: '一般', aiProviders: 'AIプロバイダー', processing: '処理',
     export: 'エクスポート', storage: 'ストレージ', developer: '開発者',
     aiProvidersHelp: '文字起こしと分析に使用するAPIキーを設定します',
@@ -660,6 +793,21 @@ const I18N = {
     displayLanguage: 'Display Language', displayLanguageHelp: 'Choose the app display language',
     theme: 'Theme', themeHelp: 'Choose the app appearance',
     themeLight: 'Light', themeDark: 'Dark', themeSystem: 'Follow system',
+    fontSize: 'Font Size', fontSizeHelp: 'System default follows your operating system or browser text scaling when possible',
+    fontSystem: 'System default', fontSmall: 'Small', fontMedium: 'Medium', fontLarge: 'Large', fontXLarge: 'Extra Large',
+    fontPreview: 'This is how text will look in the app.',
+    speakerIntelligence: 'Speaker Intelligence', enableSpeakerIntelligence: 'Enable speaker analysis',
+    enableVoiceType: 'Enable estimated voice type', enableVoiceCharacteristics: 'Enable voice characteristic detection',
+    enableSpeedAnalysis: 'Enable speaking speed analysis', enableOverlapDetection: 'Enable overlap detection',
+    maxSpeakers: 'Max speakers', analyzeSpeakers: 'Analyze Speakers', analyzing: 'Analyzing...',
+    voiceType: 'Estimated Voice Type', masculine: 'Masculine', feminine: 'Feminine', unknown: 'Unknown',
+    pitchRange: 'Pitch', voiceTexture: 'Voice Texture', loudness: 'Loudness', clarity: 'Clarity',
+    speakingSpeed: 'Speaking Speed', talkPercentage: 'Talk %', confidence: 'Confidence',
+    low: 'Low', medium: 'Medium', high: 'High', clear: 'Clear', husky: 'Husky', rough: 'Rough',
+    soft: 'Soft', loud: 'Loud', slow: 'Slow', normal: 'Normal', fast: 'Fast',
+    overlapDetected: 'Overlap Detected', overlapWarning: 'Simultaneous speech — transcript confidence may be low',
+    noAnalysis: 'Speaker analysis has not been run yet.', wpm: 'WPM', cpm: 'CPM',
+    voiceTypeNote: 'Voice type is an estimate based on audio characteristics and may not represent actual gender.',
     general: 'General', aiProviders: 'AI Providers', processing: 'Processing',
     export: 'Export', storage: 'Storage', developer: 'Developer',
     aiProvidersHelp: 'Configure API keys for transcription and analysis',
@@ -692,6 +840,7 @@ function app() {
     dragOver: false,
     darkMode: localStorage.getItem('darkMode') === 'true',
     themeMode: localStorage.getItem('themeMode') || 'light',
+    fontSizeMode: localStorage.getItem('recllm_fontsize') || 'system',
     lang: localStorage.getItem('recllm_lang') || 'ja',
     apiConnected: false,
     wsConnected: false,
@@ -703,6 +852,8 @@ function app() {
     searchResults: [],
     currentRecording: null,
     currentUtterances: [],
+    speakerAnalysis: null,
+    speakerAnalysisLoading: false,
     toasts: [],
     settingsTab: 'general',
     diagnostics: null,
@@ -725,6 +876,12 @@ function app() {
       autoStartQueue: true,
       keepOriginalFile: true,
       maxParallelJobs: '2',
+      enableSpeakerIntelligence: true,
+      enableVoiceType: true,
+      enableVoiceCharacteristics: true,
+      enableSpeedAnalysis: true,
+      enableOverlapDetection: true,
+      maxSpeakers: '10',
     },
     exportSettings: {
       includeSummary: true,
@@ -781,6 +938,18 @@ function app() {
       } catch {}
       document.documentElement.lang = this.lang;
       this.applyTheme();
+      // Load font size from backend
+      try {
+        const fsResp = await fetch('/api/settings/font_size');
+        if (fsResp.ok) {
+          const fsData = await fsResp.json();
+          if (fsData.value && ['system','small','medium','large','xlarge'].includes(fsData.value)) {
+            this.fontSizeMode = fsData.value;
+            localStorage.setItem('recllm_fontsize', fsData.value);
+          }
+        }
+      } catch {}
+      this.applyFontSize();
       await this.loadDashboard();
       await this.loadRecordings();
       await this.checkApi();
@@ -803,6 +972,16 @@ function app() {
         document.documentElement.classList.toggle('dark', prefersDark);
         this.darkMode = prefersDark;
       }
+    },
+
+    applyFontSize() {
+      localStorage.setItem('recllm_fontsize', this.fontSizeMode);
+      document.documentElement.setAttribute('data-font', this.fontSizeMode);
+      fetch('/api/settings/', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'font_size', value: this.fontSizeMode }),
+      }).catch(() => {});
     },
 
     connectWebSocket() {
@@ -1139,6 +1318,7 @@ function app() {
 
     async viewTranscript(id) {
       this.currentView = 'transcript-detail';
+      this.speakerAnalysis = null;
       try {
         const resp = await fetch(`/api/recordings/${id}`);
         if (resp.ok) {
@@ -1147,6 +1327,30 @@ function app() {
           this.currentUtterances = data.utterances || [];
         }
       } catch {}
+      this.loadSpeakerAnalysis(id);
+    },
+
+    async loadSpeakerAnalysis(id) {
+      try {
+        const resp = await fetch(`/api/recordings/${id}/speaker-analysis`);
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.analyzed) this.speakerAnalysis = data;
+        }
+      } catch {}
+    },
+
+    async runSpeakerAnalysis() {
+      if (!this.currentRecording) return;
+      this.speakerAnalysisLoading = true;
+      try {
+        const resp = await fetch(`/api/recordings/${this.currentRecording.id}/analyze-speakers`, { method: 'POST' });
+        if (resp.ok) {
+          this.speakerAnalysis = await resp.json();
+          this.showToast(this.t('analyzeSpeakers') + ' ✓', 'success');
+        }
+      } catch {}
+      this.speakerAnalysisLoading = false;
     },
 
     async exportSingle(id, type) {

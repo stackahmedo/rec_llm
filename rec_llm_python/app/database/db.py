@@ -183,6 +183,12 @@ def _init_schema(db: sqlite3.Connection):
             tokenize='unicode61'
         );
 
+        CREATE TABLE IF NOT EXISTS speaker_analysis (
+            recording_id TEXT PRIMARY KEY REFERENCES recordings(id) ON DELETE CASCADE,
+            analysis_json TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
         -- Indexes
         CREATE INDEX IF NOT EXISTS idx_recordings_status ON recordings(status);
         CREATE INDEX IF NOT EXISTS idx_recordings_date ON recordings(created_at);

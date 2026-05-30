@@ -111,6 +111,19 @@ async def get_diagnostics():
     except Exception:
         diag["api_keys"] = {"assemblyai": "unknown", "gemini": "unknown", "openai": "unknown"}
 
+    # Speaker Intelligence status
+    try:
+        from app.services.speaker_intelligence import get_status as get_si_status
+        diag["speaker_intelligence"] = get_si_status()
+    except Exception as e:
+        diag["speaker_intelligence"] = {
+            "speaker_intelligence": False,
+            "numpy": False,
+            "scipy": False,
+            "soundfile": False,
+            "last_error": str(e),
+        }
+
     # Last errors
     diag["last_errors"] = _get_recent_errors(5)
 
