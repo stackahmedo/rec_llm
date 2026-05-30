@@ -86,10 +86,27 @@ jobs:
           Write-Host "RecLLM.exe verified."
         shell: pwsh
 
-      - name: Upload build artifact
+      - name: Build Installer with Inno Setup
+        run: |
+          iscc installer\recllm.iss
+          Write-Host "Installer built:"
+          Get-ChildItem installer_output\
+          $setupSize = (Get-Item "installer_output\RecLLM-Setup-v0.3.0.exe").Length / 1MB
+          Write-Host "RecLLM-Setup-v0.3.0.exe size: $([math]::Round($setupSize, 1)) MB"
+        shell: pwsh
+
+      - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
         with:
           name: RecLLM-v0.3.0-Windows
           path: rec_llm_python/dist/RecLLM.exe
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload Installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RecLLM-Setup-v0.3.0
+          path: rec_llm_python/installer_output/RecLLM-Setup-v0.3.0.exe
           retention-days: 30
           if-no-files-found: error
