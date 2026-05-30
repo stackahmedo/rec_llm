@@ -89,7 +89,7 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: RecLLM-Windows-Test-Build
+          name: RecLLM-v0.3.0-Windows
           path: rec_llm_python/dist/RecLLM.exe
-          retention-days: 14
+          retention-days: 30
           if-no-files-found: error

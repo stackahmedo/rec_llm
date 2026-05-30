@@ -24,7 +24,7 @@ router = APIRouter()
 async def get_diagnostics():
     """Full system diagnostics for developer panel."""
     diag = {
-        "app_version": "0.3.2",
+        "app_version": "0.3.0",
         "python_version": sys.version.split()[0],
         "platform": platform.system(),
         "architecture": platform.machine(),

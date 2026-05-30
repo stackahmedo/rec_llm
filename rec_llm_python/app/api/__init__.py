@@ -44,7 +44,7 @@ def create_app(queue: JobQueue) -> FastAPI:
 
     app = FastAPI(
         title="RecLLM",
-        version="0.3.2",
+        version="0.3.0",
         description="AI-powered audio transcription and document intelligence",
         lifespan=lifespan,
     )
@@ -112,7 +112,7 @@ def create_app(queue: JobQueue) -> FastAPI:
     # Health check
     @app.get("/api/health")
     async def health():
-        return {"status": "ok", "version": "0.3.2"}
+        return {"status": "ok", "version": "0.3.0"}
 
     @app.get("/api/health/detailed")
     async def health_detailed():

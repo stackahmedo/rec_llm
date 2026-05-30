@@ -13,7 +13,7 @@ def get_system_health() -> dict:
     """Get comprehensive system health information."""
     health = {
         "status": "ok",
-        "version": "0.3.2",
+        "version": "0.3.0",
         "python": sys.version.split()[0],
         "platform": platform.system(),
         "architecture": platform.machine(),
