@@ -18,7 +18,7 @@ AppSupportURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
-OutputDir=installer_output
+OutputDir=..\installer_output
 OutputBaseFilename=RecLLM-Setup-v{#MyAppVersion}
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -37,7 +37,7 @@ Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "dist\RecLLM.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\RecLLM.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
